@@ -1,7 +1,7 @@
 """Agent Profile：把人格、工具集与模型参数从代码搬到 YAML。
 
 为什么需要 Profile：
-1. 一套模板要同时服务写作、客服、数据分析等场景，差异应体现在配置而不是分支代码；
+1. PC 配置推荐是唯一业务主题，但模型参数、提示词与工具子集仍需可配置；
 2. 人格、工具绑定与模型参数属于「接入方内容」，不应让接入方改 `app/` 核心；
 3. 配置文件优先（ADR-0004）：启动期一次性加载并校验，不做热加载，
    配置错误在进程启动时暴露，而不是请求期才发现。
@@ -80,7 +80,7 @@ class AgentProfile(BaseModel):
     id: str = Field(min_length=1, max_length=32)
     display_name: str = Field(min_length=1, max_length=64)
     # 指向 app/agent/prompts/<name>.md，复用提示词白名单与缓存
-    system_prompt: str = Field(default="default", max_length=64)
+    system_prompt: str = Field(default="pc-config-system", max_length=64)
     model: ProfileModelSettings = Field(default_factory=ProfileModelSettings)
     # None = 全部工具；[] = 不绑定工具；列表 = 仅绑定列出的工具
     tools: list[str] | None = Field(default=None, max_length=MAX_PROFILE_TOOLS)

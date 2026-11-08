@@ -44,19 +44,32 @@ def test_agent_defaults_are_stable() -> None:
     settings = AgentSettings()
 
     assert settings.context_max_tokens == 6000
-    assert settings.system_prompt == "default"
+    assert settings.system_prompt == "pc-config-system"
+    assert settings.default_profile == "pc-config"
     assert settings.tool_timeout_seconds == 10.0
     assert settings.tool_max_retries == 1
+    assert settings.max_solve_retries == 1
 
 
 def test_default_tool_specs_are_stable() -> None:
     """默认工具集合与治理参数基线。"""
     get_default_tools()  # 触发启动期发现，确保内置工具已注册
 
-    assert [spec.tool.name for spec in list_tool_specs()] == ["get_current_time"]
+    assert [spec.tool.name for spec in list_tool_specs()] == [
+        "search_hardware_candidates",
+        "get_benchmark_data",
+        "get_verified_offers",
+        "solve_pc_build",
+        "validate_pc_build",
+    ]
 
-    time_spec = get_tool_spec("get_current_time")
-    assert time_spec is not None
-    assert time_spec.timeout_seconds == 5.0
-    assert time_spec.max_retries == 0
-    assert time_spec.required_roles == ()
+    search_spec = get_tool_spec("search_hardware_candidates")
+    assert search_spec is not None
+    assert search_spec.timeout_seconds == 10.0
+    assert search_spec.max_retries is None
+    assert search_spec.required_roles == ()
+
+    solve_spec = get_tool_spec("solve_pc_build")
+    assert solve_spec is not None
+    assert solve_spec.timeout_seconds == 25.0
+    assert solve_spec.is_read_only is False

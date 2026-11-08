@@ -53,23 +53,24 @@ def _message_text(message: BaseMessage) -> str:
     return ""
 
 
-def _tool_call_names(messages: list[BaseMessage]) -> list[str]:
-    """按出现顺序收集实际调用过的工具名。"""
+def _tool_call_names(result: dict[str, object]) -> list[str]:
+    """PC 节点把实际工具调用写入 tool_events（phase=start）。"""
     names: list[str] = []
-    for message in messages:
-        if not isinstance(message, AIMessage):
-            continue
-        for call in message.tool_calls:
-            name = call.get("name")
+    events = result.get("tool_events")
+    if not isinstance(events, list):
+        return names
+    for event in events:
+        if isinstance(event, dict) and event.get("phase") == "start":
+            name = event.get("name")
             if isinstance(name, str):
                 names.append(name)
     return names
 
 
 def _answer_text(messages: list[BaseMessage]) -> str:
-    """最终回答 = 最后一条不含 tool_calls 的 AIMessage。"""
+    """最终回答 = 最后一条 AIMessage（PC 图只产出一条正文）。"""
     for message in reversed(messages):
-        if isinstance(message, AIMessage) and not message.tool_calls:
+        if isinstance(message, AIMessage):
             return _message_text(message)
     return ""
 
@@ -182,7 +183,7 @@ async def run_case(case: EvalCase) -> CaseResult:
         )
 
     messages: list[BaseMessage] = result.get("messages", [])
-    tool_names = _tool_call_names(messages)
+    tool_names = _tool_call_names(result)
     answer = _answer_text(messages)
     prompt_tokens, completion_tokens = _token_totals(messages)
 

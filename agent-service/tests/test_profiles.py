@@ -22,29 +22,37 @@ def _write_yaml(directory: Path, file_name: str, content: str) -> Path:
     return path
 
 
-def test_default_profile_reproduces_legacy_behavior() -> None:
-    """缺省 Profile 必须与改造前一致：默认提示词、全部工具、无模型覆盖。"""
+def test_default_profile_is_pc_config() -> None:
+    """默认 Profile 是唯一的 PC 配置推荐人格。"""
     profile = resolve_profile(None)
 
-    assert profile.id == "default"
-    assert profile.system_prompt == "default"
-    assert profile.tools is None
+    assert profile.id == "pc-config"
+    assert profile.system_prompt == "pc-config-system"
+    assert profile.tools == [
+        "search_hardware_candidates",
+        "get_benchmark_data",
+        "get_verified_offers",
+        "solve_pc_build",
+        "validate_pc_build",
+    ]
     assert profile.model.default_key is None
-    assert profile.model.temperature is None
-    assert profile.model.max_tokens is None
+    assert profile.model.temperature == 0.3
+    assert profile.model.max_tokens == 2048
     assert profile.context.max_tokens is None
 
 
-def test_example_writer_profile_is_loaded() -> None:
-    """示例 Profile 证明人格、工具集与模型参数可以由 YAML 控制。"""
-    profile = resolve_profile("writer")
+def test_pc_profile_uses_pc_tools() -> None:
+    profile = resolve_profile("pc-config")
 
-    assert profile.display_name == "写作助手"
-    assert profile.system_prompt == "writer"
-    assert profile.tools == []
-    assert profile.model.temperature == 0.8
-    assert profile.model.max_tokens == 3000
-    assert profile.context.max_tokens == 8000
+    assert profile.display_name == "PC 配置推荐"
+    assert profile.system_prompt == "pc-config-system"
+    assert {tool.name for tool in resolve_profile_tools(profile)} == {
+        "search_hardware_candidates",
+        "get_benchmark_data",
+        "get_verified_offers",
+        "solve_pc_build",
+        "validate_pc_build",
+    }
 
 
 def test_unknown_profile_raises() -> None:
@@ -62,9 +70,9 @@ def test_new_yaml_is_discovered_without_core_changes(tmp_path: Path) -> None:
             [
                 "id: reviewer",
                 "display_name: 评审助手",
-                "system_prompt: writer",
+                "system_prompt: pc-config-system",
                 "tools:",
-                "  - get_current_time",
+                "  - solve_pc_build",
             ]
         ),
     )
@@ -72,13 +80,13 @@ def test_new_yaml_is_discovered_without_core_changes(tmp_path: Path) -> None:
     profiles = load_profiles(directory)
 
     assert set(profiles) == {"reviewer"}
-    assert profiles["reviewer"].tools == ["get_current_time"]
+    assert profiles["reviewer"].tools == ["solve_pc_build"]
 
 
-def test_nested_example_directories_are_loaded() -> None:
+def test_builtin_profiles_are_loaded() -> None:
     store = get_profile_store()
 
-    assert {"default", "writer"} <= set(store)
+    assert set(store) == {"pc-config"}
 
 
 def test_profile_id_must_match_file_name(tmp_path: Path) -> None:
@@ -156,9 +164,12 @@ def test_profile_tools_semantics() -> None:
     all_tools = [tool.name for tool in resolve_profile_tools(resolve_profile(None))]
     assert all_tools == [spec.tool.name for spec in list_tool_specs()]
 
-    assert resolve_profile_tools(resolve_profile("writer")) == []
+    empty_profile = resolve_profile(None).model_copy(update={"tools": []})
+    assert resolve_profile_tools(empty_profile) == []
 
-    subset_profile = resolve_profile(None).model_copy(update={"tools": ["get_current_time"]})
+    subset_profile = resolve_profile(None).model_copy(
+        update={"tools": ["solve_pc_build"]}
+    )
     assert [tool.name for tool in resolve_profile_tools(subset_profile)] == [
-        "get_current_time"
+        "solve_pc_build"
     ]

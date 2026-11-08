@@ -37,6 +37,8 @@ class PreparedAgent:
 
     graph: CompiledStateGraph
     runtime: ResolvedRuntime | None = None
+    # 用户令牌只用于本回合调用 Java 内部接口，禁止写入图状态
+    user_token: SecretStr | None = None
 
 
 def _default_graph(profile: AgentProfile) -> CompiledStateGraph:
@@ -89,7 +91,9 @@ async def prepare_agent(
     settings = get_settings()
     if not settings.model_runtime.enabled:
         # 关闭时保持原有单模型逻辑，不发起任何出站请求
-        return PreparedAgent(graph=_default_graph(profile), runtime=None)
+        return PreparedAgent(
+            graph=_default_graph(profile), runtime=None, user_token=access_token
+        )
 
     if access_token is None:
         raise AppError("缺少访问令牌", code="unauthorized", status_code=401)
@@ -104,7 +108,9 @@ async def prepare_agent(
     )
     if runtime is None:
         # 控制面不可达且未显式指定模型：显式降级到进程默认模型
-        return PreparedAgent(graph=_default_graph(profile), runtime=None)
+        return PreparedAgent(
+            graph=_default_graph(profile), runtime=None, user_token=access_token
+        )
 
     _ensure_reasoning_supported(runtime, reasoning)
 
@@ -122,4 +128,4 @@ async def prepare_agent(
         api_key=credential.api_key if credential is not None else None,
         base_url=credential.base_url if credential is not None else None,
     )
-    return PreparedAgent(graph=graph, runtime=runtime)
+    return PreparedAgent(graph=graph, runtime=runtime, user_token=access_token)

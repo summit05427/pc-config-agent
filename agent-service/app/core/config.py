@@ -277,7 +277,9 @@ class AgentSettings(BaseModel):
     # SSE 心跳间隔：模型长时间无输出时下发注释行，避免代理判定连接空闲
     sse_heartbeat_seconds: float = Field(default=15.0, gt=0)
     # 系统提示词目录中的文件名（不含 .md），用于切换人格与规则
-    system_prompt: str = Field(default="default", min_length=1, max_length=64)
+    system_prompt: str = Field(default="pc-config-system", min_length=1, max_length=64)
+    # 兼容性校验失败后最多自动重新求解的次数；0 表示不重试
+    max_solve_retries: int = Field(default=1, ge=0, le=2)
     # 工具默认超时（秒）；单个工具可在注册时覆盖
     tool_timeout_seconds: float = Field(default=10.0, gt=0)
     # 工具失败后的重试次数；0 表示不重试
@@ -314,7 +316,7 @@ class AgentSettings(BaseModel):
     # Agent Profile 配置目录（相对路径按服务根目录解析）；子目录中的 YAML 也会加载
     profiles_dir: str = Field(default="app/agents", min_length=1)
     # 请求未携带 agent_id 时使用的 Profile
-    default_profile: str = Field(default="default", pattern=r"^[a-z][a-z0-9_-]{0,31}$")
+    default_profile: str = Field(default="pc-config", pattern=r"^[a-z][a-z0-9_-]{0,31}$")
     # 工具单次返回的 token 上限；超出后截断并附加提示，避免一次返回挤爆上下文
     tool_max_output_tokens: int = Field(default=2000, gt=0)
     # 同一工具在一轮对话内的调用上限；超限时返回提示文本而不是抛错

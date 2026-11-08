@@ -82,7 +82,7 @@ class ChatRequest(BaseModel):
         default=None,
         max_length=32,
         pattern=r"^[a-z][a-z0-9_-]{0,31}$",
-        description="目标 Agent Profile 的 id，如 writer；省略时使用默认 Profile",
+        description="目标 Agent Profile 的 id，如 pc-config；省略时使用默认 Profile",
     )
     # 重新生成：替换最后一条回答，而不是追加一轮新对话
     regenerate: bool = Field(
@@ -154,6 +154,7 @@ def _build_turn_request(
     checkpoint_thread_id: str,
     graph: Any,
     runtime: ResolvedRuntime | None,
+    user_token: str | None = None,
 ) -> TurnRequest:
     """把 HTTP 请求翻译成回合输入；两套 thread_id 各归其位。"""
     return TurnRequest(
@@ -166,6 +167,7 @@ def _build_turn_request(
         preferences=payload.preferences,
         graph=graph,
         runtime=runtime,
+        user_token=user_token,
         regenerate=payload.regenerate,
     )
 
@@ -177,6 +179,7 @@ async def _event_stream(
     idempotency_record_key: str | None,
     graph: Any,
     runtime: ResolvedRuntime | None,
+    user_token: str | None = None,
 ) -> AsyncIterator[ServerSentEvent]:
     """传输层：迭代回合事件、编码成 SSE，并兜住超时/断开/异常。
 
@@ -190,7 +193,9 @@ async def _event_stream(
 
     try:
         async for event in run_turn(
-            _build_turn_request(payload, user, thread_id, graph, runtime),
+            _build_turn_request(
+                payload, user, thread_id, graph, runtime, user_token
+            ),
             outcome,
         ):
             yield encoder.encode(event.type, event.data)
@@ -259,6 +264,11 @@ async def stream_chat(
             reasoning=payload.reasoning,
         )
         graph, runtime = prepared.graph, prepared.runtime
+        user_token = (
+            prepared.user_token.get_secret_value()
+            if prepared.user_token is not None
+            else None
+        )
     except Exception:
         # 响应尚未开始，必须回滚已占用的资源，否则请求会白等一个锁周期
         if lock_handle is not None:
@@ -274,6 +284,7 @@ async def stream_chat(
             idempotency_record_key,
             graph,
             runtime,
+            user_token,
         ),
         # 心跳交给 sse-starlette：无业务事件时按此间隔下发注释行
         ping=get_settings().agent.sse_heartbeat_seconds,

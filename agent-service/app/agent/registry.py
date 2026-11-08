@@ -47,7 +47,7 @@ from app.core.metrics import (
 
 logger = structlog.get_logger(__name__)
 
-BUILTIN_TOOL_MODULE = "app.agent.tools"
+BUILTIN_TOOL_MODULE = "app.agent.pc.tools"
 TOOLS_EXT_PACKAGE = "app.agent.tools_ext"
 # OpenAI 兼容端点对函数名的约束；提前校验，避免调用模型时才报错
 TOOL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
@@ -95,6 +95,8 @@ class ToolSpec:
 
 # 注册顺序决定绑定给模型的工具顺序，dict 保持插入顺序
 _TOOL_SPECS: dict[str, ToolSpec] = {}
+# 治理包装按名称缓存，避免确定性节点每次调用都重新创建 StructuredTool
+_GOVERNED_TOOLS: dict[str, BaseTool] = {}
 _is_discovery_complete = False
 
 
@@ -409,6 +411,19 @@ def get_default_tools() -> list[BaseTool]:
     """返回注册表里全部工具（已治理），供图装配使用。"""
     ensure_tools_loaded()
     return build_tools(list(_TOOL_SPECS.values()))
+
+
+def get_governed_tool(name: str) -> BaseTool | None:
+    """按名称返回治理后的工具；PC 节点直接调用它，确保超时/重试/权限生效。"""
+    ensure_tools_loaded()
+    spec = _TOOL_SPECS.get(name)
+    if spec is None:
+        return None
+    tool = _GOVERNED_TOOLS.get(name)
+    if tool is None:
+        tool = govern_tool(spec)
+        _GOVERNED_TOOLS[name] = tool
+    return tool
 
 
 def _tools_in_package(package_name: str) -> list[str]:

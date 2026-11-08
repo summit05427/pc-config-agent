@@ -10,6 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+from langgraph.graph import END, START, StateGraph
 from psycopg_pool import AsyncConnectionPool
 from pydantic import ValidationError
 
@@ -21,7 +22,7 @@ from app.agent.checkpointer import (
     CHECKPOINTER_STATUS_UP,
     probe_checkpointer,
 )
-from app.agent.graph import build_agent
+from app.agent.pc.state import PCConfigState
 from app.core.config import StorageSettings, get_settings
 from app.main import app
 
@@ -54,17 +55,17 @@ async def _open_checkpointer() -> AsyncIterator[AsyncPostgresSaver]:
         await pool.close()
 
 
-class ScriptedModel:
-    """按顺序返回预设消息的假模型，不发起真实请求。"""
+def _echo_graph(reply: str, checkpointer: Any) -> Any:
+    """只验证 checkpointer 往返的最小图，不触发 PC 工具与模型调用。"""
 
-    def __init__(self, *replies: str) -> None:
-        self._responses = iter([AIMessage(content=reply) for reply in replies])
+    async def respond(_state: PCConfigState) -> dict[str, Any]:
+        return {"messages": [AIMessage(content=reply)]}
 
-    def bind_tools(self, tools: Any) -> "ScriptedModel":
-        return self
-
-    async def ainvoke(self, messages: Any) -> AIMessage:
-        return next(self._responses)
+    graph: StateGraph = StateGraph(PCConfigState)
+    graph.add_node("respond", respond)
+    graph.add_edge(START, "respond")
+    graph.add_edge("respond", END)
+    return graph.compile(checkpointer=checkpointer)
 
 
 async def test_conversation_survives_reconnect() -> None:
@@ -72,11 +73,11 @@ async def test_conversation_survives_reconnect() -> None:
     thread = {"configurable": {"thread_id": f"pytest-{uuid4()}"}}
 
     async with _open_checkpointer() as saver:
-        graph = build_agent(model=ScriptedModel("第一轮回复"), tools=[], checkpointer=saver)
+        graph = _echo_graph("第一轮回复", saver)
         await graph.ainvoke({"messages": [HumanMessage("你好")]}, thread)
 
     async with _open_checkpointer() as saver:
-        graph = build_agent(model=ScriptedModel("第二轮回复"), tools=[], checkpointer=saver)
+        graph = _echo_graph("第二轮回复", saver)
         restored = await graph.aget_state(thread)
         assert len(restored.values["messages"]) == 2
 
@@ -92,7 +93,7 @@ async def test_threads_are_isolated() -> None:
     config_b = {"configurable": {"thread_id": f"pytest-b-{uuid4()}"}}
 
     async with _open_checkpointer() as saver:
-        graph = build_agent(model=ScriptedModel("只给 A 的回复"), tools=[], checkpointer=saver)
+        graph = _echo_graph("只给 A 的回复", saver)
         await graph.ainvoke({"messages": [HumanMessage("我是 A")]}, config_a)
 
         state_b = await graph.aget_state(config_b)

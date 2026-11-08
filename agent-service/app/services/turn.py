@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import structlog
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 
 from app.agent.hooks import (
     HookBlockedError,
@@ -27,6 +27,7 @@ from app.agent.hooks import (
     run_hooks,
     should_buffer_model_output,
 )
+from app.agent.pc.nodes import build_result_payload
 from app.agent.preferences import ChatPreferences, build_preference_prompt
 from app.agent.tool_context import ToolTurn
 from app.core.config import get_settings
@@ -67,6 +68,8 @@ class TurnRequest:
     preferences: ChatPreferences | None
     graph: Any
     runtime: ResolvedRuntime | None = None
+    # 用户令牌：仅用于本回合 Java 内部接口的 X-User-Token，不进入图状态
+    user_token: str | None = None
     # 重新生成：删除最后一条 AI 回答后重跑模型，而不是追加一轮新对话
     regenerate: bool = False
 
@@ -90,8 +93,8 @@ async def run_turn(request: TurnRequest, outcome: TurnOutcome) -> AsyncIterator[
     """
     settings = get_settings()
     stream_error: str | None = None
-    # 角色与调用配额成对进入/退出：任何异常或取消都不会只复位一半
-    with ToolTurn(request.user_roles):
+    # 角色、调用配额与用户令牌成对进入/退出：任何异常或取消都不会只复位一半
+    with ToolTurn(request.user_roles, request.user_token):
         try:
             # 请求级钩子：阻断时由传输层转成流内 error，不改动已建立的 200 响应
             await run_hooks(_hook_context(HookPoint.BEFORE_REQUEST, request))
@@ -138,9 +141,13 @@ async def _turn_events(request: TurnRequest, outcome: TurnOutcome) -> AsyncItera
     # 生成已结束：此后即使客户端在落库阶段断开，本轮也应记为完成
     outcome.completed = True
     # 先落库再发 done：前端收到 done 后立即查询历史即可看到本轮消息
-    await _persist_turn(request)
-    # 回传客户端自己的 thread_id，不暴露服务端命名空间
-    yield TurnEvent("done", {"thread_id": request.client_thread_id})
+    final_values = await _persist_turn(request)
+    done_payload: dict[str, Any] = {"thread_id": request.client_thread_id}
+    # 可选卡片数据：失败路径不返回，前端按缺省处理
+    build_result = build_result_payload(final_values)
+    if build_result is not None:
+        done_payload["build_result"] = build_result
+    yield TurnEvent("done", done_payload)
 
 
 async def _agent_events(
@@ -159,6 +166,8 @@ async def _agent_events(
     # 存在阻断型 after_model 钩子时先缓冲文本：钩子未通过前不能把内容推给客户端
     buffer_output = should_buffer_model_output()
     pending_events: list[TurnEvent] = []
+    # 已流出的正文：节点返回的最终 AI 消息与流式分片内容相同时不得重复下发
+    streamed_text: list[str] = []
     turn_messages = await _turn_input_messages(request)
     async for mode, chunk in request.graph.astream(
         {
@@ -172,9 +181,9 @@ async def _agent_events(
         stream_mode=["messages", "updates"],  # type: ignore[call-overload]
     ):
         if mode == "messages":
-            events = _chunk_events(chunk, buffer_output, pending_events)
+            events = _chunk_events(chunk, buffer_output, pending_events, streamed_text)
         else:
-            events = _update_events(chunk, pending_events)
+            events = _update_events(chunk, pending_events, "".join(streamed_text))
         for event in events:
             yield event
 
@@ -205,6 +214,7 @@ def _chunk_events(
     chunk: Any,
     buffer_output: bool,
     pending_events: list[TurnEvent],
+    streamed_text: list[str],
 ) -> list[TurnEvent]:
     """messages 模式：思考内容与正文分成独立事件，可缓冲时等钩子通过后再放行。"""
     message_chunk, _metadata = chunk
@@ -217,6 +227,8 @@ def _chunk_events(
     content = message_chunk.content
     if isinstance(content, str) and content:
         events.append(TurnEvent("token", {"text": content}))
+        # 缓冲与否都要记录：节点返回的完整正文需要据此去重
+        streamed_text.append(content)
     if not events:
         return []
     if buffer_output:
@@ -229,35 +241,77 @@ def _chunk_events(
 def _update_events(
     chunk: dict[str, Any],
     pending_events: list[TurnEvent],
+    streamed_text: str,
 ) -> list[TurnEvent]:
-    """updates 模式：放行已缓冲事件，并翻译工具调用与工具结果。"""
+    """updates 模式：翻译节点累积的工具事件与最终正文。
+
+    PC 流水线的节点不直接发 SSE，`tool_events` 在这里统一映射成既有的
+    `tool_call` / `tool_result`；`response_generator` 写入的 AI 消息转成
+    正文 `token`，保证正文不依赖 LLM 的 messages 流。
+    """
     events: list[TurnEvent] = []
     for node, update in chunk.items():
-        if node == "model" and pending_events:
+        if node == "response_generator" and pending_events:
             # 节点已返回说明 after_model 钩子通过，此时才放行本轮缓冲
             events.extend(pending_events)
             pending_events.clear()
-        events.extend(_node_message_events(node, update.get("messages", [])))
+        if not isinstance(update, dict):
+            continue
+        events.extend(_tool_event_events(update.get("tool_events")))
+        events.extend(
+            _final_message_events(node, update.get("messages", []), streamed_text)
+        )
     return events
 
 
-def _node_message_events(node: str, messages: list[Any]) -> list[TurnEvent]:
-    """把节点产出的消息翻译成 tool_call / tool_result 事件。"""
+def _tool_event_events(raw_events: Any) -> list[TurnEvent]:
+    """把节点返回的 tool_events 映射成既有事件类型，不新增 SSE 语义。"""
     events: list[TurnEvent] = []
-    for node_message in messages:
-        tool_calls = getattr(node_message, "tool_calls", None)
-        if node == "model" and tool_calls:
-            events.extend(
-                TurnEvent("tool_call", {"name": call["name"], "args": call["args"]})
-                for call in tool_calls
+    if not isinstance(raw_events, list):
+        return events
+    for raw in raw_events:
+        if not isinstance(raw, dict):
+            continue
+        name = raw.get("name")
+        if not isinstance(name, str) or not name:
+            continue
+        if raw.get("phase") == "start":
+            args = raw.get("args")
+            events.append(
+                TurnEvent(
+                    "tool_call",
+                    {"name": name, "args": args if isinstance(args, dict) else {}},
+                )
             )
-        elif isinstance(node_message, ToolMessage):
+        elif raw.get("phase") == "end":
             events.append(
                 TurnEvent(
                     "tool_result",
-                    {"name": node_message.name, "preview": str(node_message.content)[:200]},
+                    {"name": name, "preview": str(raw.get("preview") or "")[:200]},
                 )
             )
+    return events
+
+
+def _final_message_events(
+    node: str,
+    messages: Any,
+    streamed_text: str,
+) -> list[TurnEvent]:
+    """只有最终生成节点产出的正文才转成 token，避免中间消息重复输出。
+
+    PC 节点全部使用 `TAG_NOSTREAM`，正文只能从这里取；若图确实以 messages
+    流式输出过同样内容，则跳过节点更新，避免同一段正文下发两次。
+    """
+    if node != "response_generator" or not isinstance(messages, list):
+        return []
+    events: list[TurnEvent] = []
+    for node_message in messages:
+        if not isinstance(node_message, AIMessage):
+            continue
+        content = node_message.content
+        if isinstance(content, str) and content and content != streamed_text:
+            events.append(TurnEvent("token", {"text": content}))
     return events
 
 
@@ -273,8 +327,8 @@ def _agent_config(request: TurnRequest) -> dict[str, Any]:
     return config
 
 
-async def _persist_turn(request: TurnRequest) -> None:
-    """把本轮结束后的完整消息写入会话存储，供历史接口按窗口查询。
+async def _persist_turn(request: TurnRequest) -> dict[str, Any]:
+    """把本轮结束后的完整消息写入会话存储，并返回最终状态供 done 使用。
 
     历史接口不读 checkpointer，所以必须在发 `done` 之前完成写入。
     写入失败只记 warning：对话本身已经成功，旁路存储不应影响用户。
@@ -286,7 +340,8 @@ async def _persist_turn(request: TurnRequest) -> None:
         snapshot = await request.graph.aget_state(
             {"configurable": {"thread_id": request.checkpoint_thread_id}}
         )
-        messages = (snapshot.values or {}).get("messages") or []
+        values = snapshot.values or {}
+        messages = values.get("messages") or []
         # 消息与活跃时间由 store 在同一事务里写入：列表与标题不再依赖 Redis 索引
         await get_session_store().record_turn(
             request.user_id,
@@ -295,9 +350,11 @@ async def _persist_turn(request: TurnRequest) -> None:
             _derive_title(messages),
             replace_existing=request.regenerate,
         )
+        return values if isinstance(values, dict) else {}
     except Exception as exc:
         # 周期性失败会反复出现，只记录类型，不打印堆栈
         logger.warning("turn.message_persist_failed", error_type=type(exc).__name__)
+        return {}
 
 
 def _derive_title(messages: list[Any]) -> str | None:

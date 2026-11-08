@@ -37,6 +37,7 @@ from app.core.redis import redis_lifespan
 from app.rag import RagConfigError, ensure_retriever_loaded
 from app.services.control_plane import close_control_plane_client
 from app.services.model_usage import start_usage_reporter, stop_usage_reporter
+from app.services.pc_client import close_pc_client
 from app.services.session_deletion import (
     detach_session_deletion,
     setup_session_deletion,
@@ -93,6 +94,8 @@ async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
             await stop_usage_reporter()
             detach_usage_outbox()
             detach_session_deletion()
+            # 先关闭 PC 查询连接，再释放控制面令牌连接池
+            await close_pc_client()
             await close_control_plane_client()
 
 

@@ -1,7 +1,7 @@
 """假模型模式：零 API 费用，校验用例与 Agent 配置是否对得上。
 
 能验证：Profile 是否存在、`tool_called` 指向的工具是否已注册且被该 Profile 绑定、
-图能否按该 Profile 编译、节点是否齐全。
+PC 图能否按该 Profile 编译、六个节点是否齐全。
 不能验证：模型是否真的按用例回答——内容断言一律记为 `skipped`，需要 `--real`。
 """
 
@@ -14,7 +14,7 @@ from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 
-from app.agent.graph import build_agent
+from app.agent.pc.graph import PC_GRAPH_NODES, build_pc_graph
 from app.agent.profiles import (
     AgentProfile,
     ProfileNotFoundError,
@@ -39,10 +39,7 @@ _CONTENT_SKIP_REASON = "假模型不产生回答，内容断言需用 --real 校
 class _StructuralModel:
     """假模型替身：只为让图能编译通过，永远不会被真正调用。"""
 
-    def bind_tools(self, tools: object) -> "_StructuralModel":
-        return self
-
-    async def ainvoke(self, messages: object) -> AIMessage:
+    async def ainvoke(self, messages: object, config: object = None) -> AIMessage:
         raise NotImplementedError(_CONTENT_SKIP_REASON)
 
 
@@ -70,15 +67,12 @@ def _compile(profile: AgentProfile) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """按 Profile 编译图，返回 (绑定工具名, 节点名)。
 
     注入假模型与内存 checkpointer：编译不触发任何模型调用，也不会连数据库。
-    `openui_enabled=False` 让结果不受前端生成文件是否就绪影响。
     """
     tools = resolve_profile_tools(profile)
-    graph: CompiledStateGraph = build_agent(
+    graph: CompiledStateGraph = build_pc_graph(
         model=cast("BaseChatModel", _StructuralModel()),
-        tools=tools,
         checkpointer=MemorySaver(),
         profile=profile,
-        openui_enabled=False,
     )
     return (
         tuple(tool.name for tool in tools),
@@ -127,6 +121,18 @@ def _check_tool(tool_name: str, prepared: _PreparedProfile) -> CheckResult:
     return CheckResult("tool_called", STATUS_PASSED, tool_name)
 
 
+def _check_graph(prepared: _PreparedProfile) -> CheckResult:
+    """六个节点缺一不可，避免悄悄退回多图或残缺图。"""
+    missing = [node for node in PC_GRAPH_NODES if node not in prepared.graph_nodes]
+    if missing:
+        return CheckResult(
+            "graph",
+            STATUS_FAILED,
+            f"缺少节点：{', '.join(missing)}；实际节点：{', '.join(prepared.graph_nodes)}",
+        )
+    return CheckResult("graph", STATUS_PASSED, f"节点：{', '.join(PC_GRAPH_NODES)}")
+
+
 def _skipped_content_checks(case: EvalCase) -> list[CheckResult]:
     checks = []
     if case.expect.must_contain:
@@ -163,11 +169,7 @@ def run_case(case: EvalCase) -> CaseResult:
             STATUS_PASSED,
             f"system_prompt={prepared.profile.system_prompt}",
         ),
-        CheckResult(
-            "graph",
-            STATUS_PASSED,
-            f"节点：{', '.join(prepared.graph_nodes)}",
-        ),
+        _check_graph(prepared),
     ]
     if case.expect.tool_called is not None:
         checks.append(_check_tool(case.expect.tool_called, prepared))

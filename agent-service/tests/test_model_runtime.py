@@ -64,6 +64,9 @@ async def test_disabled_runtime_uses_default_graph_without_control_plane(
 
     assert prepared.graph is graph
     assert prepared.runtime is None
+    # 用户令牌只用于本回合的 Java 内部接口，不进入图状态
+    assert prepared.user_token is not None
+    assert prepared.user_token.get_secret_value() == "user-token"
 
 
 async def test_disabled_runtime_uses_profile_scoped_default_graph(
@@ -88,14 +91,14 @@ async def test_disabled_runtime_uses_profile_scoped_default_graph(
     monkeypatch.setattr(model_runtime_module, "get_agent", fail_get_agent)
 
     prepared = await prepare_agent(
-        resolve_profile("writer"),
+        resolve_profile(None).model_copy(update={"id": "alt-profile"}),
         user_id="test-user",
         thread_id="t-2",
         access_token=SecretStr("user-token"),
         requested_model=None,
     )
 
-    assert captured == {"runtime": None, "agent_id": "writer"}
+    assert captured == {"runtime": None, "agent_id": "alt-profile"}
     assert prepared.graph is graph
     assert prepared.runtime is None
 
@@ -174,7 +177,7 @@ async def test_managed_credential_builds_graph_without_api_key(monkeypatch: Any)
 
     assert captured == {
         "runtime": runtime,
-        "agent_id": "default",
+        "agent_id": "pc-config",
         "api_key": None,
         "base_url": None,
     }

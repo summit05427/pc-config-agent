@@ -77,6 +77,8 @@ os.environ["AUTH__DEV_KID"] = TEST_DEV_KID
 # /chat/stream 会改走控制面调用并要求 X-User-Token，测试结果随开发者环境漂移。
 # 需要覆盖运行时路径的用例应自行 monkeypatch.setenv 后重建 Settings。
 os.environ["MODEL_RUNTIME__ENABLED"] = "false"
+# CORS 白名单固定为默认前端端口：本地 .env 若改了端口，CORS 用例会随环境漂移
+os.environ["CORS_ORIGINS"] = '["http://localhost:5173"]'
 # MCP 默认关闭：避免本地 .env 开启后测试触发真实网络连接
 os.environ["MCP__ENABLED"] = "false"
 

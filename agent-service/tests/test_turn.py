@@ -4,13 +4,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from langchain_core.messages import (
-    AIMessage,
-    AIMessageChunk,
-    HumanMessage,
-    RemoveMessage,
-    ToolMessage,
-)
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, RemoveMessage
 
 from app.agent.hooks import (
     HookBlockedError,
@@ -33,19 +27,17 @@ class _ToolGraph:
 
     async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
         self.config = config
-        tool_calls = [{"name": "get_current_time", "args": {"tz": "UTC"}, "id": "c1"}]
-        yield "updates", {"model": {"messages": [AIMessage(content="", tool_calls=tool_calls)]}}
-        yield (
-            "updates",
-            {
-                "tools": {
-                    "messages": [
-                        ToolMessage(content="2026-10-24 12:00", tool_call_id="c1", name="clock")
-                    ]
-                }
-            },
-        )
-        yield "messages", (AIMessageChunk(content="现在是 12 点"), {})
+        yield "updates", {
+            "candidate_retriever": {
+                "tool_events": [
+                    {"phase": "start", "name": "get_current_time", "args": {"tz": "UTC"}},
+                    {"phase": "end", "name": "get_current_time", "preview": "2026-10-24 12:00"},
+                ]
+            }
+        }
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content="现在是 12 点")]}
+        }
 
     async def aget_state(self, config: Any) -> Any:
         return SimpleNamespace(
@@ -61,7 +53,7 @@ class _RecordingGraph:
 
     async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
         self.inputs = inputs
-        yield "messages", (AIMessageChunk(content="收到"), {})
+        yield "updates", {"response_generator": {"messages": [AIMessage(content="收到")]}}
 
     async def aget_state(self, config: Any) -> Any:
         return SimpleNamespace(values={})
@@ -94,11 +86,13 @@ class _BrokenGraph:
 
 
 class _BufferedGraph:
-    """先流出 token 再返回节点更新，用于验证阻断钩子放行后的缓冲释放。"""
+    """先流出 token 再返回最终节点更新，用于验证缓冲释放。"""
 
     async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
         yield "messages", (AIMessageChunk(content="你好"), {})
-        yield "updates", {"model": {"messages": [AIMessage(content="你好")]}}
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content="你好")]}
+        }
 
     async def aget_state(self, config: Any) -> Any:
         return SimpleNamespace(values={})
@@ -113,7 +107,29 @@ class _ReasoningGraph(_RecordingGraph):
             {},
         )
         yield "messages", (AIMessageChunk(content="答案"), {})
-        yield "updates", {"model": {"messages": [AIMessage(content="答案")]}}
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content="答案")]}
+        }
+
+
+class _BuildGraph(_RecordingGraph):
+    """成功路径：最终状态带结构化配置，done 事件需要附带卡片。"""
+
+    async def aget_state(self, config: Any) -> Any:
+        return SimpleNamespace(
+            values={
+                "messages": [AIMessage(content="正文")],
+                "workflow_status": "success",
+                "reason_summary": "这套配置偏向游戏性能。",
+                "build_result": {
+                    "buildId": "build-1",
+                    "totalPriceFen": 800_000,
+                    "budgetStatus": "WITHIN_BUDGET",
+                    "components": [],
+                    "compatibilityReport": {"overallStatus": "UNKNOWN", "checks": []},
+                },
+            }
+        )
 
 
 class _FakeStore:
@@ -180,6 +196,23 @@ async def test_run_turn_translates_events_and_persists_before_done(
     # 运行时与递归上限随 configurable 传给图，thread_id 用服务端命名空间
     assert graph.config is not None
     assert graph.config["configurable"]["thread_id"] == "u1:t1"
+
+
+async def test_done_event_carries_build_result(
+    _bind_fake_store: _FakeStore,
+) -> None:
+    """成功路径的 done 事件允许追加可选 build_result，失败路径不返回。"""
+    events = [
+        event
+        async for event in run_turn(_request(_BuildGraph()), TurnOutcome())
+    ]
+
+    done = events[-1]
+    assert done.type == "done"
+    assert done.data["thread_id"] == "t1"
+    assert done.data["build_result"]["build_id"] == "build-1"
+    assert done.data["build_result"]["total_price_fen"] == 800_000
+    assert done.data["build_result"]["reason_summary"] == "这套配置偏向游戏性能。"
 
 
 async def test_run_turn_passes_preferences_into_agent_state() -> None:

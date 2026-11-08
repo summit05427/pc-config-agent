@@ -8,13 +8,11 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import SecretStr
 from redis.exceptions import ConnectionError as RedisConnectionError
 
-from app.agent.graph import build_agent
 from app.api.v1 import chat as chat_module
 from app.core.config import get_settings
 from app.core.exceptions import AppError
@@ -35,26 +33,56 @@ def _bypass_auth() -> Iterator[None]:
     app.dependency_overrides.pop(get_current_user, None)
 
 
-class StreamingFakeModel(GenericFakeChatModel):
-    """GenericFakeChatModel 自带逐字流式，这里只需补一个空实现的 bind_tools。"""
-
-    def bind_tools(self, tools: Any) -> "StreamingFakeModel":
-        return self
-
-
 class FakeGraph:
-    """直接产出预设事件，用于验证 SSE 编码与工具事件。"""
+    """产出 PC 流水线的工具事件与最终正文，用于验证 SSE 编码。"""
 
     async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
-        tool_calls = [{"name": "get_current_time", "args": {"timezone": "UTC"}, "id": "c1"}]
-        yield "updates", {"model": {"messages": [AIMessage(content="", tool_calls=tool_calls)]}}
-        tool_result = ToolMessage(
-            content="2026-10-24 12:00:00",
-            tool_call_id="c1",
-            name="get_current_time",
+        yield "updates", {
+            "candidate_retriever": {
+                "tool_events": [
+                    {"phase": "start", "name": "get_current_time", "args": {"timezone": "UTC"}},
+                    {
+                        "phase": "end",
+                        "name": "get_current_time",
+                        "preview": "2026-10-24 12:00:00",
+                    },
+                ]
+            }
+        }
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content="现在是 12 点")]}
+        }
+
+
+class AnswerGraph:
+    """只产出最终正文的最小图替身。"""
+
+    def __init__(self, answer: str) -> None:
+        self.answer = answer
+
+    async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content=self.answer)]}
+        }
+
+
+class HookBlockedGraph:
+    """模拟输出审核阻断：节点返回前抛出 HookBlockedError。"""
+
+    async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
+        from app.agent.hooks import HookContext, HookPoint, run_hooks
+
+        await run_hooks(
+            HookContext(
+                point=HookPoint.AFTER_MODEL,
+                thread_id=None,
+                agent_id="pc-config",
+                text="敏感内容",
+            )
         )
-        yield "updates", {"tools": {"messages": [tool_result]}}
-        yield "messages", (AIMessageChunk(content="现在是 12 点"), {})
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content="敏感内容")]}
+        }
 
 
 class BrokenGraph:
@@ -79,9 +107,8 @@ def _parse_sse(body: str) -> list[tuple[str, dict[str, Any]]]:
 
 
 def test_stream_emits_tokens_and_done(client: TestClient, monkeypatch: Any) -> None:
-    """逐字流式应聚合成完整回复，并以 done 事件收尾。"""
-    model = StreamingFakeModel(messages=iter([AIMessage(content="你好，我是 Agent")]))
-    monkeypatch.setattr(model_runtime_module, "get_agent", lambda: build_agent(model))
+    """最终正文应聚合成完整回复，并以 done 事件收尾。"""
+    monkeypatch.setattr(model_runtime_module, "get_agent", lambda: AnswerGraph("你好，我是 Agent"))
 
     response = client.post(
         "/api/v1/chat/stream",
@@ -144,7 +171,7 @@ def test_stream_emits_citations_before_tokens(client: TestClient, monkeypatch: A
     monkeypatch.setattr(
         model_runtime_module,
         "get_agent",
-        lambda: build_agent(StreamingFakeModel(messages=iter([AIMessage(content="答案")]))),
+        lambda: AnswerGraph("答案"),
     )
 
     response = client.post(
@@ -177,7 +204,7 @@ def test_blocking_after_model_hook_hides_streamed_text(
     monkeypatch.setattr(
         model_runtime_module,
         "get_agent",
-        lambda: build_agent(StreamingFakeModel(messages=iter([AIMessage(content="敏感内容")]))),
+        lambda: HookBlockedGraph(),
     )
 
     try:
@@ -567,7 +594,7 @@ def test_reasoning_flag_is_forwarded_to_agent_preparation(
 
     async def fake_prepare(*_args: Any, **kwargs: Any) -> Any:
         calls.append(kwargs)
-        return SimpleNamespace(graph=FakeGraph(), runtime=None)
+        return SimpleNamespace(graph=FakeGraph(), runtime=None, user_token=None)
 
     monkeypatch.setattr(chat_module, "prepare_agent", fake_prepare)
 
@@ -706,14 +733,113 @@ def test_stream_passes_runtime_into_graph_config(
     assert _parse_sse(response.text)[-1][0] == "done"
 
 
-class _SingleReplyModel:
-    """只回复一句的假模型，让真实的 call_model（含用量入队）被执行。"""
+class _PcModel:
+    """PC 流水线假模型：先返回需求 JSON，再返回安全的推荐说明。"""
 
-    def bind_tools(self, tools: Any) -> "_SingleReplyModel":
-        return self
+    def __init__(self) -> None:
+        self._responses = iter(
+            [
+                json.dumps(
+                    {
+                        "budget_max_fen": 800_000,
+                        "scenario": "GAMING",
+                        "scenario_explicit": True,
+                    }
+                ),
+                "这套配置更偏向游戏性能。",
+            ]
+        )
 
-    async def ainvoke(self, messages: Any) -> AIMessage:
-        return AIMessage(content="回复")
+    async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
+        return AIMessage(content=next(self._responses))
+
+
+class _PcTool:
+    def __init__(self, name: str, handler: Any) -> None:
+        self.name = name
+        self._handler = handler
+
+    async def ainvoke(self, args: dict[str, Any]) -> str:
+        return json.dumps(self._handler(args), ensure_ascii=False)
+
+
+def _pc_components() -> list[dict[str, Any]]:
+    categories = [
+        "CPU",
+        "MOTHERBOARD",
+        "MEMORY",
+        "GPU",
+        "PSU",
+        "CASE",
+        "COOLER",
+        "STORAGE",
+    ]
+    return [
+        {
+            "category": category,
+            "hardwareId": f"{category}-id",
+            "modelName": f"{category} 型号",
+            "specSummary": "规格",
+            "priceFen": 100_000,
+            "priceSource": "VERIFIED",
+            "purchaseUrl": "https://example.com/item",
+            "verifiedAt": "2026-01-01T00:00:00Z",
+        }
+        for category in categories
+    ]
+
+
+def _pc_agent() -> Any:
+    from app.agent.pc import nodes as nodes_module
+    from app.agent.pc.graph import build_pc_graph
+    from app.agent.profiles import resolve_profile
+
+    build = {
+        "buildId": "build-usage",
+        "requirements": {"budgetMaxFen": 800_000, "scenario": "GAMING"},
+        "components": _pc_components(),
+        "totalPriceFen": 800_000,
+        "budgetStatus": "WITHIN_BUDGET",
+        "compatibilityReport": {"overallStatus": "PASS", "checks": []},
+        "verifiedOfferCount": 8,
+        "demoOfferCount": 0,
+    }
+
+    handlers = {
+        "search_hardware_candidates": lambda args: {
+            "catalogVersion": "catalog-1",
+            "total": 1,
+            "list": [{"hardwareId": f"{args['category']}-id"}],
+        },
+        "get_benchmark_data": lambda args: {
+            "total": 1,
+            "list": [{"benchmarkType": "PASSMARK", "score": 20000}],
+        },
+        "get_verified_offers": lambda args: {
+            "dataStatus": "VERIFIED",
+            "verifiedOfferCount": 8,
+            "mockOfferCount": 0,
+            "list": [],
+        },
+        "solve_pc_build": lambda args: {"solved": True, "build": build, "failure": None},
+        "validate_pc_build": lambda args: {
+            "valid": True,
+            "report": {"overallStatus": "PASS", "checks": []},
+        },
+    }
+    tools = {name: _PcTool(name, handler) for name, handler in handlers.items()}
+    original = nodes_module.get_governed_tool
+    _PC_TOOL_ORIGINAL.clear()
+    _PC_TOOL_ORIGINAL.append(original)
+    nodes_module.get_governed_tool = tools.get  # type: ignore[assignment]
+    return build_pc_graph(
+        model=_PcModel(),
+        profile=resolve_profile("pc-config"),
+        checkpointer=MemorySaver(),
+    )
+
+
+_PC_TOOL_ORIGINAL: list[Any] = []
 
 
 def test_usage_record_is_captured_without_blocking_stream(
@@ -724,7 +850,7 @@ def test_usage_record_is_captured_without_blocking_stream(
     这里只捕获记录，不写真实 outbox：测试数据一旦落到共享 Postgres，
     会被后台投递成 dead 并污染本地指标与对账结果。
     """
-    from app.agent import graph as graph_module
+    from app.agent.pc import nodes as nodes_module
 
     _enable_model_runtime(monkeypatch)
     runtime = ResolvedRuntime(
@@ -733,36 +859,39 @@ def test_usage_record_is_captured_without_blocking_stream(
         model_key="openai:gpt-4o-mini",
         credential_source="MANAGED",
     )
-    agent = build_agent(
-        model=_SingleReplyModel(), tools=[], checkpointer=MemorySaver()
-    )
-    records: list[dict[str, Any]] = []
+    agent = _pc_agent()
+    records: list[Any] = []
 
-    async def capture_usage(record: dict[str, Any]) -> None:
+    async def capture_usage(record: Any) -> None:
         records.append(record)
 
     async def fake_resolve(**_kwargs: Any) -> ResolvedRuntime | None:
         return runtime
 
-    async def no_persist(*_args: Any, **_kwargs: Any) -> None:
-        return None
+    async def no_persist(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        return {}
 
     monkeypatch.setattr(model_runtime_module, "resolve_runtime", fake_resolve)
     monkeypatch.setattr(
         model_runtime_module, "get_agent_for_runtime", lambda _runtime, **_kwargs: agent
     )
     monkeypatch.setattr(turn_module, "_persist_turn", no_persist)
-    monkeypatch.setattr(graph_module, "record_usage", capture_usage)
+    monkeypatch.setattr("app.agent.pc.llm.record_usage", capture_usage)
 
-    response = client.post(
-        "/api/v1/chat/stream",
-        json={"message": "你好", "thread_id": "t-usage-failure"},
-    )
+    try:
+        response = client.post(
+            "/api/v1/chat/stream",
+            json={"message": "8000 元，打游戏", "thread_id": "t-usage"},
+        )
+    finally:
+        if _PC_TOOL_ORIGINAL:
+            nodes_module.get_governed_tool = _PC_TOOL_ORIGINAL[0]  # type: ignore[assignment]
+            _PC_TOOL_ORIGINAL.clear()
 
     assert response.status_code == 200
     assert _parse_sse(response.text)[-1][0] == "done"
-    # 先确认上报确实被触发，否则上面的 done 断言没有意义
-    assert len(records) == 1
+    # 解析与说明各调用一次模型，用量上报确实被触发
+    assert len(records) == 2
     assert records[0]["task_id"] == "task-usage"
 
 

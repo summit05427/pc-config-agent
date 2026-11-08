@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from app.agent.profiles import resolve_profile
 from evals.__main__ import main
 from evals.report import (
     STATUS_FAILED,
@@ -14,6 +15,7 @@ from evals.report import (
     CheckResult,
     EvalReport,
 )
+from evals.runners import fake_model as fake_model_module
 from evals.runners.fake_model import run_case
 from evals.schema import CaseLoadError, EvalCase, load_cases
 
@@ -28,11 +30,16 @@ def _write_case_file(directory: Path, file_name: str, content: str) -> Path:
 
 
 def test_example_cases_are_loadable() -> None:
-    """仓库自带的 3 条示例用例必须可直接运行。"""
+    """仓库自带的 PC 用例必须可直接运行。"""
     cases = load_cases(EVALS_CASES_DIRECTORY)
 
-    assert [case.id for case in cases] == ["tool_time", "refuse_unknown", "injection"]
-    assert cases[0].expect.tool_called == "get_current_time"
+    assert [case.id for case in cases] == [
+        "pc_gaming_budget",
+        "pc_missing_budget",
+        "pc_verified_only",
+        "pc_injection",
+    ]
+    assert cases[0].expect.tool_called == "solve_pc_build"
 
 
 def test_load_cases_rejects_missing_directory(tmp_path: Path) -> None:
@@ -65,14 +72,15 @@ def test_load_cases_rejects_case_without_expectation(tmp_path: Path) -> None:
 def test_fake_mode_passes_registered_tool_case() -> None:
     """tool_called 指向已注册且已绑定的工具时，假模型模式即通过。"""
     case = EvalCase(
-        id="tool_time",
-        input="现在几点？",
-        expect={"tool_called": "get_current_time"},
+        id="pc_tool",
+        agent_id="pc-config",
+        input="预算 8000 元，主要打游戏",
+        expect={"tool_called": "solve_pc_build"},
     )
     result = run_case(case)
 
     assert result.status == STATUS_PASSED
-    assert result.agent_id == "default"
+    assert result.agent_id == "pc-config"
 
 
 def test_fake_mode_fails_for_unregistered_tool() -> None:
@@ -87,13 +95,17 @@ def test_fake_mode_fails_for_unregistered_tool() -> None:
     assert "工具未注册" in result.failure_details[0]
 
 
-def test_fake_mode_fails_for_tool_not_bound_by_profile() -> None:
-    """writer Profile 的 tools 为空，任何工具都不应被绑定。"""
+def test_fake_mode_fails_for_tool_not_bound_by_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Profile 显式不绑定工具时，tool_called 必须判失败而不是空过。"""
+    profile = resolve_profile(None).model_copy(update={"id": "no-tools", "tools": []})
+    monkeypatch.setattr(fake_model_module, "resolve_profile", lambda _agent_id: profile)
     case = EvalCase(
-        id="writer_tool",
-        agent_id="writer",
-        input="现在几点？",
-        expect={"tool_called": "get_current_time"},
+        id="unbound_tool",
+        agent_id="no-tools",
+        input="预算 8000 元，主要打游戏",
+        expect={"tool_called": "solve_pc_build"},
     )
     result = run_case(case)
 
@@ -133,9 +145,15 @@ def test_main_fake_mode_outputs_json_report(capsys: pytest.CaptureFixture[str]) 
 
     assert exit_code == 0
     assert payload["mode"] == "fake"
-    assert payload["summary"]["total"] == 3
+    assert payload["summary"]["total"] == 4
     assert payload["summary"]["failed"] == 0
-    assert [case["status"] for case in payload["cases"]] == ["passed", "skipped", "skipped"]
+    # 带内容断言的用例在假模型模式下记为未校验；只有 pc_verified_only 仅校验工具绑定
+    assert [case["status"] for case in payload["cases"]] == [
+        "skipped",
+        "skipped",
+        "passed",
+        "skipped",
+    ]
 
 
 def test_main_fake_mode_renders_text_report(capsys: pytest.CaptureFixture[str]) -> None:
@@ -144,8 +162,8 @@ def test_main_fake_mode_renders_text_report(capsys: pytest.CaptureFixture[str]) 
 
     assert exit_code == 0
     assert "评测模式：假模型" in output
-    assert "用例 3 条" in output
-    assert "[通过] tool_time" in output
+    assert "用例 4 条" in output
+    assert "[通过] pc_verified_only" in output
 
 
 def test_main_returns_usage_error_for_missing_cases(

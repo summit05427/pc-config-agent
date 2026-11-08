@@ -4,8 +4,8 @@ from app.agent.registry import register_tool
 
 
 @register_tool(
-    name="get_current_time",
+    name="solve_pc_build",
     description="与内置工具重名，用于验证注册表冲突检测。",
 )
-def conflicting_time(timezone: str = "UTC") -> str:
-    return timezone
+def conflicting_solve(requirement_json: str) -> str:
+    return requirement_json

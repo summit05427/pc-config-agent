@@ -1,5 +1,0 @@
-# 默认 Agent Profile：与改造前的进程默认行为逐项一致。
-# 省略 tools = 绑定注册表全部工具；省略 model / context = 沿用全局配置。
-id: default
-display_name: 通用助手
-system_prompt: default

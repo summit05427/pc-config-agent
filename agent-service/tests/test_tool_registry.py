@@ -144,9 +144,9 @@ def test_duplicate_tool_name_is_rejected() -> None:
 
     with pytest.raises(ToolRegistrationError, match="重复注册"):
 
-        @register_tool(name="get_current_time", description="与内置工具重名")
-        def duplicate_time(timezone: str = "UTC") -> str:
-            return timezone
+        @register_tool(name="solve_pc_build", description="与内置工具重名")
+        def duplicate_solve(requirement_json: str) -> str:
+            return requirement_json
 
 
 def test_invalid_tool_metadata_is_rejected() -> None:
@@ -216,4 +216,10 @@ def test_tool_modules_setting_accepts_comma_separated() -> None:
 
 def test_registered_tool_names_are_stable() -> None:
     """内置工具仍在注册表首位，顺序变化会影响模型看到的工具列表。"""
-    assert [spec.tool.name for spec in list_tool_specs()] == ["get_current_time"]
+    assert [spec.tool.name for spec in list_tool_specs()] == [
+        "search_hardware_candidates",
+        "get_benchmark_data",
+        "get_verified_offers",
+        "solve_pc_build",
+        "validate_pc_build",
+    ]

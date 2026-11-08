@@ -75,7 +75,7 @@
                 "type": "null"
               }
             ],
-            "description": "目标 Agent Profile 的 id，如 writer；省略时使用默认 Profile",
+            "description": "目标 Agent Profile 的 id，如 pc-config；省略时使用默认 Profile",
             "title": "Agent Id"
           },
           "message": {

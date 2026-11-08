@@ -1,0 +1,12 @@
+id: pc-config
+display_name: PC 配置推荐
+system_prompt: pc-config-system
+model:
+  temperature: 0.3
+  max_tokens: 2048
+tools:
+  - search_hardware_candidates
+  - get_benchmark_data
+  - get_verified_offers
+  - solve_pc_build
+  - validate_pc_build

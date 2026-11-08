@@ -17,7 +17,7 @@ from app.main import create_app
 def test_default_system_prompt_is_loaded() -> None:
     content = load_system_prompt()
 
-    assert "助手" in content
+    assert "PC 装机配置助手" in content
     assert len(content) > 20
 
 
@@ -39,8 +39,8 @@ def test_missing_prompt_file_is_rejected() -> None:
 def test_prompt_is_cached_in_process() -> None:
     load_prompt.cache_clear()
 
-    first = load_prompt("default")
-    second = load_prompt("default")
+    first = load_prompt("pc-config-system")
+    second = load_prompt("pc-config-system")
 
     assert first is second
     assert load_prompt.cache_info().hits == 1
