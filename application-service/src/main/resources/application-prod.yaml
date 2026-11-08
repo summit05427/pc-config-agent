@@ -1,0 +1,17 @@
+spring:
+    datasource:
+        url: ${DB_URL}
+        username: ${DB_USERNAME}
+        password: ${DB_PASSWORD}
+        hikari:
+            maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+            minimum-idle: ${DB_POOL_MIN_IDLE:5}
+            connection-timeout: 3000
+            validation-timeout: 2000
+
+# 生产环境关闭接口文档，避免暴露内部接口清单
+springdoc:
+    api-docs:
+        enabled: false
+    swagger-ui:
+        enabled: false

@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.identity.infrastructure.UserMapper">
+
+    <resultMap id="userRowMap" type="com.example.agent.identity.infrastructure.UserRow">
+        <id column="id" property="id"/>
+        <result column="public_id" property="publicId"/>
+        <result column="username" property="username"/>
+        <result column="password_hash" property="passwordHash"/>
+        <result column="email" property="email"/>
+        <result column="display_name" property="displayName"/>
+        <result column="bio" property="bio"/>
+        <result column="roles" property="roles"/>
+        <result column="status" property="status"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 显式列出字段，禁止 SELECT *：后续加列时不会意外改变返回结构 -->
+    <sql id="userColumns">
+        id, public_id, username, password_hash, email, display_name, bio, roles, status, created_at, updated_at
+    </sql>
+
+    <select id="findByUsername" resultMap="userRowMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE username = #{username}
+    </select>
+
+    <select id="findByPublicId" resultMap="userRowMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE public_id = #{publicId}::uuid
+    </select>
+
+    <!-- 仅供服务端内部回查（刷新令牌、审计），主键不进入任何对外结构 -->
+    <select id="findById" resultMap="userRowMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO users (public_id, username, password_hash, email, roles, status)
+        VALUES (#{publicId}::uuid, #{username}, #{passwordHash}, #{email}, #{roles}, #{status})
+    </insert>
+
+    <!--
+        资料更新：updated_at 必须显式写 now()，因为 users 表没有更新触发器。
+        可空字段显式声明 jdbcType，避免 MyBatis 在 null 时无法推断类型。
+        空串归一化为 NULL 由应用层完成，这里只负责写入。
+    -->
+    <update id="updateProfile">
+        UPDATE users
+        SET display_name = #{displayName,jdbcType=VARCHAR},
+            email        = #{email,jdbcType=VARCHAR},
+            bio          = #{bio,jdbcType=VARCHAR},
+            updated_at   = now()
+        WHERE public_id = #{publicId}::uuid
+    </update>
+
+    <!-- 口令只存摘要；updated_at 同样显式写 now()，users 表没有更新触发器 -->
+    <update id="updatePasswordHash">
+        UPDATE users
+        SET password_hash = #{passwordHash},
+            updated_at    = now()
+        WHERE public_id = #{publicId}::uuid
+    </update>
+
+    <!--
+        管理端过滤条件：keyword 已由应用层包好 % 通配符，按登录名或邮箱模糊匹配；
+        status 为空时不拼入 SQL。带前导通配符的 ILIKE 无法命中唯一索引，
+        属于管理端低频查询，已在 V18 为排序与状态过滤补索引。
+    -->
+    <sql id="adminUserFilters">
+        <where>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="keyword != null">
+                AND (username ILIKE #{keyword} OR email ILIKE #{keyword})
+            </if>
+        </where>
+    </sql>
+
+    <select id="countUsers" resultType="long">
+        SELECT count(*)
+        FROM users
+        <include refid="adminUserFilters"/>
+    </select>
+
+    <!-- id 作为第二排序键：同秒创建的用户在翻页时不会因排序不稳定而重复或漏出 -->
+    <select id="listUsers" resultMap="userRowMap">
+        SELECT <include refid="userColumns"/>
+        FROM users
+        <include refid="adminUserFilters"/>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <update id="updateStatus">
+        UPDATE users
+        SET status     = #{status},
+            updated_at = now()
+        WHERE public_id = #{publicId}::uuid
+    </update>
+
+    <update id="updateRoles">
+        UPDATE users
+        SET roles      = #{roles},
+            updated_at = now()
+        WHERE public_id = #{publicId}::uuid
+    </update>
+
+    <!-- roles 是逗号分隔文本，用数组包含判断做精确元素匹配，避免 LIKE '%ADMIN%' 误中 SUPERADMIN -->
+    <select id="countActiveAdmins" resultType="long">
+        SELECT count(*)
+        FROM users
+        WHERE status = 'ACTIVE'
+          AND string_to_array(roles, ',') @> ARRAY['ADMIN']
+    </select>
+</mapper>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.RuntimeTaskMapper">
+
+    <resultMap id="runtimeTaskRowMap" type="com.example.agent.model.infrastructure.RuntimeTaskRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="user_public_id" javaType="java.util.UUID"/>
+            <arg column="thread_id" javaType="java.lang.String"/>
+            <arg column="requested_model" javaType="java.lang.String"/>
+            <arg column="resolved_model" javaType="java.lang.String"/>
+            <arg column="credential_source" javaType="java.lang.String"/>
+            <arg column="credential_id" javaType="java.util.UUID"/>
+            <arg column="base_url" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="expires_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="idempotency_key" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="runtimeTaskColumns">
+        id, user_public_id, thread_id, requested_model, resolved_model,
+        credential_source, credential_id, base_url, status, expires_at, created_at,
+        idempotency_key
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO model_runtime_tasks
+            (id, user_public_id, thread_id, requested_model, resolved_model,
+             credential_source, credential_id, base_url, status, expires_at, idempotency_key)
+        VALUES
+            (#{id}, #{userPublicId}, #{threadId}, #{requestedModel,jdbcType=VARCHAR},
+             #{resolvedModel}, #{credentialSource}, #{credentialId,jdbcType=OTHER},
+             #{baseUrl,jdbcType=VARCHAR}, #{status}, #{expiresAt},
+             #{idempotencyKey,jdbcType=VARCHAR})
+        <!-- 带幂等键时把冲突吞掉：并发重放不报错，由服务层回读既有任务，保证额度只扣一次 -->
+        <if test="idempotencyKey != null">
+            ON CONFLICT (user_public_id, idempotency_key) WHERE idempotency_key IS NOT NULL
+            DO NOTHING
+        </if>
+    </insert>
+
+    <select id="findByUserAndKey" resultMap="runtimeTaskRowMap">
+        SELECT <include refid="runtimeTaskColumns"/>
+        FROM model_runtime_tasks
+        WHERE user_public_id = #{userPublicId}
+          AND idempotency_key = #{idempotencyKey}
+    </select>
+
+    <update id="markExpiredBefore">
+        UPDATE model_runtime_tasks
+        SET status = 'EXPIRED'
+        WHERE status = 'ACTIVE'
+          AND expires_at &lt;= #{now}
+    </update>
+
+    <select id="findByIds" resultMap="runtimeTaskRowMap">
+        SELECT <include refid="runtimeTaskColumns"/>
+        FROM model_runtime_tasks
+        WHERE id IN
+        <foreach collection="ids" item="taskId" open="(" separator="," close=")">
+            #{taskId}
+        </foreach>
+    </select>
+
+    <select id="findById" resultMap="runtimeTaskRowMap">
+        SELECT <include refid="runtimeTaskColumns"/>
+        FROM model_runtime_tasks
+        WHERE id = #{id}
+    </select>
+
+    <update id="markLeased">
+        UPDATE model_runtime_tasks
+        SET leased_at = #{leasedAt}
+        WHERE id = #{id}
+          AND status = 'ACTIVE'
+          AND leased_at IS NULL
+          AND expires_at &gt; #{leasedAt}
+    </update>
+</mapper>

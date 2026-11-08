@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.ModelCatalogMapper">
+
+    <resultMap id="modelRowMap" type="com.example.agent.model.infrastructure.ModelRow">
+        <constructor>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="context_window" javaType="java.lang.Integer"/>
+            <arg column="capabilities_json" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 显式列名，禁止 SELECT *；能力字段转文本，由服务层解析 -->
+    <sql id="modelColumns">
+        models.provider_code, models.model_key, models.display_name,
+        models.context_window, models.capabilities::text AS capabilities_json
+    </sql>
+
+    <!-- 平台托管模型：byok_only 的目录项必须由用户接入 Provider 后才可见 -->
+    <select id="findEnabled" resultMap="modelRowMap">
+        SELECT <include refid="modelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.enabled = TRUE
+          AND providers.enabled = TRUE
+          AND models.byok_only = FALSE
+        ORDER BY models.provider_code, models.model_key
+    </select>
+
+    <select id="findEnabledPage" resultMap="modelRowMap">
+        SELECT <include refid="modelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.enabled = TRUE
+          AND providers.enabled = TRUE
+          AND models.byok_only = FALSE
+        ORDER BY models.provider_code, models.model_key
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countEnabled" resultType="long">
+        SELECT count(*)
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.enabled = TRUE
+          AND providers.enabled = TRUE
+          AND models.byok_only = FALSE
+    </select>
+
+    <sql id="visibleToUser">
+        AND (
+            models.byok_only = FALSE
+            OR EXISTS (
+                SELECT 1
+                FROM provider_connections connections
+                WHERE connections.user_public_id = #{userPublicId}
+                  AND connections.provider_code = models.provider_code
+                  AND connections.status = 'ACTIVE'
+            )
+        )
+    </sql>
+
+    <select id="findVisiblePage" resultMap="modelRowMap">
+        SELECT <include refid="modelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.enabled = TRUE
+          AND providers.enabled = TRUE
+          <include refid="visibleToUser"/>
+        ORDER BY models.provider_code, models.model_key
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countVisible" resultType="long">
+        SELECT count(*)
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.enabled = TRUE
+          AND providers.enabled = TRUE
+          <include refid="visibleToUser"/>
+    </select>
+
+    <select id="findEnabledByKey" resultMap="modelRowMap">
+        SELECT <include refid="modelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.provider_code = #{providerCode}
+          AND models.model_key = #{modelKey}
+          AND models.enabled = TRUE
+          AND providers.enabled = TRUE
+          AND models.byok_only = FALSE
+    </select>
+
+    <select id="findVisibleByKey" resultMap="modelRowMap">
+        SELECT <include refid="modelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.provider_code = #{providerCode}
+          AND models.model_key = #{modelKey}
+          AND models.enabled = TRUE
+          AND providers.enabled = TRUE
+          <include refid="visibleToUser"/>
+    </select>
+
+    <select id="findFirstEnabledByProvider" resultMap="modelRowMap">
+        SELECT <include refid="modelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.provider_code = #{providerCode}
+          AND models.enabled = TRUE
+          AND providers.enabled = TRUE
+        ORDER BY models.model_key
+        LIMIT 1
+    </select>
+
+    <resultMap id="providerRowMap" type="com.example.agent.model.infrastructure.ProviderRow">
+        <constructor>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="protocol" javaType="java.lang.String"/>
+            <arg column="default_base_url" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <select id="findEnabledProvider" resultMap="providerRowMap">
+        SELECT code, display_name, protocol, default_base_url
+        FROM providers
+        WHERE code = #{providerCode}
+          AND enabled = TRUE
+    </select>
+
+    <resultMap id="providerSummaryRowMap" type="com.example.agent.model.infrastructure.ProviderSummaryRow">
+        <constructor>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="protocol" javaType="java.lang.String"/>
+            <arg column="default_base_url" javaType="java.lang.String"/>
+            <!-- COUNT() 返回包装类型 Long，必须用原始类型别名 _long 才能匹配 record 的 long 构造参数 -->
+            <arg column="model_count" javaType="_long"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 子查询统计启用模型数；Provider 数量有界，不需要分页 -->
+    <select id="findEnabledProviderSummaries" resultMap="providerSummaryRowMap">
+        SELECT providers.code, providers.display_name, providers.protocol, providers.default_base_url,
+               (SELECT count(*)
+                FROM models
+                WHERE models.provider_code = providers.code
+                  AND models.enabled = TRUE) AS model_count
+        FROM providers
+        WHERE providers.enabled = TRUE
+        ORDER BY providers.code
+    </select>
+</mapper>

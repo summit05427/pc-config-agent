@@ -1,0 +1,31 @@
+# =============================================================
+# 构建上下文排除清单
+# 目的：镜像里不出现本地环境、密钥、测试与缓存
+# =============================================================
+
+# Python 运行环境与缓存
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 版本控制与 IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+.screenshots/
+Notebook/
+
+# 密钥：运行时通过环境变量注入，绝不能打进镜像
+.env
+.env.*
+
+# 非运行时资产
+docs/
+tests/
+deploy/
+*.md
+test_main.http

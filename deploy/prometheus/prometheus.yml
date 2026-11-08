@@ -1,0 +1,34 @@
+# 统一指标抓取：三端各自暴露 Prometheus 文本，这里只做汇聚。
+#
+# 只有容器化部署（compose full/infra）才使用本文件：
+#   docker compose --profile infra up -d prometheus
+# 宿主机直跑 Agent/Java 时，目标名解析不到，直接 curl 各自端点即可。
+#
+# LiteLLM 的 /metrics/ 必须带 master key，密钥不写进本文件，
+# 由 Compose 在启动时写入 /tmp/litellm-master-key。
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Java 业务端：http_server_requests_* 等 JVM/HTTP 指标
+  - job_name: application-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["application-service:8080"]
+
+  # Agent：HTTP、SSE、工具、LLM token、outbox 共 13 个指标族
+  - job_name: agent-service
+    metrics_path: /api/v1/metrics
+    static_configs:
+      - targets: ["agent-service:8000"]
+
+  # 模型网关：上游延迟、错误、token 与成本
+  - job_name: litellm
+    metrics_path: /metrics/
+    static_configs:
+      - targets: ["litellm:4000"]
+    authorization:
+      type: Bearer
+      credentials_file: /tmp/litellm-master-key

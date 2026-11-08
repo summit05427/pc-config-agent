@@ -1,0 +1,4 @@
+# Spring Boot 启动早期扩展点：ApplicationContextInitializer 在容器 refresh 之前执行，
+# 用于在连接数据库、启动 Tomcat 之前对 prod 配置做 fail-fast 校验。
+org.springframework.context.ApplicationContextInitializer=\
+com.example.agent.shared.config.ProdConfigGuard

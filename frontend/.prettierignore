@@ -1,0 +1,6 @@
+# CDS 原始主题文件按上游原样保留：整文件重排会掩盖 Token 实际变更，评审时无法逐行比对
+src/styles/cds-theme.css
+
+# 构建产物与外链代码不参与格式化
+dist
+node_modules

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.UsageMapper">
+
+    <resultMap id="usageRecordRowMap" type="com.example.agent.model.infrastructure.UsageRecordRow">
+        <constructor>
+            <arg column="invocation_id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="user_public_id" javaType="java.util.UUID"/>
+            <arg column="thread_id" javaType="java.lang.String"/>
+            <arg column="model_role" javaType="java.lang.String"/>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="credential_source" javaType="java.lang.String"/>
+            <arg column="prompt_tokens" javaType="java.lang.Integer"/>
+            <arg column="completion_tokens" javaType="java.lang.Integer"/>
+            <arg column="latency_ms" javaType="java.lang.Integer"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="error_type" javaType="java.lang.String"/>
+            <arg column="estimated_cost" javaType="java.math.BigDecimal"/>
+            <arg column="cost_status" javaType="java.lang.String"/>
+            <arg column="cost_bearer" javaType="java.lang.String"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 单条多值 INSERT + ON CONFLICT DO NOTHING：既避免 N+1，也避免语句错误中止事务 -->
+    <insert id="insertIgnoreDuplicates">
+        INSERT INTO model_usage_records
+            (invocation_id, task_id, user_public_id, thread_id, model_role, provider,
+             model_key, credential_source, prompt_tokens, completion_tokens, latency_ms,
+             status, error_type, estimated_cost, cost_status, cost_bearer, currency, occurred_at)
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.invocationId}, #{row.taskId}, #{row.userPublicId}, #{row.threadId},
+             #{row.modelRole}, #{row.provider}, #{row.modelKey}, #{row.credentialSource},
+             #{row.promptTokens,jdbcType=INTEGER}, #{row.completionTokens,jdbcType=INTEGER},
+             #{row.latencyMs,jdbcType=INTEGER}, #{row.status},
+             #{row.errorType,jdbcType=VARCHAR}, #{row.estimatedCost,jdbcType=NUMERIC},
+             #{row.costStatus}, #{row.costBearer}, #{row.currency,jdbcType=VARCHAR},
+             #{row.occurredAt})
+        </foreach>
+        ON CONFLICT (invocation_id) DO NOTHING
+    </insert>
+
+    <!-- 归属条件下推到 SQL：调用方无法通过参数查询他人台账 -->
+    <select id="findPage" resultMap="usageRecordRowMap">
+        SELECT invocation_id, task_id, user_public_id, thread_id, model_role, provider,
+               model_key, credential_source, prompt_tokens, completion_tokens, latency_ms,
+               status, error_type, estimated_cost, cost_status, cost_bearer, currency, occurred_at
+        FROM model_usage_records
+        WHERE user_public_id = #{userPublicId}
+        <if test="fromInclusive != null">
+            AND occurred_at &gt;= #{fromInclusive}
+        </if>
+        <if test="toExclusive != null">
+            AND occurred_at &lt; #{toExclusive}
+        </if>
+        ORDER BY occurred_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUser" resultType="long">
+        SELECT count(*)
+        FROM model_usage_records
+        WHERE user_public_id = #{userPublicId}
+        <if test="fromInclusive != null">
+            AND occurred_at &gt;= #{fromInclusive}
+        </if>
+        <if test="toExclusive != null">
+            AND occurred_at &lt; #{toExclusive}
+        </if>
+    </select>
+
+    <!-- 累计 Token 数：输入与输出分别兜底为 0，空结果为 0 -->
+    <select id="sumTokensByUser" resultType="long">
+        SELECT COALESCE(SUM(COALESCE(prompt_tokens, 0) + COALESCE(completion_tokens, 0)), 0)
+        FROM model_usage_records
+        WHERE user_public_id = #{userPublicId}
+    </select>
+
+    <!-- 对账：正常写入路径的归属由任务行推导，非 0 说明存在绕过服务层的写入 -->
+    <select id="countAttributionMismatches" resultType="int">
+        SELECT count(*)
+        FROM model_usage_records u
+        JOIN model_runtime_tasks t ON t.id = u.task_id
+        WHERE u.user_public_id &lt;&gt; t.user_public_id
+           OR u.credential_source &lt;&gt; t.credential_source
+    </select>
+
+    <select id="countNegativeEstimatedCost" resultType="int">
+        SELECT count(*)
+        FROM model_usage_records
+        WHERE estimated_cost &lt; 0
+    </select>
+
+    <!-- 对账：已估算金额必须带币种，未估算必须留空，防止两类口径混写 -->
+    <select id="countCostStatusMismatches" resultType="int">
+        SELECT count(*)
+        FROM model_usage_records
+        WHERE (cost_status = 'ESTIMATED' AND (estimated_cost IS NULL OR currency IS NULL))
+           OR (cost_status &lt;&gt; 'ESTIMATED' AND estimated_cost IS NOT NULL)
+    </select>
+</mapper>

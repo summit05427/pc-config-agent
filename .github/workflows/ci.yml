@@ -1,0 +1,450 @@
+name: CI
+
+# 触发策略：
+# - main / develop 推送时执行
+# - 所有 PR 执行（PR 必须通过同一套门禁）
+# - 支持手动重跑
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+# 同一分支连续提交时取消旧任务，避免排队浪费额度
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 最小权限：CI 只读代码；paths-filter 在 PR 事件下需读取变更文件列表
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # ---------------------------------------------------------
+  # 变更检测：Monorepo 的关键。只有对应目录变化才跑对应 Job，
+  # 避免改一行前端文档也把 Java/Python 全部重跑一遍。
+  # ---------------------------------------------------------
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+      admin: ${{ steps.filter.outputs.admin }}
+      backend: ${{ steps.filter.outputs.backend }}
+      agent: ${{ steps.filter.outputs.agent }}
+      deploy: ${{ steps.filter.outputs.deploy }}
+      docs: ${{ steps.filter.outputs.docs }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - 'agent-service/app/agent/prompts/openui.md'
+              - '.github/workflows/ci.yml'
+            admin:
+              - 'admin/**'
+              - '.github/workflows/ci.yml'
+            backend:
+              - 'application-service/**'
+              - 'scripts/check-migrations.ps1'
+              - '.github/workflows/ci.yml'
+            agent:
+              - 'agent-service/**'
+              - '.github/workflows/ci.yml'
+            deploy:
+              - 'docker-compose.yml'
+              - 'deploy/**'
+              - '.github/workflows/ci.yml'
+            docs:
+              - 'docs/**'
+              - 'README.md'
+              - 'frontend/README.md'
+              - 'admin/README.md'
+              - 'application-service/README.md'
+              - 'agent-service/README.md'
+              - '.trae/rules/**'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+
+  # ---------------------------------------------------------
+  # 前端：规范检查 + 类型检查 + 覆盖率 + 关键 E2E + 生产构建硬校验
+  # ---------------------------------------------------------
+  frontend:
+    name: Frontend (lint / type / test / build)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      # CI 中没有 .env.production（已被忽略），用进程环境变量注入，
+      # 与 Docker 构建时的行为一致，顺便验证 check-env 脚本本身。
+      VITE_APP_ENV: production
+      VITE_APP_TITLE: Agent Analytics
+      VITE_API_BASE_URL: /api/v1
+      VITE_API_TIMEOUT: "10000"
+      VITE_USE_MOCK: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # 显式指定版本：package.json 位于 frontend/ 子目录，
+          # action 默认只读仓库根目录的 package.json，无法自动识别 packageManager
+          version: "10.18.0"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      # --frozen-lockfile：锁文件与 package.json 不一致时直接失败，
+      # 防止 CI 悄悄升级依赖导致本地与线上行为不一致
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # 注意不要用 pnpm lint：它会自动 --fix，CI 里必须只检查不修改
+      - name: Lint
+        run: pnpm lint:ci
+
+      - name: Type check
+        run: pnpm type-check
+
+      # 组件库与 Agent 提示词必须同步；手改 openui.md 也会经 paths-filter 触发本任务
+      - name: OpenUI prompt drift
+        run: pnpm openui:prompt:check
+
+      - name: Unit tests and coverage
+        run: pnpm test:coverage
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E critical
+        run: pnpm e2e:critical
+
+      - name: Production env guard
+        run: pnpm check:env --mode production
+
+      - name: Build
+        run: pnpm build
+
+  # ---------------------------------------------------------
+  # 管理端：规范检查 + 类型检查 + Vitest browser mode + 构建
+  # ---------------------------------------------------------
+  admin:
+    name: Admin (lint / type / test / build)
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
+    # admin 锁定 Playwright 1.59.1，其官方支持到 Ubuntu 24.04；
+    # ubuntu-latest 已迁移到 26.04，安装 Chromium 会直接失败，这里固定版本避免随 runner 漂移
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: admin
+    env:
+      # 只影响标题与接口基地址；测试不连后端，全部走 mock
+      VITE_APP_TITLE: Agent 管理后台
+      VITE_API_BASE_URL: /api/v1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # package.json 位于 admin/ 子目录，需显式指定版本
+          version: "10.18.0"
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: admin/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint:ci
+
+      - name: Type check
+        run: pnpm type-check
+
+      # Vitest 使用 browser mode，CI 需要真实 Chromium
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  # ---------------------------------------------------------
+  # Java 后端：编译 + 全部单元/集成测试 + JaCoCo 覆盖率报告
+  # ---------------------------------------------------------
+  backend:
+    name: Backend (Maven verify + JaCoCo)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: application-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: application-service/pom.xml
+
+      # Windows 上提交的仓库可能丢失可执行位，显式补一次
+      - name: Make mvnw executable
+        run: chmod +x mvnw
+
+      # 迁移门禁：命名、版本唯一且连续、全部纳入版本控制（防止未跟踪的 V*.sql）
+      - name: Check migrations
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: ./scripts/check-migrations.ps1
+
+      # verify = compile + test + package + jacoco report
+      - name: Maven verify
+        run: ./mvnw -B -ntp verify
+
+      - name: Upload JaCoCo report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: application-service/target/site/jacoco/
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------
+  # Python Agent：ruff + mypy + pytest（真实 Postgres 服务）
+  # ---------------------------------------------------------
+  agent:
+    name: Agent (ruff / mypy / pytest)
+    needs: changes
+    if: needs.changes.outputs.agent == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: agent-service
+
+    # 持久化与 Redis 测试必须连真实服务，避免 skip 后出现“假通过”
+    services:
+      pgvector:
+        image: pgvector/pgvector:pg18
+        env:
+          POSTGRES_USER: agent
+          POSTGRES_PASSWORD: agent
+          POSTGRES_DB: agent_service
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agent -d agent_service"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      # CI 中的 Redis 仅存活于本次 Job，且不暴露到公网，因此不设口令
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: dev
+      DEBUG: "true"
+      # Agent 测试在 conftest 中运行时生成 RSA 密钥对并通过 AUTH__* 注入，
+      # 因此这里不提供任何 JWT 密钥，避免 CI 依赖固定密钥。
+      LLM__API_KEY: sk-ci-test-key
+      STORAGE__BACKEND: postgres
+      STORAGE__POSTGRES_URL: postgresql://agent:agent@127.0.0.1:5432/agent_service
+      REDIS__URL: redis://127.0.0.1:6379/0
+      REDIS__REQUIRED: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: agent-service/uv.lock
+
+      # --frozen：严格按 uv.lock 安装
+      - name: Sync dependencies
+        run: uv sync --frozen
+
+      - name: Ruff
+        run: uv run ruff check app tests evals run.py
+
+      - name: Mypy
+        run: uv run mypy
+
+      # 覆盖率阈值写在 pyproject.toml 的 [tool.coverage.report]
+      - name: Pytest
+        run: uv run pytest -q --cov=app --cov-report=term-missing --cov-report=xml
+
+      # 评测只跑假模型（决策 D7）：零 API 费用，校验用例与图结构仍然对得上。
+      # evals 会构造完整 Settings，而 auth 段没有默认值；这里即时生成一次性密钥对，
+      # 与本地 .env 提供 AUTH__JWT_PUBLIC_KEY 的口径一致，不引入固定测试密钥
+      - name: Evals
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out /tmp/evals-private.pem
+          openssl rsa -in /tmp/evals-private.pem -pubout -out /tmp/evals-public.pem
+          AUTH__JWT_PUBLIC_KEY="$(cat /tmp/evals-public.pem)" uv run python -m evals --fake
+
+      # 归档 XML 报告，便于回看覆盖率基线走势（阈值已在 pytest 内生效）
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-coverage
+          path: agent-service/coverage.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  # ---------------------------------------------------------
+  # 文档：相对链接 + 环境变量键一致性
+  # ---------------------------------------------------------
+  docs:
+    name: Docs (link / env keys)
+    needs: changes
+    if: needs.changes.outputs.docs == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Ubuntu runner 自带 pwsh，直接复用本地脚本保证口径一致
+      - name: Check markdown links
+        shell: pwsh
+        run: ./scripts/check-doc-links.ps1
+
+      # 文档里出现的配置键必须存在于某个 .env.example，防止改名后留下旧键名
+      - name: Check documented env keys
+        shell: pwsh
+        run: ./scripts/check-env-docs.ps1
+
+  # ---------------------------------------------------------
+  # 镜像构建：只构建不推送，验证四个 Dockerfile 没有坏掉
+  # ---------------------------------------------------------
+  docker:
+    name: Docker build (${{ matrix.name }})
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.admin == 'true' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.agent == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: frontend
+            context: frontend
+            file: frontend/Dockerfile
+          - name: admin
+            context: admin
+            file: admin/Dockerfile
+          - name: application-service
+            context: application-service
+            file: application-service/Dockerfile
+          - name: agent-service
+            context: agent-service
+            file: agent-service/Dockerfile
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          push: false
+          # 前端与管理端构建参数；其它镜像没有声明这些 ARG，会被忽略
+          build-args: |
+            VITE_APP_ENV=production
+            VITE_APP_TITLE=Agent Analytics
+            VITE_API_BASE_URL=/api/v1
+            VITE_API_TIMEOUT=10000
+            VITE_USE_MOCK=false
+            VITE_BASE_PATH=/admin/
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  # ---------------------------------------------------------
+  # Compose 语法与变量完整性校验
+  # ---------------------------------------------------------
+  compose:
+    name: Validate docker-compose
+    needs: changes
+    if: needs.changes.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # 仅用于让 ${VAR:?...} 通过，不连接任何真实服务
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_DB: agent
+      AGENT_POSTGRES_USER: agent
+      AGENT_POSTGRES_PASSWORD: ci-only-password
+      AGENT_POSTGRES_DB: agent_service
+      REDIS_PASSWORD: ci-only-redis-password
+      # 仅用于通过 compose 变量插值校验，不连接任何服务；生产必须替换为真实 RSA 密钥
+      JWT_PRIVATE_KEY: ci-only-placeholder-private-key
+      JWT_PUBLIC_KEY: ci-only-placeholder-public-key
+      AUTH_ADMIN_PASSWORD: ci-only-admin-password
+      LLM_API_KEY: sk-ci-test-key
+      # LiteLLM 网关与 Prometheus 的必填插值；仅用于 compose config，不连接真实服务
+      LITELLM_MASTER_KEY: sk-ci-litellm-master-key
+      LITELLM_SALT_KEY: ci-only-litellm-salt-key-0123456789
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compose config
+        run: docker compose -f docker-compose.yml config -q

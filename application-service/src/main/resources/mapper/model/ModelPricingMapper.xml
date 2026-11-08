@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.ModelPricingMapper">
+
+    <resultMap id="modelPricingRowMap" type="com.example.agent.model.infrastructure.ModelPricingRow">
+        <constructor>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="input_price_per_million" javaType="java.math.BigDecimal"/>
+            <arg column="output_price_per_million" javaType="java.math.BigDecimal"/>
+            <arg column="effective_from" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 一次取回批次涉及的全部版本，调用方按 occurred_at 选择生效版本，避免逐条查询 -->
+    <select id="findByModels" resultMap="modelPricingRowMap">
+        SELECT provider, model_key, currency, input_price_per_million,
+               output_price_per_million, effective_from
+        FROM model_pricing
+        WHERE provider IN
+        <foreach collection="providers" item="provider" open="(" separator="," close=")">
+            #{provider}
+        </foreach>
+          AND model_key IN
+        <foreach collection="modelKeys" item="modelKey" open="(" separator="," close=")">
+            #{modelKey}
+        </foreach>
+        ORDER BY provider, model_key, effective_from DESC
+    </select>
+</mapper>

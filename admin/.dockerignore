@@ -1,0 +1,29 @@
+# 本地产物与依赖
+node_modules
+**/node_modules
+dist
+coverage
+.pnpm-store
+*.tsbuildinfo
+.eslintcache
+__screenshots__
+
+# 版本控制与编辑器
+.git
+.gitignore
+.vscode
+.idea
+.trae
+
+# 本地环境配置：构建变量统一由 Docker build args 注入
+.env
+.env.*
+!.env.example
+
+# 文档与日志
+README.md
+docs
+*.log
+**/*.log
+
+# 注意：不要排除 deploy/，镜像构建需要其中的 nginx 配置

@@ -1,0 +1,122 @@
+spring:
+    application:
+        name: agent-application-service
+    profiles:
+        default: local
+    flyway:
+        enabled: true
+        locations: classpath:db/migration
+    modulith:
+        detection-strategy: explicitly-annotated
+
+mybatis:
+    mapper-locations: classpath*:mapper/**/*.xml
+    configuration:
+        map-underscore-to-camel-case: true
+
+app:
+    model:
+        # 控制面总开关：关闭时内部接口与模型目录返回 404，不改变既有行为
+        runtime-enabled: ${MODEL_RUNTIME_ENABLED:false}
+        byok-enabled: ${BYOK_ENABLED:false}
+        # 凭证加密：32 字节 base64 主密钥只从环境变量注入；启用 BYOK 时缺失会启动失败
+        credential:
+            master-key: ${MODEL_CRED_MASTER_KEY:}
+            key-version: ${MODEL_CRED_KEY_VERSION:1}
+            # 多版本主密钥环，格式 <version>:<base64>，多项用英文逗号分隔；用于轮换后继续解密旧密文
+            key-ring: ${MODEL_CRED_MASTER_KEYS:}
+            verify-timeout: ${MODEL_CRED_VERIFY_TIMEOUT:5s}
+            # 单用户每分钟手动验证上限：验证会发起真实出站请求，必须限流
+            verify-rate-limit-per-minute: ${MODEL_CRED_VERIFY_RATE_LIMIT_PER_MINUTE:5}
+        # 模型网关（LiteLLM）：唯一模型出口，只允许内网可达
+        gateway:
+            base-url: ${MODEL_GATEWAY_BASE_URL:http://127.0.0.1:4000}
+            # master key 只从环境变量注入；留空表示本地未部署网关，凭证探测按不可用处理
+            master-key: ${MODEL_GATEWAY_MASTER_KEY:}
+        # Auto 对应的平台默认模型，格式 <provider>:<modelKey>
+        default-model-key: ${MODEL_DEFAULT_KEY:deepseek:deepseek-v4-pro}
+        task-ttl: ${MODEL_TASK_TTL:10m}
+        quota:
+            # 每用户每日请求上限；当日首条记录写入时快照，默认值来自产品配置
+            daily-requests: ${MODEL_QUOTA_DAILY_REQUESTS:100}
+        reconcile:
+            # 定时对账：统计额度溢出、归属不一致与异常费用，只读不修改台账
+            enabled: ${MODEL_RECONCILE_ENABLED:true}
+            # 每日 00:05 UTC；cron 含空格，必须整体加引号
+            cron: "${MODEL_RECONCILE_CRON:0 5 0 * * *}"
+        task-cleanup:
+            # 定时把到期任务标记为 EXPIRED：只改状态不删行，使用明细仍通过 task_id 归属
+            enabled: ${MODEL_TASK_CLEANUP_ENABLED:true}
+            # 每小时整点 UTC；cron 含空格，必须整体加引号
+            cron: "${MODEL_TASK_CLEANUP_CRON:0 0 * * * *}"
+        internal-auth:
+            client-id: ${INTERNAL_AUTH_CLIENT_ID:agent-service}
+            # 只允许通过环境变量注入；启用 runtime-enabled 时为空会启动失败
+            client-secret: ${INTERNAL_AUTH_CLIENT_SECRET:}
+            token-ttl: ${INTERNAL_AUTH_TOKEN_TTL:5m}
+    security:
+        jwt:
+            # RS256 非对称签名：本服务持有私钥签发，Agent 只用公钥验签
+            # PEM 可写真实换行，也可把换行写成字面量 \n（环境变量场景）
+            private-key: ${JWT_PRIVATE_KEY}
+            public-key: ${JWT_PUBLIC_KEY}
+            kid: ${JWT_KID:rsa-2026-10}
+            audience: ${JWT_AUDIENCE:agent-clients}
+            issuer: ${JWT_ISSUER:agent-application-service}
+            access-token-ttl: ${JWT_ACCESS_TTL:10m}
+        refresh:
+            # 双重过期：闲置 7 天未使用即失效，绝对 30 天必须重新登录
+            idle-ttl: ${AUTH_REFRESH_IDLE_TTL:7d}
+            absolute-ttl: ${AUTH_REFRESH_ABSOLUTE_TTL:30d}
+            # 并发刷新的宽限期：窗口内出示旧令牌按冲突处理，不撤销整族
+            rotation-grace: ${AUTH_REFRESH_ROTATION_GRACE:60s}
+        cookie:
+            # 本地是 http，浏览器不保存 Secure Cookie；生产由 ProdConfigGuard 强制为 true
+            secure: ${AUTH_COOKIE_SECURE:false}
+        # 首次启动播种的引导账号；口令留空表示不创建该账号
+        bootstrap-users:
+            - username: ${AUTH_ADMIN_USERNAME:admin}
+              password: ${AUTH_ADMIN_PASSWORD:}
+              roles: ${AUTH_ADMIN_ROLES:ADMIN}
+            - username: ${AUTH_DEMO_USERNAME:demo}
+              password: ${AUTH_DEMO_PASSWORD:}
+              roles: ${AUTH_DEMO_ROLES:USER}
+    cors:
+        # 跨域来源白名单，多个用英文逗号分隔；留空表示不放开跨域
+        allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+        allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+        allowed-headers: '*'
+        exposed-headers: X-Request-Id
+        allow-credentials: false
+        max-age: 1h
+
+springdoc:
+    api-docs:
+        path: /v3/api-docs
+    swagger-ui:
+        path: /swagger-ui.html
+
+server:
+    error:
+        include-message: never
+        include-stacktrace: never
+        include-exception: false
+        include-binding-errors: never
+
+logging:
+    pattern:
+        level: '%5p [%X{requestId:-}]'
+    level:
+        root: INFO
+
+management:
+    endpoints:
+        web:
+            exposure:
+                # prometheus 只供内网采集器抓取：Java 端口在 Compose 中只绑定回环，
+                # Nginx 也不代理 /actuator，公网无法直达
+                include: health,info,prometheus
+    prometheus:
+        metrics:
+            export:
+                enabled: true

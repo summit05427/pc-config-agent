@@ -1,0 +1,7 @@
+# 接口调试文件：IDE 中点击左侧运行按钮即可发请求
+# 启动服务：.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+
+GET http://127.0.0.1:8000/api/v1/health
+Accept: application/json
+
+###

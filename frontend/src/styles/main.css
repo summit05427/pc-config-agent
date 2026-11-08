@@ -1,0 +1,696 @@
+/* 唯一设计来源：Claude Design System（Caho1/open-claude-ui, MIT）。
+   原始文件 code-examples/cds-theme.css 原样保留变量与命名，适配层只做语义映射。 */
+@import './cds-theme.css';
+@import './fonts.css';
+@import 'tailwindcss';
+@import 'tw-animate-css';
+/* Inter 只作为 Anthropic Sans 缺失字形（希腊、西里尔、箭头、数学符号）的兜底，
+   拉丁字母与数字都由 Anthropic Sans 命中，不会触发 Inter 子集下载 */
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/noto-sans-sc/400.css';
+@import '@fontsource/noto-sans-sc/500.css';
+@import '@fontsource/noto-sans-sc/700.css';
+/* AI 正文走衬线，中文字形由 Noto Serif SC 提供；只取正文用到的 400/600/700 */
+@import '@fontsource/noto-serif-sc/400.css';
+@import '@fontsource/noto-serif-sc/600.css';
+@import '@fontsource/noto-serif-sc/700.css';
+@import 'nprogress/nprogress.css';
+/* Generative UI：只引入所选官方组件的样式，不引入整包 index.css（约 363 KB）；
+   全部落在 components 层，保证 Tailwind utilities 仍可覆盖官方样式 */
+@import '@openuidev/react-ui/layered/styles/openui-defaults.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/shared.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/iconButton.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/tabs.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/accordion.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/table.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/card.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/cardHeader.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/textContent.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/button.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/buttons.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/tag.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/separator.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/formControl.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/metricIndicator.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/followUpItem.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/image.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/steps.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/input.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/label.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/select.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/checkBoxGroup.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/checkBoxItem.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/radioGroup.css' layer(components);
+@import '@openuidev/react-ui/layered/styles/radioItem.css' layer(components);
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * 设计语言：Claude 暖调纸面工作台。
+ * 表面阶梯、陶土橙、灰度与透明度边框全部来自 cds-theme.css 的原始 Token；
+ * 本层只做语义映射，不新增颜色，也不覆盖 P0 已定义的变量。
+ */
+@theme inline {
+  /* 三套 Anthropic 品牌字体按用途分工：
+     sans 承担全部 UI 控件与界面文字，serif 只用于 AI 长文正文，mono 用于代码与等宽标识。
+     Inter 排在 Anthropic Sans 之后，仅补齐后者缺失的拉丁扩展与符号字形。 */
+  --font-sans:
+    'anthropic-sans', 'Inter', 'Noto Sans SC', ui-sans-serif, system-ui, -apple-system,
+    'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-heading: var(--font-sans);
+  --font-serif:
+    'anthropic-serif', 'Noto Serif SC', 'Songti SC', 'SimSun', ui-serif, Georgia,
+    'Times New Roman', serif;
+  --font-mono:
+    'anthropic-mono', ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas,
+    'Noto Sans SC', monospace;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-clay: var(--cds-clay);
+  --color-clay-hover: var(--cds-clay-hover);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-code-bg: var(--code-bg);
+  --color-code-border: var(--code-border);
+  --color-code-foreground: var(--code-foreground);
+  --color-code-inline-bg: var(--code-inline-bg);
+  --color-code-inline-foreground: var(--code-inline-foreground);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-border-strong: var(--cds-border-strong);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  /* 圆角沿用 P0 的 2/4/6/8/12/16/24px 阶梯（与 Tailwind v4 默认刻度一致），
+     不再用 --radius ± 4px 的派生公式，避免两套圆角来源 */
+  --shadow-sm: var(--cds-shadow-sm);
+  --shadow-md: var(--cds-shadow-md);
+  --shadow-lg: var(--cds-shadow-lg);
+}
+
+/* 产品界面的字号是固定刻度，不随视口流动；中文字号略小于西文以保持密度 */
+@theme {
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.55;
+  /* 侧边栏导航字号：比 text-sm 大一档，抵消窄栏中文在 13px 下的局促感 */
+  --text-nav: 0.875rem;
+  --text-nav--line-height: 1.5;
+  --text-base: 0.9375rem;
+  --text-base--line-height: 1.65;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.55;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.4;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.3;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 1.2;
+  /* 展示型标题专用刻度：只给衬线大标题用。
+     行高与字距按官方 display 规格收紧（1.12 / -0.02em），
+     字号足够大时浏览器会把 opsz 推到 Display 档，笔画自然变细； */
+  --text-display: 2rem;
+  --text-display--line-height: 1.12;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 400;
+}
+
+:root {
+  color-scheme: light;
+
+  /*
+   * 几何 Token（CDS 尺寸规范）：
+   * 侧栏 288px / 折叠栏 56px，顶栏 48px，对话内容 720px，页面沟槽 32px。
+   * 控件高度阶梯 23 / 26 / 32 / 40px，组件只引用变量，不再各写一套高度。
+   */
+  --app-sidebar-width: 18rem;
+  --app-sidebar-rail-width: 3.5rem;
+  --app-titlebar-height: 3rem;
+  --app-content-width: 45rem;
+  --app-gutter-x: 2rem;
+
+  --control-height-xs: 1.4375rem;
+  --control-height-sm: 1.625rem;
+  --control-height-md: 2rem;
+  --control-height-lg: 2.5rem;
+
+  /* 侧边栏行高独立于控件阶梯：36px 为 14px 导航文字留出呼吸空间 */
+  --app-sidebar-row-height: 2.25rem;
+
+  /* 表面阶梯直接映射 CDS：0 侧栏/底层画布，1 主工作区，2 消息卡片，3 输入框与高层浮层 */
+  --canvas: var(--cds-surface-0);
+  --background: var(--cds-surface-1);
+  --surface: var(--cds-surface-2);
+  --surface-raised: var(--cds-surface-3);
+  --card: var(--cds-surface-2);
+  --card-foreground: var(--cds-text-primary);
+  --popover: var(--cds-surface-popover);
+  --popover-foreground: var(--cds-text-primary);
+
+  --foreground: var(--cds-text-primary);
+  /*
+   * 主操作 = 墨色中性，不是品牌色。
+   * Claude 主 CTA（claude.ai 登录页 “Continue with email”）是墨色实心 pill；
+   * 陶土橙只承担品牌识别（徽标、焦点环、运行指示灯、图表首色），
+   * 直接复用 text-primary 可让深色模式自动反相，无需第二套值。
+   */
+  --primary: var(--cds-text-primary);
+  --primary-foreground: var(--cds-surface-2);
+  /* 次级面就是 P0 的用户气泡底色（alpha-1），不再另造一种灰 */
+  --secondary: var(--cds-bg-user-message);
+  --secondary-foreground: var(--cds-text-primary);
+  --muted: var(--cds-fill-ghost-hover);
+  --muted-foreground: var(--cds-text-secondary);
+  --accent: var(--cds-fill-ghost-selected);
+  --accent-foreground: var(--cds-text-primary);
+  /* P0 danger 为 #ef4444，正文对比不足；取同一红色阶 600 满足 AA */
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: var(--cds-border);
+  --input: var(--cds-border);
+  --ring: var(--cds-clay);
+
+  /* 状态色都取自 P0 色阶（橙/蓝）或 P0 代码示例使用的 emerald/red 族，
+     只做对比度需要的档位选择，不引入第三种色相 */
+  --success: #047857;
+  --success-foreground: #ffffff;
+  --warning: var(--cds-orange-500);
+  --warning-foreground: #ffffff;
+  --info: var(--cds-blue-450);
+  --info-foreground: #ffffff;
+
+  /* 代码区沿用 P0 的深色终端面，明暗模式保持一致 */
+  --code-bg: #0d0d0c;
+  --code-border: #262624;
+  --code-foreground: #d4d4d4;
+  --code-inline-bg: var(--cds-gray-70);
+  --code-inline-foreground: var(--cds-text-primary);
+
+  --chart-1: var(--cds-clay);
+  --chart-2: var(--cds-blue-450);
+  --chart-3: var(--cds-orange-400);
+  --chart-4: var(--cds-gray-400);
+  --chart-5: var(--cds-orange-700);
+
+  --sidebar: var(--cds-surface-0);
+  --sidebar-foreground: var(--cds-text-secondary);
+  --sidebar-primary: var(--cds-text-primary);
+  --sidebar-primary-foreground: var(--cds-surface-2);
+  --sidebar-accent: var(--cds-fill-ghost-selected);
+  --sidebar-accent-foreground: var(--cds-text-primary);
+  --sidebar-border: var(--cds-border);
+  --sidebar-ring: var(--cds-clay);
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* 表面、文本、边框、气泡由 cds-theme.css 的 .dark 覆盖自动切换，
+     这里只补它未定义的状态色与代码内联色 */
+  --destructive: var(--cds-fill-danger);
+  --destructive-foreground: var(--cds-gray-900);
+
+  --success: #34d399;
+  --success-foreground: var(--cds-gray-900);
+  --warning: var(--cds-orange-250);
+  --warning-foreground: var(--cds-gray-900);
+  --info: #5b9fe3;
+  --info-foreground: var(--cds-gray-900);
+
+  --code-inline-bg: #262624;
+  --code-inline-foreground: #f5f5f5;
+
+  --chart-2: #5b9fe3;
+  --chart-3: var(--cds-orange-300);
+  --chart-4: var(--cds-gray-300);
+  --chart-5: var(--cds-orange-150);
+}
+
+/*
+ * Generative UI 容器：把 OpenUI 原语的颜色变量收敛到 CDS 语义 Token。
+ * 同时定义在 :root，因为 Select 的下拉内容经 Radix Portal 渲染到 body，
+ * 拿不到 .openui-theme-scope 的继承变量；明暗切换沿用 --cds-* 的既有反相，
+ * 字号、间距、圆角、阴影仍用官方默认值，不做二次定义。
+ */
+:root,
+.openui-theme-scope {
+  --openui-foreground: var(--background);
+  --openui-elevated: var(--card);
+  --openui-sunk: var(--muted);
+  --openui-highlight: var(--accent);
+  --openui-highlight-subtle: var(--secondary);
+  --openui-border-default: var(--border);
+  /* 常态交互边框（输入框、复选框、次级按钮）是中性强边框；
+     陶土色只用于焦点环与选中态，避免所有控件边缘都带品牌色 */
+  --openui-border-interactive: var(--cds-border-strong);
+  --openui-border-interactive-selected: var(--cds-clay);
+  --openui-border-accent: var(--cds-clay);
+  --openui-border-danger: var(--destructive);
+  --openui-text-neutral-primary: var(--foreground);
+  --openui-text-neutral-secondary: var(--muted-foreground);
+  --openui-text-neutral-tertiary: var(--muted-foreground);
+  /* 官方语义是「强调填充上的前景色」（主按钮文案、勾选标记、开关文案），
+     默认近白色；映射成陶土色会让文字与橙色背景同色而不可见 */
+  --openui-text-accent-primary: var(--primary-foreground);
+  --openui-text-success-primary: var(--success);
+  --openui-text-danger-primary: var(--destructive);
+  --openui-text-danger-tertiary: var(--destructive);
+  --openui-text-danger-inverted-primary: var(--destructive-foreground);
+  /* 主操作沿用 CDS 的墨色中性 CTA，陶土色只做品牌识别；
+     hover/pressed 用与 primary 混色的方式，明暗模式自动反相 */
+  --openui-interactive-accent-default: var(--primary);
+  --openui-interactive-accent-hover: color-mix(in srgb, var(--primary) 90%, var(--background));
+  --openui-interactive-accent-pressed: color-mix(in srgb, var(--primary) 82%, var(--background));
+  --openui-interactive-accent-disabled: color-mix(in srgb, var(--primary) 42%, var(--background));
+  /* 非实心的危险操作是「浅红底 + 红字」，不能映射成实心红，
+     否则 outline/secondary 按钮进入确认态后文字与背景同色而不可见 */
+  --openui-interactive-destructive-default: color-mix(in srgb, var(--destructive) 10%, transparent);
+  --openui-interactive-destructive-hover: color-mix(in srgb, var(--destructive) 18%, transparent);
+  --openui-interactive-destructive-pressed: color-mix(in srgb, var(--destructive) 26%, transparent);
+  --openui-interactive-destructive-disabled: color-mix(
+    in srgb,
+    var(--destructive) 10%,
+    transparent
+  );
+  --openui-interactive-destructive-accent-default: var(--destructive);
+  --openui-interactive-destructive-accent-hover: var(--destructive);
+  --openui-interactive-destructive-accent-pressed: var(--destructive);
+  --openui-interactive-destructive-accent-disabled: var(--muted);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  /* 移动端浏览器地址栏收起/展开时，固定 100vh 会露出空白或裁切输入区 */
+  @supports (height: 100dvh) {
+    html,
+    body,
+    #app {
+      height: 100dvh;
+    }
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    /* 品牌字体自带 kerning 与连字，不再叠加 Inter 的 cv11/ss01 特性 */
+    font-kerning: normal;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 焦点只出现在键盘操作上，视觉强度足以在任意表面辨认 */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--cds-clay) 26%, var(--surface));
+    color: var(--foreground);
+  }
+
+  /*
+   * Chrome/Edge 自动填充会强制注入浅蓝底色，与项目表面色不符。
+   * 用 inset 阴影覆盖该背景并同步文字色；焦点态在阴影里补回设计系统的焦点环。
+   */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: inset 0 0 0 1000px var(--surface) !important;
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--cds-clay);
+  }
+
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:focus-visible {
+    -webkit-box-shadow:
+      inset 0 0 0 1000px var(--surface),
+      0 0 0 2px color-mix(in oklab, var(--ring) 30%, transparent) !important;
+    -webkit-text-fill-color: var(--foreground) !important;
+    caret-color: var(--cds-clay);
+  }
+
+  /*
+   * 密码掩码圆点的字宽取决于字体：首屏品牌字体未就绪时会回退到 Noto Sans SC，
+   * 其 U+2022 为全角（1em），加载完成后切回 Anthropic Sans（0.5em），字距会突变。
+   * 掩码态固定使用系统字体保证首屏一致；切换明文后 type 变为 text，自动回到品牌字体。
+   */
+  input[type='password'] {
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
+      'Microsoft YaHei', sans-serif;
+    letter-spacing: normal;
+  }
+
+  /*
+   * 三档字号：改根字号即可让 rem 驱动的文字与间距整体等比缩放。
+   * 默认档保持浏览器 16px，小/大档各偏移 1px，避免布局明显跳动。
+   */
+  html[data-font-scale='small'] {
+    font-size: 15px;
+  }
+
+  html[data-font-scale='large'] {
+    font-size: 17px;
+  }
+
+  /* 浏览器自带的光标、选中与滚动条也属于设计系统的一部分 */
+  :root {
+    caret-color: var(--cds-clay);
+    scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+    scrollbar-width: thin;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--foreground) 18%, transparent);
+    border: 3px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--foreground) 30%, transparent);
+    background-clip: content-box;
+  }
+}
+
+/* 数字对齐：时间、用量、步骤耗时统一使用等宽数字 */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * 品牌文字标（Wordmark）：侧栏、登录页、顶栏统一用这一套。
+ * 衬线 + 中字重 + 紧字距是官方字标的核心特征，
+ * 无衬线加粗会把品牌位拉回普通后台观感。
+ * 字号固定 17px：既比导航文字（14px）高一级形成层级，又不至于喧宾夺主。
+ */
+@utility brand-wordmark {
+  font-family: var(--font-serif);
+  font-size: 1.0625rem;
+  font-weight: 500;
+  font-optical-sizing: auto;
+  line-height: 1;
+  letter-spacing: -0.015em;
+  /* 衬线小字号在暗色下会被光渗吃掉笔画，微调字重补回清晰度 */
+  -webkit-font-smoothing: antialiased;
+}
+
+/* AI 输出：只描述排版，不引入品牌化配色；HTML 在渲染前已经被转义。
+   长文阅读用衬线：西文由 Anthropic Serif（含 opsz 光学尺寸轴）渲染，
+   中文由 Noto Serif SC 接管；行内代码与代码块仍走 mono，见下方规则。 */
+.prose-agent {
+  color: var(--foreground);
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  line-height: 1.72;
+  overflow-wrap: anywhere;
+}
+
+.prose-agent > :first-child {
+  margin-top: 0;
+}
+
+.prose-agent > :last-child {
+  margin-bottom: 0;
+}
+
+.prose-agent > * + * {
+  margin-top: 0.8em;
+}
+
+.prose-agent h1,
+.prose-agent h2,
+.prose-agent h3,
+.prose-agent h4 {
+  margin-top: 1.3em;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.prose-agent h1 {
+  font-size: 1.25rem;
+}
+
+.prose-agent h2 {
+  font-size: 1.125rem;
+}
+
+.prose-agent h3,
+.prose-agent h4 {
+  font-size: 1rem;
+}
+
+.prose-agent ul,
+.prose-agent ol {
+  padding-left: 1.35rem;
+}
+
+.prose-agent ul {
+  list-style: disc;
+}
+
+.prose-agent ol {
+  list-style: decimal;
+}
+
+.prose-agent li + li {
+  margin-top: 0.3em;
+}
+
+.prose-agent li > ul,
+.prose-agent li > ol {
+  margin-top: 0.3em;
+}
+
+.prose-agent a {
+  /* Claude 正文链接是下划线墨色（claude.ai 隐私政策链接即为此态），
+     陶土橙只作为 hover 时的品牌强调，不作为常驻链接色 */
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.prose-agent a:hover {
+  color: var(--cds-orange-500);
+  text-decoration-thickness: 2px;
+}
+
+.prose-agent strong {
+  font-weight: 600;
+}
+
+/* 行内代码只作用于段落里的 code，避免把浅色内联样式泄漏进深色代码块 */
+.prose-agent :not(pre) > code {
+  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: var(--code-inline-foreground);
+  background: var(--code-inline-bg);
+  border-radius: var(--radius-sm);
+}
+
+.prose-agent pre {
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  /* 正文已切到衬线，代码块必须显式回到等宽，不能依赖继承 */
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--code-foreground);
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  /* P0 代码块固定 12px 圆角，与输入框的 20px 形成层次 */
+  border-radius: var(--cds-radius-code);
+}
+
+.prose-agent pre code {
+  padding: 0;
+  font-size: inherit;
+  background: transparent;
+  border-radius: 0;
+}
+
+.prose-agent blockquote {
+  padding-left: 0.9rem;
+  color: var(--muted-foreground);
+  border-left: 2px solid var(--border);
+}
+
+.prose-agent hr {
+  height: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.prose-agent table {
+  width: 100%;
+  font-size: 0.875em;
+  border-collapse: collapse;
+}
+
+.prose-agent th,
+.prose-agent td {
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.prose-agent th {
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+/* 流式生成中的光标：只表达“仍在输出”，不做装饰性动画 */
+.stream-caret::after {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  content: '';
+  background: var(--cds-fill-brand, var(--brand));
+  animation: caret-blink 1.1s steps(1) infinite;
+}
+
+@keyframes caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/*
+ * 流式逐字淡入：字符首次挂载时播放一次，尾块新增文本因此形成连续的柔和边缘。
+ * 只改 opacity / filter，不参与布局；代码块与表格外的空白不包裹。
+ */
+.stream-char {
+  animation: stream-char-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes stream-char-in {
+  from {
+    opacity: 0;
+    filter: blur(1.5px);
+  }
+
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.skeleton {
+  background: var(--muted);
+  border-radius: var(--radius-sm);
+  animation: skeleton-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes skeleton-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/*
+ * 主题切换：关闭 View Transitions 默认的交叉淡化，
+ * 由 use-theme.ts 用 WAAPI 控制 ::view-transition-new(root) 的 clip-path 圆形扩散。
+ * 伪元素规则必须放全局样式，组件 scoped 样式不生效。
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+#nprogress .bar {
+  height: 2px;
+  background: var(--primary);
+}
+
+#nprogress .peg {
+  box-shadow:
+    0 0 6px var(--primary),
+    0 0 3px var(--primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .stream-caret::after {
+    opacity: 0.7;
+  }
+}

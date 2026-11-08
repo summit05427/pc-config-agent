@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.QuotaMapper">
+
+    <resultMap id="quotaRowMap" type="com.example.agent.model.infrastructure.QuotaRow">
+        <constructor>
+            <arg column="used_count" javaType="java.lang.Integer"/>
+            <arg column="limit_count" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <!--
+        单语句原子扣减：并发请求由行锁串行化，只有 used_count < limit_count 的请求会 +1。
+        WHERE 不成立时 UPDATE 不执行，RETURNING 无行 → 返回 null，即视为超限。
+        禁止拆成「先查再改」，否则并发下会超发。
+    -->
+    <select id="tryConsume" resultMap="quotaRowMap">
+        INSERT INTO model_request_quotas (user_public_id, quota_date, used_count, limit_count)
+        VALUES (#{userPublicId}, #{quotaDate,jdbcType=DATE}, 1, #{dailyLimit})
+        ON CONFLICT (user_public_id, quota_date) DO UPDATE
+        SET used_count = model_request_quotas.used_count + 1,
+            updated_at = now()
+        WHERE model_request_quotas.used_count &lt; model_request_quotas.limit_count
+        RETURNING used_count, limit_count
+    </select>
+
+    <select id="find" resultMap="quotaRowMap">
+        SELECT used_count, limit_count
+        FROM model_request_quotas
+        WHERE user_public_id = #{userPublicId}
+          AND quota_date = #{quotaDate,jdbcType=DATE}
+    </select>
+
+    <!-- 对账：只返回计数，不返回用户标识，避免告警日志泄露用户维度明细 -->
+    <select id="countOverflow" resultType="int">
+        SELECT count(*)
+        FROM model_request_quotas
+        WHERE quota_date = #{quotaDate,jdbcType=DATE}
+          AND used_count &gt; limit_count
+    </select>
+
+    <select id="countAtLimit" resultType="int">
+        SELECT count(*)
+        FROM model_request_quotas
+        WHERE quota_date = #{quotaDate,jdbcType=DATE}
+          AND used_count &gt;= limit_count
+    </select>
+</mapper>

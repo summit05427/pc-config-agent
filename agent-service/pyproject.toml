@@ -1,0 +1,78 @@
+[project]
+name = "agent-service"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    # RS256 验签需要解析 PEM 公钥；pyjwt[crypto] 已间接引入，这里声明为直接依赖
+    "cryptography>=44.0.0",
+    "fastapi>=0.161.1",
+    "langchain-anthropic>=1.0.0",
+    "langchain-mcp-adapters>=0.3.2",
+    "langchain-openai>=1.7.2",
+    "langgraph>=1.2.16",
+    "langgraph-checkpoint-postgres>=3.2.0",
+    "mcp>=1.30.0",
+    "openai>=3.37.0",
+    "prometheus-client>=0.26.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic-settings>=2.16.1",
+    "pyjwt[crypto]>=2.15.1",
+    # Agent Profile 使用 YAML；此前仅作为传递依赖存在，显式声明避免随上游变化消失
+    "pyyaml>=6.0.2",
+    "python-multipart>=0.0.32",
+    "redis[hiredis]>=8.1.0",
+    "sse-starlette>=3.5.0",
+    "structlog>=26.1.0",
+    "tiktoken>=0.14.0",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "ipykernel>=7.4.0",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 让 pytest 能直接 import app 包，避免依赖执行目录
+pythonpath = ["."]
+# 异步测试无需逐个加 @pytest.mark.asyncio
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W: pycodestyle, F: pyflakes, I: import 排序, UP: 语法现代化, B: bugbear, ASYNC: 异步陷阱
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI 的 Depends/Query 必须写在参数默认值里，属于官方写法
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
+[tool.mypy]
+python_version = "3.12"
+# 从项目根目录解析 app 包，否则同一文件会被识别成 app.core.config 与 core.config
+explicit_package_bases = true
+mypy_path = "."
+files = ["app", "evals"]
+# 第三方库（langchain / structlog 等）类型标注不全时不阻断 CI
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+show_missing = true
+# 覆盖率只看未覆盖文件，输出更短
+skip_covered = true
+# 低于阈值直接失败；当前实际约 97%，取值留出合理波动空间
+fail_under = 90
+

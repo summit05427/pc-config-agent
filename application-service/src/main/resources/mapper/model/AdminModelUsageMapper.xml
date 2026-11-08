@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.AdminModelUsageMapper">
+
+    <resultMap id="adminUsageRowMap" type="com.example.agent.model.infrastructure.AdminUsageRow">
+        <constructor>
+            <arg column="invocation_id" javaType="java.util.UUID"/>
+            <arg column="task_id" javaType="java.util.UUID"/>
+            <arg column="user_public_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="thread_id" javaType="java.lang.String"/>
+            <arg column="model_role" javaType="java.lang.String"/>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="credential_source" javaType="java.lang.String"/>
+            <arg column="prompt_tokens" javaType="java.lang.Integer"/>
+            <arg column="completion_tokens" javaType="java.lang.Integer"/>
+            <arg column="latency_ms" javaType="java.lang.Integer"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="error_type" javaType="java.lang.String"/>
+            <arg column="estimated_cost" javaType="java.math.BigDecimal"/>
+            <arg column="cost_status" javaType="java.lang.String"/>
+            <arg column="cost_bearer" javaType="java.lang.String"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="occurred_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="adminUsageTotalsRowMap" type="com.example.agent.model.infrastructure.AdminUsageTotalsRow">
+        <constructor>
+            <arg column="request_count" javaType="java.lang.Long"/>
+            <arg column="success_count" javaType="java.lang.Long"/>
+            <arg column="failure_count" javaType="java.lang.Long"/>
+            <arg column="prompt_tokens" javaType="java.lang.Long"/>
+            <arg column="completion_tokens" javaType="java.lang.Long"/>
+            <arg column="estimated_cost" javaType="java.math.BigDecimal"/>
+            <arg column="estimated_currency_count" javaType="java.lang.Integer"/>
+            <arg column="estimated_currency" javaType="java.lang.String"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="adminUsageStatusRowMap" type="com.example.agent.model.infrastructure.AdminUsageStatusRow">
+        <constructor>
+            <arg column="cost_status" javaType="java.lang.String"/>
+            <arg column="request_count" javaType="java.lang.Long"/>
+            <arg column="estimated_cost" javaType="java.math.BigDecimal"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="currency_count" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="adminUsageProviderRowMap" type="com.example.agent.model.infrastructure.AdminUsageProviderRow">
+        <constructor>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="request_count" javaType="java.lang.Long"/>
+            <arg column="prompt_tokens" javaType="java.lang.Long"/>
+            <arg column="completion_tokens" javaType="java.lang.Long"/>
+            <arg column="estimated_cost" javaType="java.math.BigDecimal"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="currency_count" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="adminUsageModelRowMap" type="com.example.agent.model.infrastructure.AdminUsageModelRow">
+        <constructor>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="request_count" javaType="java.lang.Long"/>
+            <arg column="prompt_tokens" javaType="java.lang.Long"/>
+            <arg column="completion_tokens" javaType="java.lang.Long"/>
+            <arg column="estimated_cost" javaType="java.math.BigDecimal"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="currency_count" javaType="java.lang.Integer"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 列表过滤条件；全部参数化，禁止拼接列名与用户输入 -->
+    <sql id="usageFilters">
+        <if test="filter.userId != null">
+            AND u.user_public_id = #{filter.userId}
+        </if>
+        <if test="filter.provider != null">
+            AND u.provider = #{filter.provider}
+        </if>
+        <if test="filter.modelKey != null">
+            AND u.model_key = #{filter.modelKey}
+        </if>
+        <if test="filter.credentialSource != null">
+            AND u.credential_source = #{filter.credentialSource}
+        </if>
+        <if test="filter.costStatus != null">
+            AND u.cost_status = #{filter.costStatus}
+        </if>
+        <if test="filter.status != null">
+            AND u.status = #{filter.status}
+        </if>
+        <if test="filter.fromInclusive != null">
+            AND u.occurred_at &gt;= #{filter.fromInclusive}
+        </if>
+        <if test="filter.toExclusive != null">
+            AND u.occurred_at &lt; #{filter.toExclusive}
+        </if>
+    </sql>
+
+    <!-- 聚合过滤条件与列表口径一致（不含用户、成本状态与调用结果） -->
+    <sql id="summaryFilters">
+        <if test="filter.provider != null">
+            AND u.provider = #{filter.provider}
+        </if>
+        <if test="filter.modelKey != null">
+            AND u.model_key = #{filter.modelKey}
+        </if>
+        <if test="filter.credentialSource != null">
+            AND u.credential_source = #{filter.credentialSource}
+        </if>
+        <if test="filter.fromInclusive != null">
+            AND u.occurred_at &gt;= #{filter.fromInclusive}
+        </if>
+        <if test="filter.toExclusive != null">
+            AND u.occurred_at &lt; #{filter.toExclusive}
+        </if>
+    </sql>
+
+    <select id="count" resultType="long">
+        SELECT count(*)
+        FROM model_usage_records u
+        WHERE 1 = 1
+        <include refid="usageFilters"/>
+    </select>
+
+    <!-- 用户展示名只在列表联查，count 与聚合不联用户表，避免无谓开销 -->
+    <select id="findPage" resultMap="adminUsageRowMap">
+        SELECT u.invocation_id, u.task_id, u.user_public_id,
+               COALESCE(NULLIF(us.display_name, ''), us.username) AS username,
+               u.thread_id, u.model_role, u.provider, u.model_key, u.credential_source,
+               u.prompt_tokens, u.completion_tokens, u.latency_ms, u.status, u.error_type,
+               u.estimated_cost, u.cost_status, u.cost_bearer, u.currency, u.occurred_at
+        FROM model_usage_records u
+        LEFT JOIN users us ON us.public_id = u.user_public_id
+        WHERE 1 = 1
+        <include refid="usageFilters"/>
+        <choose>
+            <when test="filter.ascending">
+                ORDER BY u.occurred_at ASC, u.id ASC
+            </when>
+            <otherwise>
+                ORDER BY u.occurred_at DESC, u.id DESC
+            </otherwise>
+        </choose>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="summarizeTotals" resultMap="adminUsageTotalsRowMap">
+        SELECT count(*) AS request_count,
+               count(*) FILTER (WHERE u.status = 'success') AS success_count,
+               count(*) FILTER (WHERE u.status = 'failure') AS failure_count,
+               COALESCE(sum(u.prompt_tokens), 0) AS prompt_tokens,
+               COALESCE(sum(u.completion_tokens), 0) AS completion_tokens,
+               sum(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.estimated_cost END) AS estimated_cost,
+               count(DISTINCT CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END)
+                   AS estimated_currency_count,
+               min(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS estimated_currency
+        FROM model_usage_records u
+        WHERE 1 = 1
+        <include refid="summaryFilters"/>
+    </select>
+
+    <select id="summarizeByCostStatus" resultMap="adminUsageStatusRowMap">
+        SELECT u.cost_status,
+               count(*) AS request_count,
+               sum(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.estimated_cost END) AS estimated_cost,
+               min(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS currency,
+               count(DISTINCT CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS currency_count
+        FROM model_usage_records u
+        WHERE 1 = 1
+        <include refid="summaryFilters"/>
+        GROUP BY u.cost_status
+        ORDER BY u.cost_status
+    </select>
+
+    <select id="summarizeByProvider" resultMap="adminUsageProviderRowMap">
+        SELECT u.provider,
+               count(*) AS request_count,
+               COALESCE(sum(u.prompt_tokens), 0) AS prompt_tokens,
+               COALESCE(sum(u.completion_tokens), 0) AS completion_tokens,
+               sum(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.estimated_cost END) AS estimated_cost,
+               min(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS currency,
+               count(DISTINCT CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS currency_count
+        FROM model_usage_records u
+        WHERE 1 = 1
+        <include refid="summaryFilters"/>
+        GROUP BY u.provider
+        ORDER BY request_count DESC, u.provider
+        LIMIT #{limit}
+    </select>
+
+    <select id="summarizeByModel" resultMap="adminUsageModelRowMap">
+        SELECT u.provider, u.model_key,
+               count(*) AS request_count,
+               COALESCE(sum(u.prompt_tokens), 0) AS prompt_tokens,
+               COALESCE(sum(u.completion_tokens), 0) AS completion_tokens,
+               sum(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.estimated_cost END) AS estimated_cost,
+               min(CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS currency,
+               count(DISTINCT CASE WHEN u.cost_status = 'ESTIMATED' THEN u.currency END) AS currency_count
+        FROM model_usage_records u
+        WHERE 1 = 1
+        <include refid="summaryFilters"/>
+        GROUP BY u.provider, u.model_key
+        ORDER BY request_count DESC, u.provider, u.model_key
+        LIMIT #{limit}
+    </select>
+</mapper>

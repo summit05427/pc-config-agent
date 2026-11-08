@@ -1,0 +1,40 @@
+{
+  "description": "SSE 事件字段契约基线（阶段 0 冻结，WP2.3 增加 schema_version，WP3.4 增加 citations，2026-11-07 增加 reasoning）。新增字段必须可选，事件类型变更需同步前端解析器。",
+  "schema_version": "1",
+  "event_types": ["token", "reasoning", "tool_call", "tool_result", "citations", "done", "error"],
+  "samples": {
+    "token": {
+      "text": "你好"
+    },
+    "reasoning": {
+      "text": "先分析问题再回答"
+    },
+    "tool_call": {
+      "name": "get_current_time",
+      "args": {
+        "timezone": "Asia/Shanghai"
+      }
+    },
+    "tool_result": {
+      "name": "get_current_time",
+      "preview": "2026-11-04 21:33:00 CST"
+    },
+    "citations": {
+      "citations": [
+        {
+          "source_id": "kb-1",
+          "title": "示例文档",
+          "snippet": "示例片段",
+          "score": 0.9
+        }
+      ]
+    },
+    "done": {
+      "thread_id": "demo-thread"
+    },
+    "error": {
+      "code": "agent_error",
+      "message": "生成回复失败，请重试"
+    }
+  }
+}

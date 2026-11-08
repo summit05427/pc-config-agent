@@ -1,0 +1,36 @@
+{
+  "include": [
+    "vite.config.*",
+    "vitest.config.*",
+    "playwright.config.*",
+    "eslint.config.*",
+    "e2e/**/*.ts"
+  ],
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "preserve",
+    "skipLibCheck": true,
+
+    // 大多数工具使用转译而非 Node.js 原生类型擦除，bundler 模式开发体验更一致
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+
+    // 只引入 Node.js 类型，避免把浏览器端 @types 混入工具配置
+    "types": ["node"],
+
+    // tsc -b 仅做类型检查，不产出文件
+    "noEmit": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  }
+}

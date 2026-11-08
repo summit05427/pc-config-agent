@@ -1,0 +1,93 @@
+# =============================================================
+# Monorepo 统一忽略规则
+# 各服务目录下仍保留自己的 .gitignore，这里只做兜底，防止
+# 依赖、构建产物、日志和真实密钥被误提交。
+# =============================================================
+
+# ---------- 依赖与构建产物 ----------
+**/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/coverage/
+frontend/.eslintcache
+admin/dist/
+admin/coverage/
+**/__screenshots__/
+application-service/target/
+agent-service/.venv/
+agent-service/venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/coverage.xml
+**/htmlcov/
+
+# ---------- 环境变量与密钥 ----------
+# 真实配置一律不提交，只保留 .env.example
+**/.env
+**/.env.local
+**/.env.*.local
+# Solo 模式生成的本地密钥文件
+/.env.solo
+!**/.env.example
+
+# ---------- IDE / 系统 ----------
+.idea/
+.vscode/
+**/.screenshots/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---------- 日志与临时文件 ----------
+*.log
+logs/
+**/*.tsbuildinfo
+
+# ---------- 本地部署产物 ----------
+deploy/backups/
+deploy/logs/
+deploy/*.tar.gz
+
+# ---------- 服务内部文档 ----------
+# 三个服务的 docs 仅本地保留，不进入 Git 克隆；根 docs/ 仍正常跟踪
+frontend/docs/
+application-service/docs/
+agent-service/docs/
+
+# ---------- impeccable 技能运行时产物 ----------
+# 保留共享产物：config.json、live/config.json、design.json、
+# surfaces/*.md、critique/*.md；其余截图、会话与缓存不作为交付物提交
+# impeccable-ignore-start
+# Ephemeral output, runtime state, and per-dev overrides.
+# The **/ prefix covers .impeccable at the repo root or in a nested workspace.
+**/.impeccable/config.local.json
+**/.impeccable/hook.cache.json
+**/.impeccable/hook.pending.json
+**/.impeccable/*.png
+**/.impeccable/review/
+**/.impeccable/questions/
+**/.impeccable/live/server.json
+**/.impeccable/live/sessions/
+**/.impeccable/live/previews/
+**/.impeccable/live/annotations/
+**/.impeccable/live/cache/
+**/.impeccable/live/manual-edit-apply-transaction.json
+**/.impeccable/live/manual-edit-events.jsonl
+**/.impeccable/live/manual-edit-evidence/
+**/.impeccable/live/pending-manual-edits.json
+**/.impeccable/live/deferred-svelte-component-accepts.json
+**/.impeccable/live/*.png
+# impeccable-ignore-end
+
+# ---------- 技能附带的平台二进制 ----------
+# 单文件近 19MB，仅本地保留，避免仓库体积膨胀
+.trae/skills/impeccable/scripts/bin/
+
+# ---------- taste-skill 技能运行时产物 ----------
+# 设计方向、浏览器审查截图与滚动场景快照均为本地中间产物，不作为交付物提交
+**/.taste-skill/

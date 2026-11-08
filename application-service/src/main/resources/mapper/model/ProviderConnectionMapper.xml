@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.ProviderConnectionMapper">
+
+    <resultMap id="connectionViewRowMap" type="com.example.agent.model.infrastructure.ProviderConnectionViewRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="provider_name" javaType="java.lang.String"/>
+            <arg column="base_url" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="last_verified_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="credential_id" javaType="java.util.UUID"/>
+            <arg column="masked_hint" javaType="java.lang.String"/>
+            <arg column="credential_status" javaType="java.lang.String"/>
+            <arg column="credential_created_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 一次联表取回列表所需字段，避免按连接逐条查凭证的 N+1 -->
+    <sql id="connectionViewColumns">
+        c.id, c.provider_code, p.display_name AS provider_name, c.base_url, c.status,
+        c.last_verified_at, c.created_at,
+        d.id AS credential_id, d.masked_hint,
+        d.status AS credential_status, d.created_at AS credential_created_at
+    </sql>
+
+    <sql id="connectionViewFrom">
+        FROM provider_connections c
+        JOIN providers p ON p.code = c.provider_code
+        LEFT JOIN provider_credentials d ON d.connection_id = c.id AND d.status &lt;&gt; 'REVOKED'
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO provider_connections
+            (id, user_public_id, provider_code, base_url, status, last_verified_at)
+        VALUES
+            (#{id}, #{userPublicId}, #{providerCode}, #{baseUrl}, #{status},
+             #{lastVerifiedAt,jdbcType=TIMESTAMP})
+    </insert>
+
+    <select id="findActiveViewsByUser" resultMap="connectionViewRowMap">
+        SELECT <include refid="connectionViewColumns"/>
+        <include refid="connectionViewFrom"/>
+        WHERE c.user_public_id = #{userPublicId}
+          AND c.status = 'ACTIVE'
+        ORDER BY c.created_at DESC
+    </select>
+
+    <select id="findActiveViewsPageByUser" resultMap="connectionViewRowMap">
+        SELECT <include refid="connectionViewColumns"/>
+        <include refid="connectionViewFrom"/>
+        WHERE c.user_public_id = #{userPublicId}
+          AND c.status = 'ACTIVE'
+        ORDER BY c.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countActiveByUser" resultType="long">
+        SELECT count(*)
+        FROM provider_connections
+        WHERE user_public_id = #{userPublicId}
+          AND status = 'ACTIVE'
+    </select>
+
+    <select id="findActiveViewById" resultMap="connectionViewRowMap">
+        SELECT <include refid="connectionViewColumns"/>
+        <include refid="connectionViewFrom"/>
+        WHERE c.id = #{id}
+          AND c.user_public_id = #{userPublicId}
+          AND c.status = 'ACTIVE'
+    </select>
+
+    <select id="findActiveViewByProvider" resultMap="connectionViewRowMap">
+        SELECT <include refid="connectionViewColumns"/>
+        <include refid="connectionViewFrom"/>
+        WHERE c.user_public_id = #{userPublicId}
+          AND c.provider_code = #{providerCode}
+          AND c.status = 'ACTIVE'
+    </select>
+
+    <update id="updateBaseUrl">
+        UPDATE provider_connections
+        SET base_url = #{baseUrl},
+            last_verified_at = NULL,
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND user_public_id = #{userPublicId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <update id="markVerified">
+        UPDATE provider_connections
+        SET last_verified_at = #{verifiedAt}
+        WHERE id = #{id}
+          AND user_public_id = #{userPublicId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <update id="markDeleted">
+        UPDATE provider_connections
+        SET status = 'DELETED',
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND user_public_id = #{userPublicId}
+          AND status = 'ACTIVE'
+    </update>
+</mapper>

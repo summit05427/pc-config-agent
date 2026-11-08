@@ -1,0 +1,69 @@
+# 自动化测试不依赖真实数据库：关闭 Flyway，并让连接池在启动阶段不建连，
+# 避免 @SpringBootTest 因数据库缺失而失败。持久层测试用 Testcontainers 单独启动实例。
+spring:
+    datasource:
+        url: ${DB_URL:jdbc:postgresql://localhost:5432/agent_test}
+        username: ${DB_USERNAME:agent}
+        password: ${DB_PASSWORD:}
+        hikari:
+            initialization-fail-timeout: -1
+    flyway:
+        enabled: false
+
+app:
+    security:
+        jwt:
+            # 仅供单元/集成测试使用的 RSA 密钥对，禁止用于任何真实环境；
+            # 与 Agent 测试使用同一对密钥时即可验证跨端验签。
+            private-key: |
+                -----BEGIN PRIVATE KEY-----
+                MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDET062Dt6gd4XL
+                dG9aV3NYjAD8z4Hm18e1um4EHpgwf6Z7w2gCzL4UZn2wzjF5tQq5I/Y0wPhWCN/V
+                io3T9uCwEZ2RKlPgLz+MojxF1QD3NXEX7MXkUTQaB0vHD/nA8zWZ+75GXftToZNt
+                jLXdTL6Yx82YuWHnhGXoX33uNf15hfP2eTCFKh82WGQwkNzuRSyuN1bg7aHPmTB4
+                INnhSTC0Z/tIPBQ8sn/pDymKy+yHpgrbV4b3FZ4NqxEYLqTXgBCWFm94DgCWbOvU
+                CbQlgUEl/WK8Z5NvI3ttDpI5FhNINUM62JscELUI1ZC+8WF74VQeIksxdYHYN6YT
+                NOMph2mJAgMBAAECggEACbwtGRYvsCF9PxOtGfvQOonm2qKnvHzi6H4wSoAB6BXM
+                ecK8+7aPjo9umEABcBmsSHYiFYekSQ/zmbFfSy2pAtI80CAbPLjbG+xHtObVP20l
+                CJyzS5lDTi8icOK37fuhots7Gl46wnD20K3zrt/Ja+YsqfA3jLWiIB3sLs36nfYS
+                XtHnJPsgEfunKMBHSrljYQ3b6xg6mpY7m36CeoTCcZAMlrH5FIwZiBHf0fzvHGT6
+                YHZluEHs8kvx6+w+mldVERKjOuIBpkZsryUnE1UIAGsY7hbE17fMDE8V8OIMRxSv
+                kWfUbqvOQ88CwGfg6yrQ9EoUARs4gRTqNWboB4WOyQKBgQDmo8tFp12BqXRG1nyu
+                SOyKCaSOwn6T47cZh9BPVz3zxkpqUVOAjMOi4T4fh1q4rPMYSz1hmGuOTl99Yr5R
+                WblQMYGjMhfW7wP0LjtfzsOBFDRRcWdt0UwTpS+LgCiaJdLru36k527toopsRzNR
+                YG6cJ1WB2tsm6/w4p8HRMDUD8wKBgQDZ5Sspz+omXS3Ar/tJqdx8pCkngxbbSY15
+                5PZuapihurgZfd/uEsY2V2uXzxR7vqZw8+uoY+QZLprNOH9ojipcy/MjvrI4wWXm
+                CYppudMSCGdx7ZqeaQQB2FLMHtsbd7GwqDOI/fKFvIYs3P1yVC7PWacclTTuWt6x
+                c429LzuHkwKBgQCWNEv4w+PQwsQYMi2m75Uk3NzPoHkA5YdkWB/g3Adb0GK8VNSV
+                3pa2aAymSedaaEA1LSL/gV1io0XrCbi6kD1wrZ0o5EHEV4rypn1Ciwyl7ruX4swi
+                J/FsxeJt7nwCz+lKXqQ+zv5eQsH1fHU+ZRgEGFXGqPqaoYt0dkRycPvF4wKBgQCH
+                vKVI5Maeo4ku8fH+j5xU4QbqIFWKwaUqfCGv4yO2DFVHPAzViEiF7auO5GeENt4E
+                m08AlUmxDkFM+pcUEQv+xuZuLAtmI8RQqzzYY/RC1Y1rgXLCn/TpGVNq6QXhdIzy
+                2bVQ77G28hw7smcIY7zNWrIpsiFJIr57mNqBMf1JlQKBgQCunITz7IGdoWpiDJSI
+                pLLeDPDYBqjfFngyrOLNhOfOuinXLDrwV67NPZcylz77/Z4dSmVzFnjnYT3wfbR/
+                95VksxXuIfhjKQ+o+3Rbo9q6VCmNQB0BQbZYVR8Zig3+xLMSRKEY33SbsSuDbko2
+                kx+bhPzI2VgRgBck6VYpQbb82Q==
+                -----END PRIVATE KEY-----
+            public-key: |
+                -----BEGIN PUBLIC KEY-----
+                MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxE9Otg7eoHeFy3RvWldz
+                WIwA/M+B5tfHtbpuBB6YMH+me8NoAsy+FGZ9sM4xebUKuSP2NMD4Vgjf1YqN0/bg
+                sBGdkSpT4C8/jKI8RdUA9zVxF+zF5FE0GgdLxw/5wPM1mfu+Rl37U6GTbYy13Uy+
+                mMfNmLlh54Rl6F997jX9eYXz9nkwhSofNlhkMJDc7kUsrjdW4O2hz5kweCDZ4Ukw
+                tGf7SDwUPLJ/6Q8pisvsh6YK21eG9xWeDasRGC6k14AQlhZveA4Almzr1Am0JYFB
+                Jf1ivGeTbyN7bQ6SORYTSDVDOtibHBC1CNWQvvFhe+FUHiJLMXWB2DemEzTjKYdp
+                iQIDAQAB
+                -----END PUBLIC KEY-----
+            kid: rsa-2026-10
+            audience: agent-clients
+            issuer: agent-application-service
+            access-token-ttl: 10m
+        bootstrap-users:
+            - username: admin
+              password: test-only-password
+              roles: ADMIN
+            - username: demo
+              password: test-only-demo-password
+              roles: USER
+    cors:
+        allowed-origins: http://localhost:5173

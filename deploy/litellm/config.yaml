@@ -1,0 +1,169 @@
+# LiteLLM Proxy 配置：唯一模型出口
+#
+# 镜像版本固定在 docker-compose.yml，禁止使用 latest。
+# 变更本文件前先读 docs/adr/0008-unified-model-egress-litellm.md。
+
+model_list:
+  # ---------- MANAGED：平台托管凭证，按用量回传 Java 台账 ----------
+  # model_name 与业务模型标识保持一致（provider:model），Agent 侧无需二次映射。
+  # 仅 deepseek 随模板提供凭证；其余条目需部署方在 .env 中提供对应密钥，
+  # 未提供时该条目调用会失败，但目录已在 V22 标记为 byok_only，用户不会选到。
+  - model_name: "deepseek:deepseek-v4-pro"
+    litellm_params:
+      model: "deepseek/deepseek-v4-pro"
+      api_key: os.environ/LLM_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-deepseek-v4-pro"
+
+  - model_name: "openai:gpt-4o-mini"
+    litellm_params:
+      model: "openai/gpt-4o-mini"
+      api_key: os.environ/OPENAI_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-openai-gpt-4o-mini"
+
+  - model_name: "qwen:qwen-plus"
+    litellm_params:
+      model: "dashscope/qwen-plus"
+      api_key: os.environ/DASHSCOPE_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-qwen-plus"
+
+  - model_name: "volcengine:doubao-pro-32k"
+    litellm_params:
+      model: "volcengine/doubao-pro-32k"
+      api_key: os.environ/VOLCENGINE_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-volcengine-doubao-pro-32k"
+
+  - model_name: "gemini:gemini-2.5-flash"
+    litellm_params:
+      model: "gemini/gemini-2.5-flash"
+      api_key: os.environ/GEMINI_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-gemini-2.5-flash"
+
+  - model_name: "anthropic:claude-3-5-haiku-latest"
+    litellm_params:
+      model: "anthropic/claude-3-5-haiku-latest"
+      api_key: os.environ/ANTHROPIC_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-anthropic-claude-3-5-haiku"
+
+  # ---------- 凭证探测：Java 只发 probe:<provider>，模型与地址由网关决定 ----------
+  # 客户端可在请求体覆盖 api_key / api_base（LiteLLM clientside credentials），
+  # 因此这里不配置平台密钥；探测请求必须带 max_tokens=1，成本可忽略。
+  - model_name: "probe:openai"
+    litellm_params:
+      model: "openai/gpt-4o-mini"
+      configurable_clientside_auth_params: ["api_base"]
+      timeout: 15
+
+  - model_name: "probe:deepseek"
+    litellm_params:
+      # 必须与 models 目录中的在售模型一致：V17 已停用 deepseek-chat，沿用会 400
+      model: "deepseek/deepseek-v4-pro"
+      configurable_clientside_auth_params: ["api_base"]
+      timeout: 15
+
+  - model_name: "probe:qwen"
+    litellm_params:
+      model: "dashscope/qwen-turbo"
+      configurable_clientside_auth_params: ["api_base"]
+      timeout: 15
+
+  - model_name: "probe:volcengine"
+    litellm_params:
+      model: "volcengine/doubao-pro-32k"
+      configurable_clientside_auth_params: ["api_base"]
+      timeout: 15
+
+  - model_name: "probe:gemini"
+    litellm_params:
+      model: "gemini/gemini-2.5-flash"
+      configurable_clientside_auth_params: ["api_base"]
+      timeout: 15
+
+  - model_name: "probe:anthropic"
+    litellm_params:
+      model: "anthropic/claude-3-5-haiku-latest"
+      configurable_clientside_auth_params: ["api_base"]
+      timeout: 15
+
+# ---------- BYOK：用户自带密钥 ----------
+# 不在 model_list 中注册用户模型，避免平台 Key 被静默兜底。
+# Agent 通过请求体 user_config 传入本次请求的模型、密钥与地址，示例：
+#
+#   extra_body = {
+#     "user_config": {
+#       "model_list": [{
+#         "model_name": "byok-model",
+#         "litellm_params": {
+#           "model": "openai/gpt-4o",
+#           "api_key": "<用户密钥，仅本次请求使用>",
+#           "api_base": "<用户自定义地址，Java 已校验>",
+#           "timeout": 120
+#         }
+#       }]
+#     }
+#   }
+#
+# 网关不持久化该配置，也不写入日志。若该参数在本版本不被接受，
+# 改用通配部署 + configurable_clientside_auth_params，见 P1 验收清单。
+
+litellm_settings:
+  # 安全红线：禁止把请求与响应内容写入回调、日志或数据库
+  turn_off_message_logging: true
+  # 上游不支持的参数直接丢弃，避免因 provider 差异导致 400
+  drop_params: true
+  request_timeout: 120
+  # 只暴露指标，不接入任何会把对话内容带出去的第三方回调
+  success_callback: ["prometheus"]
+  failure_callback: ["prometheus"]
+
+router_settings:
+  routing_strategy: simple-shuffle
+  num_retries: 2
+  allowed_fails: 3
+  cooldown_time: 30
+  timeout: 120
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  # 模型定义只来自本文件，不走数据库，避免出现第二个配置源
+  store_model_in_db: false
+  # BYOK 需要请求体携带 user_config（用户模型、密钥、可选 api_base），
+  # LiteLLM 要求显式开启；网关只绑定回环且只有 Agent/Java 持有 master key，
+  # 因此风险边界由网络隔离 + Java 侧 OutboundHostGuard 共同约束。
+  allow_client_side_credentials: true
+
+# ---------- MCP 网关 ----------
+# Full 模式下 MCP Server 的唯一清单：Agent 只连聚合端点 /mcp，
+# Solo 模式没有网关，因此不提供 MCP。
+# 约束：server 的 timeout 必须小于 Agent 的 MCP__REQUEST_TIMEOUT_SECONDS，
+# 让网关先超时并返回明确错误，Agent 才能按自己的策略重试。
+# 示例（默认注释，避免模板一启动就产生公网出站）。
+# 注意：网关未注册任何 Server 时，`/mcp` 会返回 403（key has no MCP servers granted），
+# 因此启用 MCP__ENABLED 前必须先在此处注册至少一个 Server。
+# mcp_servers:
+#   deepwiki:
+#     url: https://mcp.deepwiki.com/mcp
+#     transport: http
+#     description: DeepWiki 公共文档检索
+#     # 按上游实际耗时设置，但必须小于 Agent 的 MCP__REQUEST_TIMEOUT_SECONDS（默认 30）
+#     timeout: 25
+#     # 需要鉴权的 Server 用 static_headers 注入；本版本未验证 os.environ/ 占位符
+#     static_headers:
+#       Authorization: Bearer <token>

@@ -1,0 +1,81 @@
+# =============================================================
+# 仅启动本地基础设施，适合「三端在本机跑、依赖用容器」的开发方式
+#
+# 用法（在仓库根目录执行，复用根目录 .env）：
+#   docker compose -f deploy/docker-compose.infra.yml --env-file .env up -d
+# =============================================================
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-infra-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 的 PGDATA 为 /var/lib/postgresql/18/docker，必须挂父目录
+      - infra_postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 128mb
+    logging: *default-logging
+
+  pgvector:
+    image: pgvector/pgvector:pg18
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-infra-pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${AGENT_POSTGRES_USER:?AGENT_POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${AGENT_POSTGRES_PASSWORD:?AGENT_POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${AGENT_POSTGRES_DB:?AGENT_POSTGRES_DB is required}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${AGENT_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # PostgreSQL 18 的 PGDATA 为 /var/lib/postgresql/18/docker，必须挂父目录
+      - infra_agent_pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 128mb
+    logging: *default-logging
+
+  redis:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-infra-redis
+    restart: unless-stopped
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - infra_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+
+volumes:
+  infra_postgres_data:
+  infra_agent_pg_data:
+  infra_redis_data:

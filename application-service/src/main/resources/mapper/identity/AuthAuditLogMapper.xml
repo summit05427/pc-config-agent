@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.identity.infrastructure.AuthAuditLogMapper">
+
+    <!--
+        user_id 按公开 ID 回查；登录失败时没有公开 ID 则退化按登录名回查。
+        用户不存在或已被删除时子查询返回 NULL，不影响审计行写入（V6 允许该列为空）。
+    -->
+    <insert id="insert">
+        INSERT INTO auth_audit_logs (user_id, username, event, ip, user_agent, request_id, created_at)
+        VALUES (
+            <choose>
+                <when test="publicId != null">
+                    (SELECT id FROM users WHERE public_id = #{publicId}::uuid)
+                </when>
+                <otherwise>
+                    (SELECT id FROM users WHERE username = #{username})
+                </otherwise>
+            </choose>,
+            COALESCE(
+                #{username,jdbcType=VARCHAR},
+                (SELECT username FROM users WHERE public_id = #{publicId}::uuid),
+                'unknown'
+            ),
+            #{event},
+            #{ip,jdbcType=VARCHAR},
+            #{userAgent,jdbcType=VARCHAR},
+            #{requestId,jdbcType=VARCHAR},
+            now()
+        )
+    </insert>
+
+    <resultMap id="authAuditLogRowMap" type="com.example.agent.identity.infrastructure.AuthAuditLogRow">
+        <result column="event" property="event"/>
+        <result column="username" property="username"/>
+        <result column="ip" property="ip"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <!-- 管理端过滤：event 与 username 为空时不拼入 SQL；id 作为第二排序键保证翻页稳定 -->
+    <sql id="adminAuditFilters">
+        <where>
+            <if test="event != null">
+                AND event = #{event}
+            </if>
+            <if test="username != null">
+                AND username = #{username}
+            </if>
+        </where>
+    </sql>
+
+    <select id="countPage" resultType="long">
+        SELECT count(*)
+        FROM auth_audit_logs
+        <include refid="adminAuditFilters"/>
+    </select>
+
+    <select id="selectPage" resultMap="authAuditLogRowMap">
+        SELECT event, username, ip, created_at
+        FROM auth_audit_logs
+        <include refid="adminAuditFilters"/>
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+</mapper>

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.identity.infrastructure.UserPreferenceMapper">
+
+    <resultMap id="userPreferenceRowMap" type="com.example.agent.identity.infrastructure.UserPreferenceRow">
+        <result column="instructions" property="instructions"/>
+        <result column="reply_language" property="replyLanguage"/>
+        <result column="response_style" property="responseStyle"/>
+        <result column="use_history" property="useHistory"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <!-- 显式列出字段，禁止 SELECT *：后续加列时不会意外改变返回结构 -->
+    <sql id="preferenceColumns">
+        p.instructions, p.reply_language, p.response_style, p.use_history, p.updated_at
+    </sql>
+
+    <select id="findByPublicId" resultMap="userPreferenceRowMap">
+        SELECT <include refid="preferenceColumns"/>
+        FROM user_preferences p
+        JOIN users u ON u.id = p.user_id
+        WHERE u.public_id = #{publicId}::uuid
+    </select>
+
+    <!--
+        用 INSERT ... SELECT 从 users 解析内部主键：用户不存在时插入 0 行，
+        服务层据此返回 401，避免「先查用户再写」的额外往返。
+        ON CONFLICT (user_id) 覆盖已存在行；updated_at 每次保存都显式写 now()，
+        因为 user_preferences 没有更新触发器。
+    -->
+    <insert id="upsert">
+        INSERT INTO user_preferences (user_id, instructions, reply_language, response_style, use_history, updated_at)
+        SELECT u.id,
+               #{instructions,jdbcType=VARCHAR},
+               #{replyLanguage},
+               #{responseStyle},
+               #{useHistory},
+               now()
+        FROM users u
+        WHERE u.public_id = #{publicId}::uuid
+        ON CONFLICT (user_id) DO UPDATE
+        SET instructions   = EXCLUDED.instructions,
+            reply_language = EXCLUDED.reply_language,
+            response_style = EXCLUDED.response_style,
+            use_history    = EXCLUDED.use_history,
+            updated_at     = EXCLUDED.updated_at
+    </insert>
+</mapper>

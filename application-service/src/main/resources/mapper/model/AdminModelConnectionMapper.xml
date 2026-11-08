@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.AdminModelConnectionMapper">
+
+    <resultMap id="adminConnectionRowMap" type="com.example.agent.model.infrastructure.AdminConnectionRow">
+        <constructor>
+            <arg column="id" javaType="java.util.UUID"/>
+            <arg column="user_public_id" javaType="java.util.UUID"/>
+            <arg column="username" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="provider_name" javaType="java.lang.String"/>
+            <arg column="base_url" javaType="java.lang.String"/>
+            <arg column="status" javaType="java.lang.String"/>
+            <arg column="last_verified_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="credential_id" javaType="java.util.UUID"/>
+            <arg column="masked_hint" javaType="java.lang.String"/>
+            <arg column="credential_status" javaType="java.lang.String"/>
+            <arg column="credential_created_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 一次联表取回连接、用户与当前有效凭证摘要，绝不查询 ciphertext -->
+    <sql id="adminConnectionColumns">
+        c.id, c.user_public_id, us.username, us.display_name,
+        c.provider_code, p.display_name AS provider_name, c.base_url, c.status,
+        c.last_verified_at, c.created_at,
+        d.id AS credential_id, d.masked_hint,
+        d.status AS credential_status, d.created_at AS credential_created_at
+    </sql>
+
+    <sql id="adminConnectionFrom">
+        FROM provider_connections c
+        JOIN providers p ON p.code = c.provider_code
+        LEFT JOIN users us ON us.public_id = c.user_public_id
+        LEFT JOIN provider_credentials d ON d.connection_id = c.id AND d.status &lt;&gt; 'REVOKED'
+    </sql>
+
+    <sql id="adminConnectionFilters">
+        <if test="filter.userId != null">
+            AND c.user_public_id = #{filter.userId}
+        </if>
+        <if test="filter.provider != null">
+            AND c.provider_code = #{filter.provider}
+        </if>
+        <if test="filter.status != null">
+            AND c.status = #{filter.status}
+        </if>
+    </sql>
+
+    <select id="count" resultType="long">
+        SELECT count(*)
+        FROM provider_connections c
+        WHERE 1 = 1
+        <include refid="adminConnectionFilters"/>
+    </select>
+
+    <!-- 排序按创建时间倒序，新增索引 idx_provider_connections_created 覆盖 -->
+    <select id="findPage" resultMap="adminConnectionRowMap">
+        SELECT <include refid="adminConnectionColumns"/>
+        <include refid="adminConnectionFrom"/>
+        WHERE 1 = 1
+        <include refid="adminConnectionFilters"/>
+        ORDER BY c.created_at DESC, c.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+</mapper>

@@ -1,0 +1,12 @@
+# 示例 Profile：展示「人格 + 工具集 + 模型参数」如何随请求切换。
+# 新增 Profile 只需新增 1 个 YAML + 1 个提示词，不需要改 app/ 核心代码。
+id: writer
+display_name: 写作助手
+system_prompt: writer
+model:
+  temperature: 0.8
+  max_tokens: 3000
+# 写作场景不需要外部工具，避免时间类信息打断行文
+tools: []
+context:
+  max_tokens: 8000

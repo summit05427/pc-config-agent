@@ -1,0 +1,465 @@
+# =============================================================
+# 一体化编排：前端 + 管理端 + Java 业务后端 + Python Agent + 中间件
+#
+# 完整模式（推荐用 .env.example 生成的 .env）：
+#   1. cp .env.example .env
+#   2. 替换 .env 中所有 replace-with-* 值
+#   3. docker compose --profile full up -d --build
+#
+# Solo 模式（仅 Agent，memory 存储 + 无 Redis，无需中间件）：
+#   1. uv --directory agent-service run python ../scripts/generate_solo_env.py
+#   2. 编辑 .env.solo 填入 LLM_API_KEY
+#   3. docker compose --env-file .env.solo up -d --build agent-service
+#
+# 变量缺失时使用 ${VAR:?message} 直接报错，避免带着空配置启动。
+# =============================================================
+
+# 统一日志轮转，防止容器日志把磁盘写满
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------- 业务数据库：Java 后端专用 ----------
+  postgres:
+    image: postgres:18-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-postgres
+    restart: unless-stopped
+    profiles: ["infra", "full"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      TZ: Asia/Shanghai
+    ports:
+      # 只绑定回环地址，生产机不对外暴露数据库端口
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # PostgreSQL 18 的 PGDATA 为 /var/lib/postgresql/18/docker，必须挂父目录
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 128mb
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- Agent 会话库：pgvector，与业务库物理隔离 ----------
+  pgvector:
+    image: pgvector/pgvector:pg18
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-pgvector
+    restart: unless-stopped
+    profiles: ["infra", "full"]
+    environment:
+      POSTGRES_USER: ${AGENT_POSTGRES_USER:?AGENT_POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${AGENT_POSTGRES_PASSWORD:?AGENT_POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${AGENT_POSTGRES_DB:?AGENT_POSTGRES_DB is required}
+      TZ: Asia/Shanghai
+    ports:
+      # 换到 5433，避免与业务库端口冲突
+      - "127.0.0.1:${AGENT_POSTGRES_PORT:-5433}:5432"
+    volumes:
+      # PostgreSQL 18 的 PGDATA 为 /var/lib/postgresql/18/docker，必须挂父目录
+      - agent_pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    shm_size: 128mb
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- 缓存 ----------
+  redis:
+    image: redis:8-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-redis
+    restart: unless-stopped
+    profiles: ["infra", "full"]
+    # 用 sh -c 让口令从容器环境变量读取，避免写进 compose 文件
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- 模型网关：唯一出站出口 ----------
+  # 只允许内网调用；Provider 协议、重试、故障切换、护栏都在这里，业务服务不再实现
+  litellm:
+    image: ghcr.io/berriai/litellm:v1.106.6
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-litellm
+    restart: unless-stopped
+    profiles: ["infra", "full"]
+    command: ["--config", "/app/config.yaml", "--port", "4000", "--num_workers", "2"]
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?LITELLM_SALT_KEY is required}
+      # 复用业务库实例但独立 schema，与 agent 库、业务表都不共享
+      # 口令含特殊字符时需 URL 编码，否则连接串会被截断
+      DATABASE_URL: postgresql://${POSTGRES_USER:?POSTGRES_USER is required}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}?schema=litellm
+      # 模型定义只来自配置文件的 model_list，不允许从数据库加载
+      STORE_MODEL_IN_DB: "False"
+      LITELLM_LOG: INFO
+      # MANAGED 凭证：deepseek 复用 Agent 已有的 LLM_API_KEY，其余按需提供
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DASHSCOPE_API_KEY: ${QWEN_API_KEY:-}
+      VOLCENGINE_API_KEY: ${VOLCENGINE_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # 跨 worker 共享路由冷却、限流与预算计数；不接 Redis 时这些状态只在单进程内生效
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./deploy/litellm/config.yaml:/app/config.yaml:ro
+    ports:
+      # 只绑回环，生产不对外暴露；容器间走服务名 litellm:4000
+      - "127.0.0.1:${LITELLM_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=2).status == 200 else 1)\"",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- 指标采集：统一抓取三端 /metrics ----------
+  # 只做汇聚，不改变各服务自身的指标实现；告警规则与 SLO 不在本次范围
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-prometheus
+    restart: unless-stopped
+    profiles: ["infra", "full"]
+    # 官方镜像用 nobody 运行；启动时先把 master key 写成文件，避免密钥出现在配置文件里
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf '%s' "$$LITELLM_MASTER_KEY" > /tmp/litellm-master-key
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY is required}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      # 只绑回环，不对外暴露；生产可改走内网采集
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:9090/-/healthy | grep -q 'Prometheus Server is Healthy'",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- Java 业务后端 ----------
+  application-service:
+    build:
+      context: ./application-service
+      dockerfile: Dockerfile
+    # 镜像名带项目前缀：同机并行部署时避免与其它项目的 :local 标签互相覆盖
+    image: ${IMAGE_PREFIX:-agent}/application-service:local
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-application
+    restart: unless-stopped
+    profiles: ["full"]
+    init: true
+    environment:
+      # 默认 prod；本地 http 联调在 .env 设 SPRING_PROFILES_ACTIVE=dev
+      # （prod 下 ProdConfigGuard 强制 Secure Cookie，http 下会拒绝启动）
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # 生产硬校验会拒绝 debug=true，这里显式关闭
+      DEBUG: "false"
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
+      DB_USERNAME: ${POSTGRES_USER:?POSTGRES_USER is required}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # RS256：私钥只注入本服务，Agent 只拿公钥验签
+      JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY is required}
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY is required}
+      JWT_KID: ${JWT_KID:-rsa-2026-10}
+      JWT_ISSUER: ${JWT_ISSUER:-agent-application-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-agent-clients}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-10m}
+      # Refresh Token：闲置/绝对双重过期 + 并发轮换宽限期
+      AUTH_REFRESH_IDLE_TTL: ${AUTH_REFRESH_IDLE_TTL:-7d}
+      AUTH_REFRESH_ABSOLUTE_TTL: ${AUTH_REFRESH_ABSOLUTE_TTL:-30d}
+      AUTH_REFRESH_ROTATION_GRACE: ${AUTH_REFRESH_ROTATION_GRACE:-60s}
+      # 本编排固定 prod profile，ProdConfigGuard 要求刷新 Cookie 必须 Secure；
+      # 本地 http 联调请改用非 prod profile 单独启动后端，不要在这里改成 false
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME:-admin}
+      AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:?AUTH_ADMIN_PASSWORD is required}
+      AUTH_ADMIN_ROLES: ${AUTH_ADMIN_ROLES:-ADMIN}
+      # 留空表示不创建 demo 账号
+      AUTH_DEMO_USERNAME: ${AUTH_DEMO_USERNAME:-demo}
+      AUTH_DEMO_PASSWORD: ${AUTH_DEMO_PASSWORD:-}
+      AUTH_DEMO_ROLES: ${AUTH_DEMO_ROLES:-USER}
+      # 模型运行时控制面：额度、任务 TTL、服务间凭据与 BYOK 凭证主密钥
+      MODEL_RUNTIME_ENABLED: ${MODEL_RUNTIME_ENABLED:-false}
+      BYOK_ENABLED: ${BYOK_ENABLED:-false}
+      MODEL_DEFAULT_KEY: ${MODEL_DEFAULT_KEY:-deepseek:deepseek-v4-pro}
+      MODEL_TASK_TTL: ${MODEL_TASK_TTL:-10m}
+      MODEL_QUOTA_DAILY_REQUESTS: ${MODEL_QUOTA_DAILY_REQUESTS:-100}
+      # Provider 默认接入地址与探测模型由 LiteLLM 配置承担（deploy/litellm/config.yaml）
+      # 必须与 agent-service 的 CONTROL_PLANE__CLIENT_ID / CLIENT_SECRET 一致
+      INTERNAL_AUTH_CLIENT_ID: ${INTERNAL_AUTH_CLIENT_ID:-agent-service}
+      INTERNAL_AUTH_CLIENT_SECRET: ${INTERNAL_AUTH_CLIENT_SECRET:-}
+      INTERNAL_AUTH_TOKEN_TTL: ${INTERNAL_AUTH_TOKEN_TTL:-5m}
+      # 主密钥只注入 Java；启用 BYOK 时缺失会由配置校验直接拒绝启动
+      MODEL_CRED_MASTER_KEY: ${MODEL_CRED_MASTER_KEY:-}
+      MODEL_CRED_KEY_VERSION: ${MODEL_CRED_KEY_VERSION:-1}
+      MODEL_CRED_MASTER_KEYS: ${MODEL_CRED_MASTER_KEYS:-}
+      MODEL_CRED_VERIFY_TIMEOUT: ${MODEL_CRED_VERIFY_TIMEOUT:-5s}
+      # 单用户每分钟手动验证上限，超限返回 429
+      MODEL_CRED_VERIFY_RATE_LIMIT_PER_MINUTE: ${MODEL_CRED_VERIFY_RATE_LIMIT_PER_MINUTE:-5}
+      # 模型网关：BYOK 凭证探测经网关完成，Java 不再理解 Provider 协议
+      MODEL_GATEWAY_BASE_URL: http://litellm:4000
+      MODEL_GATEWAY_MASTER_KEY: ${LITELLM_MASTER_KEY:-}
+      # 同源部署时留空即可；跨域时填前端域名
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      TZ: Asia/Shanghai
+    ports:
+      # 仅本机可访问，正常流量统一走 Nginx
+      - "127.0.0.1:${BACKEND_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- Python Agent ----------
+  agent-service:
+    build:
+      context: ./agent-service
+      dockerfile: Dockerfile
+    image: ${IMAGE_PREFIX:-agent}/agent-service:local
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-agent
+    restart: unless-stopped
+    init: true
+    environment:
+      # 默认 prod；Solo 模式通过 .env.solo 注入 dev + debug，启用 dev-token
+      APP_ENV: ${APP_ENV:-prod}
+      DEBUG: ${AGENT_DEBUG:-false}
+      API_PREFIX: /api/v1
+      # 同源部署时浏览器不会触发跨域；这里只保留本机调试来源
+      CORS_ORIGINS: '["http://localhost"]'
+      # RS256 验签：Agent 只配置公钥，不持有私钥
+      AUTH__JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY is required}
+      AUTH__JWT_ALGORITHM: RS256
+      AUTH__JWT_KID: ${JWT_KID:-rsa-2026-10}
+      # 与 Java 的 JWT_ISSUER 保持一致，否则令牌全部校验失败
+      AUTH__ISSUER: ${JWT_ISSUER:-agent-application-service}
+      # 与 Java 的 JWT_AUDIENCE 保持一致
+      AUTH__AUDIENCE: ${JWT_AUDIENCE:-agent-clients}
+      AUTH__ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      # 仅 dev + debug 生效；Solo 模式用本地自签私钥换取 dev-token，生产不注入
+      AUTH__DEV_PRIVATE_KEY: ${AUTH_DEV_PRIVATE_KEY:-}
+      AUTH__DEV_KID: ${AUTH_DEV_KID:-rsa-dev}
+      # Solo 用 memory + 空连接串；完整模式必须走 postgres
+      STORAGE__BACKEND: ${AGENT_STORAGE_BACKEND:-postgres}
+      STORAGE__POSTGRES_URL: ${AGENT_STORAGE_POSTGRES_URL-postgresql://${AGENT_POSTGRES_USER:?AGENT_POSTGRES_USER is required}:${AGENT_POSTGRES_PASSWORD:?AGENT_POSTGRES_PASSWORD is required}@pgvector:5432/${AGENT_POSTGRES_DB:?AGENT_POSTGRES_DB is required}}
+      STORAGE__POOL_SIZE: "5"
+      STORAGE__AUTO_SETUP: "true"
+      # 生产环境 Redis 为必需依赖：连接失败直接拒绝启动，不静默降级；
+      # Solo 用空 URL + required=false 关闭 Redis，不依赖中间件
+      REDIS__URL: ${AGENT_REDIS_URL-redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0}
+      REDIS__REQUIRED: ${AGENT_REDIS_REQUIRED:-true}
+      REDIS__KEY_PREFIX: agent
+      # 模型统一走 LiteLLM 网关：协议、重试、故障切换都由网关承担
+      LLM__MODEL: ${LLM_MODEL:-deepseek:deepseek-v4-pro}
+      LLM__GATEWAY_BASE_URL: http://litellm:4000
+      # 未配置网关密钥时退化为直连模式，仅供 Solo 部署使用。
+      # 用独立变量覆盖而不是直接绑定 LITELLM_MASTER_KEY：Solo 为满足插值必须写 dummy master key，
+      # 若直接复用会让 Agent 误判为网关模式并连接未启动的 LiteLLM。
+      LLM__GATEWAY_API_KEY: ${LLM_GATEWAY_API_KEY-${LITELLM_MASTER_KEY:-}}
+      LLM__API_KEY: ${LLM_API_KEY:-}
+      LLM__BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      # 单次生成上限：联调或降本时可调小，避免模型输出过长
+      LLM__MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
+      # 模型运行时：关闭时沿用单模型；开启后经内部接口向 Java 创建任务、上报用量
+      MODEL_RUNTIME__ENABLED: ${MODEL_RUNTIME_ENABLED:-false}
+      # 生成式 UI：开启后把 OpenUI 组件契约注入系统提示词；需与 VITE_OPENUI_ENABLED 同步
+      OPENUI__ENABLED: ${OPENUI_ENABLED:-false}
+      # MCP 接入：默认关闭；Server 清单由 LiteLLM 托管，Agent 只连网关聚合端点
+      MCP__ENABLED: ${MCP_ENABLED:-false}
+      MCP__GATEWAY_URL: ${MCP_GATEWAY_URL:-}
+      MCP__ALLOWED_TOOLS: ${MCP_ALLOWED_TOOLS:-[]}
+      # 可选 RAG：默认关闭；开启后必须同时提供 RAG_RETRIEVER_MODULE，否则拒绝启动
+      RAG__ENABLED: ${RAG_ENABLED:-false}
+      RAG__RETRIEVER_MODULE: ${RAG_RETRIEVER_MODULE:-}
+      RAG__TOP_K: ${RAG_TOP_K:-5}
+      # 容器内走 Compose 服务名，不经过 Nginx
+      CONTROL_PLANE__BASE_URL: http://application-service:8080
+      # 必须与 Java 的 INTERNAL_AUTH_CLIENT_ID / INTERNAL_AUTH_CLIENT_SECRET 一致
+      CONTROL_PLANE__CLIENT_ID: ${INTERNAL_AUTH_CLIENT_ID:-agent-service}
+      CONTROL_PLANE__CLIENT_SECRET: ${INTERNAL_AUTH_CLIENT_SECRET:-}
+      CONTROL_PLANE__TIMEOUT_SECONDS: "5"
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${AGENT_PORT:-8000}:8000"
+    depends_on:
+      # Solo 模式不启动中间件；required=false 允许服务缺席
+      pgvector:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+      # 模型网关缺席时 Agent 仍可直连模式启动（Solo）
+      litellm:
+        condition: service_healthy
+        required: false
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import sys, urllib.request; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2).status == 200 else 1)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- 管理端静态站点（经 frontend Nginx 的 /admin/ 暴露） ----------
+  admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_TITLE: ${ADMIN_APP_TITLE:-Agent 管理后台}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        # 必须与 frontend Nginx 的 /admin/ 前缀一致
+        VITE_BASE_PATH: /admin/
+    image: ${IMAGE_PREFIX:-agent}/admin:local
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-admin
+    restart: unless-stopped
+    profiles: ["full"]
+    environment:
+      TZ: Asia/Shanghai
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep -q ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks:
+      - agent-net
+
+  # ---------- 前端静态站点 + 反向代理 ----------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_APP_ENV: production
+        VITE_APP_TITLE: ${VITE_APP_TITLE:-Agent Analytics}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VITE_AGENT_BASE_URL: ${VITE_AGENT_BASE_URL:-/agent/api/v1}
+        VITE_API_TIMEOUT: "10000"
+        VITE_USE_MOCK: "false"
+        # 必须与 agent-service 的 OPENUI__ENABLED 同步，否则一端渲染、另一端不产出
+        VITE_OPENUI_ENABLED: ${VITE_OPENUI_ENABLED:-false}
+    image: ${IMAGE_PREFIX:-agent}/frontend:local
+    container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-frontend
+    restart: unless-stopped
+    profiles: ["full"]
+    environment:
+      # Nginx 官方镜像启动时会把模板里的这三个变量替换成真实上游地址
+      BACKEND_UPSTREAM: http://application-service:8080
+      AGENT_UPSTREAM: http://agent-service:8000
+      ADMIN_UPSTREAM: http://admin:80
+      TZ: Asia/Shanghai
+    ports:
+      - "${WEB_PORT:-80}:80"
+    depends_on:
+      application-service:
+        condition: service_healthy
+      agent-service:
+        condition: service_started
+      # Nginx 启动时就要解析 admin 主机名；admin 无外部依赖，先启动即可
+      admin:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz | grep -q ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+    networks:
+      - agent-net
+
+volumes:
+  postgres_data:
+  agent_pg_data:
+  redis_data:
+  prometheus_data:
+
+networks:
+  agent-net:
+    driver: bridge

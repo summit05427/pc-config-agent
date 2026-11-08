@@ -1,0 +1,932 @@
+{
+  "components": {
+    "schemas": {
+      "ChatPreferences": {
+        "description": "一次对话请求携带的偏好；全部字段可选，缺省即不改变当前行为。",
+        "properties": {
+          "instructions": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "用户自定义指令",
+            "title": "Instructions"
+          },
+          "reply_language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "auto",
+                  "zh-CN",
+                  "en-US"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "回复语言",
+            "title": "Reply Language"
+          },
+          "response_style": {
+            "anyOf": [
+              {
+                "enum": [
+                  "concise",
+                  "balanced",
+                  "detailed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "回复风格",
+            "title": "Response Style"
+          },
+          "use_history": {
+            "default": true,
+            "description": "是否把历史消息注入本轮上下文",
+            "title": "Use History",
+            "type": "boolean"
+          }
+        },
+        "title": "ChatPreferences",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "description": "一次对话请求。\n\nthread_id 由前端维护（如 用户ID + 会话UUID），同一 ID 会接着历史上下文。\npreferences 是客户端声明的用户偏好，只影响本轮提示词与历史注入，\n不参与鉴权；缺省时保持现有行为。",
+        "properties": {
+          "agent_id": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "pattern": "^[a-z][a-z0-9_-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "目标 Agent Profile 的 id，如 writer；省略时使用默认 Profile",
+            "title": "Agent Id"
+          },
+          "message": {
+            "description": "用户输入",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9:_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "单次生效的模型完整引用，如 openai:gpt-4o-mini",
+            "title": "Model"
+          },
+          "preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatPreferences"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "客户端声明的用户偏好：指令、语言、风格、是否使用历史"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "是否要求模型开启思考；模型不支持时返回 422 capability_unsupported",
+            "title": "Reasoning"
+          },
+          "regenerate": {
+            "default": false,
+            "description": "为 true 时重跑最后一条提问并替换上一条 AI 回答",
+            "title": "Regenerate",
+            "type": "boolean"
+          },
+          "thread_id": {
+            "description": "会话标识",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "thread_id"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "DevTokenRequest": {
+        "properties": {
+          "expires_minutes": {
+            "default": 60,
+            "description": "有效期（分钟）",
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Expires Minutes",
+            "type": "integer"
+          },
+          "user_id": {
+            "description": "开发用用户标识",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "DevTokenRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "SessionArchivedRequest": {
+        "description": "归档状态请求；true 归档，false 恢复。",
+        "properties": {
+          "archived": {
+            "title": "Archived",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "archived"
+        ],
+        "title": "SessionArchivedRequest",
+        "type": "object"
+      },
+      "SessionModelRequest": {
+        "description": "会话模型设置请求；`null` 表示恢复 Auto（平台默认模型）。",
+        "properties": {
+          "model_key": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[a-z0-9][a-z0-9:_.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "完整模型引用，如 openai:gpt-4o-mini；null 表示 Auto",
+            "title": "Model Key"
+          }
+        },
+        "title": "SessionModelRequest",
+        "type": "object"
+      },
+      "SessionPinnedRequest": {
+        "description": "置顶状态请求；true 置顶，false 取消置顶。",
+        "properties": {
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pinned"
+        ],
+        "title": "SessionPinnedRequest",
+        "type": "object"
+      },
+      "SessionRenameRequest": {
+        "description": "重命名请求；先 trim 再校验长度，保证「空白包裹」不会误判超长。",
+        "properties": {
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "title": "SessionRenameRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "agent-service",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/auth/dev-token": {
+      "post": {
+        "description": "仅在开发/测试环境签发令牌，生产环境直接拒绝。",
+        "operationId": "issue_dev_token_api_v1_auth_dev_token_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DevTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Issue Dev Token Api V1 Auth Dev Token Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Issue Dev Token",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/chat/stream": {
+      "post": {
+        "description": "流式对话接口（需登录）。\n\n可选 `Idempotency-Key` 请求头：重复提交时返回 409，避免重复调用模型。\n模型运行时开启时，先创建任务（额度在此扣减），失败在流建立前返回对应状态码。",
+        "operationId": "stream_chat_api_v1_chat_stream_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 8,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Stream Chat",
+        "tags": [
+          "chat"
+        ]
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "返回服务存活状态、运行环境与 Redis 依赖状态。",
+        "operationId": "live_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Live Check Api V1 Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "健康检查（兼容旧路径）",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/health/live": {
+      "get": {
+        "description": "返回服务存活状态、运行环境与 Redis 依赖状态。",
+        "operationId": "live_check_api_v1_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Live Check Api V1 Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "存活检查",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/health/ready": {
+      "get": {
+        "description": "依赖全部可用才返回 200，否则 503 并说明原因。",
+        "operationId": "readiness_check_api_v1_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Readiness Check Api V1 Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "就绪检查",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/api/v1/sessions": {
+      "get": {
+        "description": "按置顶优先、最近活跃倒序返回会话；`title` 为空表示尚未生成标题。",
+        "operationId": "list_user_sessions_api_v1_sessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "archived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Archived",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List User Sessions Api V1 Sessions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "当前用户的会话列表",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{thread_id}": {
+      "delete": {
+        "description": "删除会话元数据、消息与 checkpointer 状态。\n\n先抢会话锁：删除与生成并发时，避免「生成中写入、删除后残留半轮消息」。\n检查点删除登记为墓碑，由后台按退避重试，失败记录可在指标与表中追踪。",
+        "operationId": "delete_user_session_api_v1_sessions__thread_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "删除会话",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "patch": {
+        "description": "重命名当前用户名下的会话；不存在或不属于当前用户统一返回 404。",
+        "operationId": "rename_user_session_api_v1_sessions__thread_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rename User Session Api V1 Sessions  Thread Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "重命名会话",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{thread_id}/archive": {
+      "put": {
+        "description": "归档后会话从默认列表移除，可通过 `archived=true` 查询并恢复。",
+        "operationId": "set_session_archived_api_v1_sessions__thread_id__archive_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionArchivedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Session Archived Api V1 Sessions  Thread Id  Archive Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "归档或恢复会话",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{thread_id}/messages": {
+      "get": {
+        "description": "按窗口读取指定会话的消息。\n\n`order=desc` 供长会话从最新一页向前翻；返回结果仍按请求方向排列，\n由调用方决定是否反转后渲染。\n归属隔离不靠字符串前缀，而是查询条件里的 `user_id`：\n其他用户即使猜到 thread_id，也只会查到自己的空结果。",
+        "operationId": "get_session_messages_api_v1_sessions__thread_id__messages_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Thread Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "title": "Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "asc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "title": "Order",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Session Messages Api V1 Sessions  Thread Id  Messages Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "会话历史消息",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{thread_id}/model": {
+      "put": {
+        "description": "设置会话级模型选择；校验顺序与幂等语义由 service 层保证。",
+        "operationId": "set_session_model_api_v1_sessions__thread_id__model_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionModelRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Session Model Api V1 Sessions  Thread Id  Model Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "设置会话模型",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/v1/sessions/{thread_id}/pin": {
+      "put": {
+        "description": "只影响列表排序；归档会话的置顶状态保留，恢复后继续生效。",
+        "operationId": "set_session_pinned_api_v1_sessions__thread_id__pin_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "maxLength": 64,
+              "minLength": 1,
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionPinnedRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set Session Pinned Api V1 Sessions  Thread Id  Pin Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "置顶或取消置顶会话",
+        "tags": [
+          "sessions"
+        ]
+      }
+    }
+  }
+}

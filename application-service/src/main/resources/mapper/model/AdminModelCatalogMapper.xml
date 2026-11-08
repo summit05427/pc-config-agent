@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.model.infrastructure.AdminModelCatalogMapper">
+
+    <resultMap id="adminModelRowMap" type="com.example.agent.model.infrastructure.AdminModelRow">
+        <constructor>
+            <arg column="provider_code" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="context_window" javaType="java.lang.Integer"/>
+            <arg column="capabilities_json" javaType="java.lang.String"/>
+            <arg column="capability_source" javaType="java.lang.String"/>
+            <arg column="verified_at" javaType="java.time.OffsetDateTime"/>
+            <arg column="enabled" javaType="java.lang.Boolean"/>
+            <arg column="provider_enabled" javaType="java.lang.Boolean"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="adminProviderRowMap" type="com.example.agent.model.infrastructure.AdminProviderRow">
+        <constructor>
+            <arg column="code" javaType="java.lang.String"/>
+            <arg column="display_name" javaType="java.lang.String"/>
+            <arg column="protocol" javaType="java.lang.String"/>
+            <arg column="default_base_url" javaType="java.lang.String"/>
+            <arg column="enabled" javaType="java.lang.Boolean"/>
+            <arg column="model_count" javaType="java.lang.Long"/>
+            <arg column="enabled_model_count" javaType="java.lang.Long"/>
+        </constructor>
+    </resultMap>
+
+    <resultMap id="adminPricingRowMap" type="com.example.agent.model.infrastructure.AdminPricingRow">
+        <constructor>
+            <arg column="id" javaType="java.lang.Long"/>
+            <arg column="provider" javaType="java.lang.String"/>
+            <arg column="model_key" javaType="java.lang.String"/>
+            <arg column="currency" javaType="java.lang.String"/>
+            <arg column="input_price_per_million" javaType="java.math.BigDecimal"/>
+            <arg column="output_price_per_million" javaType="java.math.BigDecimal"/>
+            <arg column="effective_from" javaType="java.time.OffsetDateTime"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <!-- 显式列名，禁止 SELECT *；能力字段转文本，由服务层解析 -->
+    <sql id="adminModelColumns">
+        models.provider_code, models.model_key, models.display_name,
+        models.context_window, models.capabilities::text AS capabilities_json,
+        models.capability_source, models.verified_at,
+        models.enabled, providers.enabled AS provider_enabled
+    </sql>
+
+    <sql id="modelFilters">
+        <if test="keyword != null">
+            AND (models.display_name ILIKE #{keyword} OR models.model_key ILIKE #{keyword})
+        </if>
+        <if test="provider != null">
+            AND models.provider_code = #{provider}
+        </if>
+        <if test="enabled != null">
+            AND models.enabled = #{enabled}
+        </if>
+    </sql>
+
+    <select id="findPage" resultMap="adminModelRowMap">
+        SELECT <include refid="adminModelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE 1 = 1
+        <include refid="modelFilters"/>
+        ORDER BY models.provider_code, models.model_key
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT count(*)
+        FROM models
+        WHERE 1 = 1
+        <if test="keyword != null">
+            AND (models.display_name ILIKE #{keyword} OR models.model_key ILIKE #{keyword})
+        </if>
+        <if test="provider != null">
+            AND models.provider_code = #{provider}
+        </if>
+        <if test="enabled != null">
+            AND models.enabled = #{enabled}
+        </if>
+    </select>
+
+    <select id="findByKey" resultMap="adminModelRowMap">
+        SELECT <include refid="adminModelColumns"/>
+        FROM models
+        JOIN providers ON providers.code = models.provider_code
+        WHERE models.provider_code = #{provider}
+          AND models.model_key = #{modelKey}
+    </select>
+
+    <update id="updateEnabled">
+        UPDATE models
+        SET enabled = #{enabled}
+        WHERE provider_code = #{provider}
+          AND model_key = #{modelKey}
+    </update>
+
+    <!-- 模型数量为小基数相关子查询，单条 SQL 完成，避免按 Provider 逐条统计 -->
+    <select id="findProviders" resultMap="adminProviderRowMap">
+        SELECT providers.code, providers.display_name, providers.protocol,
+               providers.default_base_url, providers.enabled,
+               (SELECT count(*) FROM models WHERE models.provider_code = providers.code) AS model_count,
+               (SELECT count(*) FROM models
+                WHERE models.provider_code = providers.code AND models.enabled = TRUE) AS enabled_model_count
+        FROM providers
+        ORDER BY providers.code
+    </select>
+
+    <select id="findProvider" resultMap="adminProviderRowMap">
+        SELECT providers.code, providers.display_name, providers.protocol,
+               providers.default_base_url, providers.enabled,
+               (SELECT count(*) FROM models WHERE models.provider_code = providers.code) AS model_count,
+               (SELECT count(*) FROM models
+                WHERE models.provider_code = providers.code AND models.enabled = TRUE) AS enabled_model_count
+        FROM providers
+        WHERE providers.code = #{code}
+    </select>
+
+    <update id="updateProviderEnabled">
+        UPDATE providers
+        SET enabled = #{enabled}
+        WHERE code = #{code}
+    </update>
+
+    <!-- DISTINCT ON 取每个组合最近一条版本，一次查询覆盖整页模型 -->
+    <select id="findLatestPricingByModels" resultMap="adminPricingRowMap">
+        SELECT DISTINCT ON (model_pricing.provider, model_pricing.model_key)
+               model_pricing.id, model_pricing.provider, model_pricing.model_key,
+               model_pricing.currency, model_pricing.input_price_per_million,
+               model_pricing.output_price_per_million, model_pricing.effective_from,
+               model_pricing.created_at
+        FROM model_pricing
+        WHERE model_pricing.provider IN
+        <foreach collection="providers" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+          AND model_pricing.model_key IN
+        <foreach collection="modelKeys" item="item" open="(" separator="," close=")">
+            #{item}
+        </foreach>
+        ORDER BY model_pricing.provider, model_pricing.model_key, model_pricing.effective_from DESC
+    </select>
+
+    <select id="findPricingPage" resultMap="adminPricingRowMap">
+        SELECT id, provider, model_key, currency, input_price_per_million,
+               output_price_per_million, effective_from, created_at
+        FROM model_pricing
+        WHERE provider = #{provider}
+          AND model_key = #{modelKey}
+        ORDER BY effective_from DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countPricing" resultType="long">
+        SELECT count(*)
+        FROM model_pricing
+        WHERE provider = #{provider}
+          AND model_key = #{modelKey}
+    </select>
+
+    <select id="findPricingAt" resultMap="adminPricingRowMap">
+        SELECT id, provider, model_key, currency, input_price_per_million,
+               output_price_per_million, effective_from, created_at
+        FROM model_pricing
+        WHERE provider = #{provider}
+          AND model_key = #{modelKey}
+          AND effective_from = #{effectiveFrom}
+    </select>
+
+    <insert id="insertPricing">
+        INSERT INTO model_pricing (
+            provider, model_key, currency,
+            input_price_per_million, output_price_per_million, effective_from
+        ) VALUES (
+            #{provider}, #{modelKey}, #{currency},
+            #{inputPricePerMillion}, #{outputPricePerMillion}, #{effectiveFrom}
+        )
+    </insert>
+</mapper>

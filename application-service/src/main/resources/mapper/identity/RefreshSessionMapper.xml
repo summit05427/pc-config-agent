@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.identity.infrastructure.RefreshSessionMapper">
+
+    <resultMap id="refreshSessionRowMap" type="com.example.agent.identity.infrastructure.RefreshSessionRow">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="family_id" property="familyId"/>
+        <result column="token_hash" property="tokenHash"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="last_used_at" property="lastUsedAt"/>
+        <result column="absolute_expires_at" property="absoluteExpiresAt"/>
+        <result column="idle_expires_at" property="idleExpiresAt"/>
+        <result column="revoked_at" property="revokedAt"/>
+        <result column="revoked_reason" property="revokedReason"/>
+        <result column="replaced_by_id" property="replacedById"/>
+    </resultMap>
+
+    <resultMap id="refreshSessionFamilyRowMap" type="com.example.agent.identity.infrastructure.RefreshSessionFamilyRow">
+        <id column="family_id" property="familyId"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="last_used_at" property="lastUsedAt"/>
+        <result column="idle_expires_at" property="idleExpiresAt"/>
+        <result column="absolute_expires_at" property="absoluteExpiresAt"/>
+    </resultMap>
+
+    <!-- 显式列出字段，禁止 SELECT * -->
+    <sql id="refreshSessionColumns">
+        id, user_id, family_id, token_hash, created_at, last_used_at,
+        absolute_expires_at, idle_expires_at, revoked_at, revoked_reason, replaced_by_id
+    </sql>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO refresh_sessions (user_id, family_id, token_hash, absolute_expires_at, idle_expires_at)
+        VALUES (#{userId}, #{familyId}::uuid, #{tokenHash}, #{absoluteExpiresAt}, #{idleExpiresAt})
+    </insert>
+
+    <!-- 行锁把并发刷新串行化：第二个请求必须在第一个提交后才能读到同一行 -->
+    <select id="lockByTokenHash" resultMap="refreshSessionRowMap">
+        SELECT <include refid="refreshSessionColumns"/>
+        FROM refresh_sessions
+        WHERE token_hash = #{tokenHash}
+        FOR UPDATE
+    </select>
+
+    <update id="markRotated">
+        UPDATE refresh_sessions
+        SET revoked_at      = #{usedAt},
+            revoked_reason  = 'rotated',
+            last_used_at    = #{usedAt},
+            replaced_by_id  = #{replacedById}
+        WHERE id = #{id}
+          AND revoked_at IS NULL
+    </update>
+
+    <update id="revoke">
+        UPDATE refresh_sessions
+        SET revoked_at      = #{revokedAt},
+            revoked_reason  = #{reason}
+        WHERE id = #{id}
+          AND revoked_at IS NULL
+    </update>
+
+    <update id="revokeFamily">
+        UPDATE refresh_sessions
+        SET revoked_at      = #{revokedAt},
+            revoked_reason  = #{reason}
+        WHERE family_id = #{familyId}::uuid
+          AND revoked_at IS NULL
+    </update>
+
+    <!-- 改密踢掉其他设备：保留当前令牌族，走 user_id 索引过滤 -->
+    <update id="revokeAllExceptFamily">
+        UPDATE refresh_sessions
+        SET revoked_at      = #{revokedAt},
+            revoked_reason  = #{reason}
+        WHERE user_id = #{userId}
+          AND family_id &lt;&gt; #{familyId}::uuid
+          AND revoked_at IS NULL
+    </update>
+
+    <!-- 同一登录派生的整条轮换链只算一台设备：按 family_id 聚合，
+         last_used_at 取全链最大值（轮换时旧行记录了最近使用时间），
+         期限只取仍然有效行的值；族内已无有效行时整族不出现 -->
+    <select id="listFamilies" resultMap="refreshSessionFamilyRowMap">
+        SELECT family_id,
+               min(created_at)                                               AS created_at,
+               max(last_used_at)                                             AS last_used_at,
+               min(idle_expires_at) FILTER (WHERE revoked_at IS NULL
+                                              AND idle_expires_at &gt; now()
+                                              AND absolute_expires_at &gt; now()) AS idle_expires_at,
+               min(absolute_expires_at) FILTER (WHERE revoked_at IS NULL
+                                                  AND idle_expires_at &gt; now()
+                                                  AND absolute_expires_at &gt; now()) AS absolute_expires_at
+        FROM refresh_sessions
+        WHERE user_id = #{userId}
+        GROUP BY family_id
+        HAVING count(*) FILTER (WHERE revoked_at IS NULL
+                                  AND idle_expires_at &gt; now()
+                                  AND absolute_expires_at &gt; now()) &gt; 0
+        ORDER BY coalesce(max(last_used_at), min(created_at)) DESC, family_id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countFamilies" resultType="long">
+        SELECT count(DISTINCT family_id)
+        FROM refresh_sessions
+        WHERE user_id = #{userId}
+          AND revoked_at IS NULL
+          AND idle_expires_at &gt; now()
+          AND absolute_expires_at &gt; now()
+    </select>
+
+    <!-- 归属校验与撤销在同一条语句里完成：user_id 条件让「他人的族」与「不存在」都返回 0 -->
+    <update id="revokeFamilyForUser">
+        UPDATE refresh_sessions
+        SET revoked_at     = #{revokedAt},
+            revoked_reason = #{reason}
+        WHERE user_id = #{userId}
+          AND family_id = #{familyId}::uuid
+          AND revoked_at IS NULL
+    </update>
+
+    <update id="revokeAllForUser">
+        UPDATE refresh_sessions
+        SET revoked_at     = #{revokedAt},
+            revoked_reason = #{reason}
+        WHERE user_id = #{userId}
+          AND revoked_at IS NULL
+    </update>
+
+    <delete id="deleteExpiredBefore">
+        DELETE FROM refresh_sessions
+        WHERE absolute_expires_at &lt; #{cutoff}
+    </delete>
+</mapper>

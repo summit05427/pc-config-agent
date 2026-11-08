@@ -1,0 +1,37 @@
+/*
+ * Anthropic 品牌字体（WOFF2 可变字体，版权 Anthropic PBC）。
+ *
+ * 三个文件都是 Variable Font：单个文件覆盖 wght 300–800，
+ * 因此 @font-face 必须声明区间而不是单一字重，浏览器才会走可变轴；
+ * 写成 font-weight: 400 会让浏览器放弃可变轴并合成加粗。
+ *
+ * 字符集只有拉丁语系（无 CJK）：
+ * 中文由字体栈里的 Noto Sans SC / Noto Serif SC 接管，这里不重复声明。
+ * 三个文件也都没有 Italic，斜体交给浏览器合成，正文避免依赖真斜体。
+ *
+ * Sans / Serif 额外带 opsz 16–48 光学尺寸轴，font-optical-sizing 默认 auto，
+ * 浏览器会按 font-size 自动插值，无需为不同字号准备文件。
+ */
+@font-face {
+  font-family: 'anthropic-sans';
+  src: url('../assets/fonts/AnthropicSans-Roman-Web.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'anthropic-serif';
+  src: url('../assets/fonts/AnthropicSerif-Roman-Web.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'anthropic-mono';
+  src: url('../assets/fonts/AnthropicMono-Roman-Web.woff2') format('woff2');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
