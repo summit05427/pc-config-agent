@@ -74,9 +74,34 @@ function Read-TextFileUtf8([System.IO.FileInfo]$File) {
 }
 
 # 1. Collect every key declared in any .env.example (commented lines included).
+# Why manual walk: Get-ChildItem -Recurse descends into node_modules before the
+# path filter runs, and a single broken junction there aborts the whole gate.
+function Get-EnvExampleFiles([string]$Root) {
+    $ignored = @('node_modules', '.git', '.venv', 'target', 'dist')
+    $files = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
+    $pending = New-Object 'System.Collections.Generic.Stack[string]'
+    $pending.Push($Root)
+    while ($pending.Count -gt 0) {
+        $current = $pending.Pop()
+        try {
+            $entries = Get-ChildItem -LiteralPath $current -Force -ErrorAction Stop
+        } catch {
+            continue
+        }
+        foreach ($entry in $entries) {
+            if ($entry.PSIsContainer) {
+                if ($ignored -contains $entry.Name) { continue }
+                $pending.Push($entry.FullName)
+            } elseif ($entry.Name -like $envExampleName) {
+                $files.Add($entry)
+            }
+        }
+    }
+    return $files
+}
+
 $declared = New-Object 'System.Collections.Generic.HashSet[string]'
-$envFiles = Get-ChildItem -Path $repoRoot -Filter $envExampleName -File -Recurse -Force |
-    Where-Object { $_.FullName -notmatch '[\\/](node_modules|\.git|\.venv|target|dist)[\\/]' }
+$envFiles = Get-EnvExampleFiles -Root $repoRoot
 
 foreach ($envFile in $envFiles) {
     foreach ($line in (Read-TextFileUtf8 $envFile) -split "`r?`n") {

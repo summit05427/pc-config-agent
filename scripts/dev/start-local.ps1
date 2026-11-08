@@ -78,6 +78,10 @@ function Set-JavaEnvironment {
 
     $values = [ordered]@{
         SPRING_PROFILES_ACTIVE = 'local'
+        # 本地端口必须与 .env 的 BACKEND_PORT 一致，否则 Spring 默认起在 8080，会与旧项目撞端口
+        SERVER_PORT = if ($Map['BACKEND_PORT']) { $Map['BACKEND_PORT'] } else { '8080' }
+        # 宿主端口来自根 .env，local profile 的默认 5432 会连错库
+        DB_URL = "jdbc:postgresql://127.0.0.1:$(if ($Map['POSTGRES_PORT']) { $Map['POSTGRES_PORT'] } else { '5432' })/$($Map['POSTGRES_DB'])"
         DB_USERNAME = $Map['POSTGRES_USER']
         DB_PASSWORD = $Map['POSTGRES_PASSWORD']
         JWT_PRIVATE_KEY = $Map['JWT_PRIVATE_KEY']
@@ -98,6 +102,9 @@ function Set-JavaEnvironment {
         BYOK_ENABLED = $Map['BYOK_ENABLED']
         MODEL_CRED_MASTER_KEY = $Map['MODEL_CRED_MASTER_KEY']
         MODEL_CRED_KEY_VERSION = '1'
+        # 本地 LitellM 跑在宿主端口上，不透传会落到默认 4000
+        MODEL_GATEWAY_BASE_URL = $Map['MODEL_GATEWAY_BASE_URL']
+        MODEL_GATEWAY_MASTER_KEY = $Map['MODEL_GATEWAY_MASTER_KEY']
         INTERNAL_AUTH_CLIENT_ID = 'agent-service'
         INTERNAL_AUTH_CLIENT_SECRET = $Map['INTERNAL_AUTH_CLIENT_SECRET']
     }
@@ -116,7 +123,7 @@ function Test-DatabasePassword {
     $previous = $ErrorActionPreference
     $ErrorActionPreference = 'Continue'
     try {
-        $output = & docker compose -f $composeFile --env-file $envFile exec -T `
+        $output = & docker compose -f $composeFile --env-file $envFile --profile infra exec -T `
             -e "PGPASSWORD=$($Map['POSTGRES_PASSWORD'])" pgvector `
             psql -h postgres -U $Map['POSTGRES_USER'] -d $Map['POSTGRES_DB'] -tAc 'select 1' 2>&1 | Out-String
         $exitCode = $LASTEXITCODE
@@ -188,13 +195,24 @@ Assert-RequiredKeys -Map $dotenv -Keys @(
     'JWT_PRIVATE_KEY', 'JWT_PUBLIC_KEY', 'AUTH_ADMIN_PASSWORD'
 )
 
+# 跨服务契约配置（JWT / 模型运行时 / OpenUI）不一致时直接失败：
+# 这类配置错了照样能启动，只会在用户登录或对话时才暴露
+$preflight = Join-Path $PSScriptRoot 'preflight.ps1'
+if (Test-Path -LiteralPath $preflight) {
+    & $preflight -RepoRoot $repoRoot -SkipPortCheck
+    if ($LASTEXITCODE -ne 0) {
+        throw '配置预检未通过，已中止启动。修复上方 [FAIL] 项后重试。'
+    }
+}
+
 # 端口唯一来源是根 .env（与 docker-compose.yml 的宿主映射保持一致），避免脚本与编排漂移
 $backendPort = if ($dotenv['BACKEND_PORT']) { [int]$dotenv['BACKEND_PORT'] } else { 18080 }
 $agentPort = if ($dotenv['AGENT_PORT']) { [int]$dotenv['AGENT_PORT'] } else { 18000 }
 
 if (-not $SkipMiddleware) {
     Write-Host '启动中间件 postgres / pgvector / redis ...' -ForegroundColor Cyan
-    & docker compose -f $composeFile --env-file $envFile up -d postgres pgvector redis
+    # 三个中间件声明在 infra profile 下，不显式指定会提示 service is not enabled
+    & docker compose -f $composeFile --env-file $envFile --profile infra up -d postgres pgvector redis
 }
 
 # 管理端按独立策略启动：默认 all 只拉起三个业务端，admin 需显式指定
@@ -230,6 +248,8 @@ if ($targets -contains 'agent') {
             (Join-Path $env:USERPROFILE '.local\bin\uv.exe'),
             (Join-Path $env:USERPROFILE '.cargo\bin\uv.exe')
         )
+        # run.py 读取 PORT 环境变量（默认 8000），本地端口必须与 .env 的 AGENT_PORT 一致
+        $env:PORT = $agentPort
         Start-DevProcess -Name 'agent-service' `
             -Command "`"$uv`" run python run.py" `
             -WorkingDirectory (Join-Path $repoRoot 'agent-service')

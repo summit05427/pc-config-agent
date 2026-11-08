@@ -1,0 +1,49 @@
+{
+  "catalog_version": "2026-11-08-demo-1",
+  "selection_notes": "28 款主流候选，覆盖 AM5 / LGA1851 双平台与 NVIDIA / AMD 双显卡；只作为待负责人评审的提议清单，参考价不参与推荐。",
+  "brand_constraints": {
+    "CPU": ["AMD", "Intel"],
+    "GPU": ["NVIDIA", "AMD"]
+  },
+  "platform_pairs": [
+    { "platform": "AM5", "cpu_socket": "AM5", "memory_type": "DDR5" },
+    { "platform": "LGA1851", "cpu_socket": "LGA1851", "memory_type": "DDR5" }
+  ],
+  "items": [
+    { "category": "CPU", "name": "AMD Ryzen 5 9600X 3.9 GHz 6-Core Processor", "reason": "AM5 入门游戏，65W 低功耗" },
+    { "category": "CPU", "name": "AMD Ryzen 7 9800X3D 4.7 GHz 8-Core Processor", "reason": "AM5 游戏旗舰，3D V-Cache" },
+    { "category": "CPU", "name": "Intel Core Ultra 5 245K 4.2 GHz 14-Core Processor", "reason": "LGA1851 主流，含核显" },
+    { "category": "CPU", "name": "Intel Core Ultra 7 265K 3.9 GHz 20-Core Processor", "reason": "LGA1851 生产力，含核显" },
+
+    { "category": "GPU", "name": "Asus DUAL OC GeForce RTX 5060 Ti 16 GB Video Card", "reason": "NVIDIA 主流 1080p/2K，1×8pin" },
+    { "category": "GPU", "name": "MSI SHADOW 3X OC GeForce RTX 5070 Ti 16 GB Video Card", "reason": "NVIDIA 2K/4K，12VHPWR" },
+    { "category": "GPU", "name": "PowerColor Reaper Radeon RX 9060 XT 16 GB Video Card", "reason": "AMD 主流 1080p/2K，短卡" },
+    { "category": "GPU", "name": "Gigabyte GAMING OC Radeon RX 9070 XT 16 GB Video Card", "reason": "AMD 2K/4K，3×8pin" },
+
+    { "category": "MOTHERBOARD", "name": "MSI MAG B850 TOMAHAWK MAX WIFI ATX AM5 Motherboard", "reason": "AM5 ATX 主流" },
+    { "category": "MOTHERBOARD", "name": "Gigabyte B650 EAGLE AX ATX AM5 Motherboard", "reason": "AM5 ATX 性价比" },
+    { "category": "MOTHERBOARD", "name": "ASRock B860 Rock WiFi 7 ATX LGA1851 Motherboard", "reason": "LGA1851 ATX 主流" },
+    { "category": "MOTHERBOARD", "name": "Asus TUF GAMING B860M-PLUS WIFI Micro ATX LGA1851 Motherboard", "reason": "LGA1851 mATX 紧凑" },
+
+    { "category": "MEMORY", "name": "Corsair Vengeance 32 GB (2 x 16 GB) DDR5-6000 CL36 Memory", "reason": "32GB 双通道主流" },
+    { "category": "MEMORY", "name": "Silicon Power Value Gaming 32 GB (2 x 16 GB) DDR5-6000 CL30 Memory", "reason": "32GB CL30 性价比" },
+    { "category": "MEMORY", "name": "Kingston FURY Beast 32 GB (2 x 16 GB) DDR5-6000 CL36 Memory", "reason": "32GB 品牌主流" },
+    { "category": "MEMORY", "name": "G.Skill Flare X5 64 GB (2 x 32 GB) DDR5-6000 CL30 Memory", "reason": "64GB 生产力" },
+
+    { "category": "STORAGE", "name": "Kingston NV3 1 TB M.2-2280 PCIe 4.0 X4 NVME Solid State Drive", "reason": "1TB 入门 NVMe" },
+    { "category": "STORAGE", "name": "Silicon Power UD90 1 TB M.2-2280 PCIe 4.0 X4 NVME Solid State Drive", "reason": "1TB 性价比 NVMe" },
+    { "category": "STORAGE", "name": "Samsung 990 Pro 2 TB M.2-2280 PCIe 4.0 X4 NVME Solid State Drive", "reason": "2TB 高性能 NVMe" },
+
+    { "category": "COOLER", "name": "Thermalright Peerless Assassin 120 SE 66.17 CFM CPU Cooler", "reason": "双塔风冷，155mm" },
+    { "category": "COOLER", "name": "Noctua NH-D15 82.5 CFM CPU Cooler", "reason": "高端风冷，165mm" },
+    { "category": "COOLER", "name": "ARCTIC Liquid Freezer III Pro 360 77 CFM Liquid CPU Cooler", "reason": "360 一体水冷" },
+
+    { "category": "CASE", "name": "Lian Li LANCOOL 216 ATX Mid Tower Case", "reason": "ATX 中塔，显卡 392mm" },
+    { "category": "CASE", "name": "Fractal Design Pop Air ATX Mid Tower Case", "reason": "ATX 中塔，显卡 405mm" },
+    { "category": "CASE", "name": "NZXT H5 Flow (2024) ATX Mid Tower Case", "reason": "ATX 中塔，显卡 410mm" },
+
+    { "category": "PSU", "name": "MSI MAG A650GLS PCIE5 650 W 80+ Gold Certified Fully Modular ATX Power Supply", "reason": "650W 金牌，2×6+2 与 12VHPWR" },
+    { "category": "PSU", "name": "be quiet! Pure Power 13 M 750 W 80+ Gold Certified Fully Modular ATX Power Supply", "reason": "750W 金牌，4×6+2 与 12VHPWR" },
+    { "category": "PSU", "name": "Montech CENTURY II 850 W 80+ Gold Certified Fully Modular ATX Power Supply", "reason": "850W 金牌，4×6+2 与 12VHPWR" }
+  ]
+}
