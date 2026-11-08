@@ -1,0 +1,904 @@
+{
+  "schema_version": "1.0.0",
+  "catalog_version": "2026-11-08-demo-1",
+  "generated_at": "2026-11-08T00:00:00+00:00",
+  "source": {
+    "hardware_dataset": "pcpartpicker",
+    "snapshot_date": "2026-10-05",
+    "raw_rows": 28
+  },
+  "platform_pairs": [
+    {
+      "platform": "AM5",
+      "cpu_socket": "AM5",
+      "memory_type": "DDR5"
+    },
+    {
+      "platform": "LGA1851",
+      "cpu_socket": "LGA1851",
+      "memory_type": "DDR5"
+    }
+  ],
+  "hardware": [
+    {
+      "hardware_id": "cpu-amd-ryzen-5-9600x",
+      "category": "CPU",
+      "brand": "AMD",
+      "model_name": "AMD Ryzen 5 9600X",
+      "display_name": "AMD Ryzen 5 9600X 3.9 GHz 6-Core Processor",
+      "specifications": {
+        "socket": "AM5",
+        "platform": "AM5",
+        "core_count": 6,
+        "thread_count": 12,
+        "tdp_w": 65,
+        "integrated_graphics": "Radeon",
+        "includes_cooler": false,
+        "max_memory": "256 GB"
+      },
+      "source": {
+        "dataset": "pcpp_cpu",
+        "pcpp_id": "537109",
+        "source_url": "https://pcpartpicker.com/product/4r4Zxr/amd-ryzen-5-9600x-39-ghz-6-core-processor-100-100001405wof",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/8a0df381931efb7323f458cfc42260f8.1600.jpg",
+        "reference_price": 1252.8,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "AM5 入门游戏，65W 低功耗"
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-9800x3d",
+      "category": "CPU",
+      "brand": "AMD",
+      "model_name": "AMD Ryzen 7 9800X3D",
+      "display_name": "AMD Ryzen 7 9800X3D 4.7 GHz 8-Core Processor",
+      "specifications": {
+        "socket": "AM5",
+        "platform": "AM5",
+        "core_count": 8,
+        "thread_count": 16,
+        "tdp_w": 120,
+        "integrated_graphics": "Radeon",
+        "includes_cooler": false,
+        "max_memory": "256 GB"
+      },
+      "source": {
+        "dataset": "pcpp_cpu",
+        "pcpp_id": "553184",
+        "source_url": "https://pcpartpicker.com/product/fPyH99/amd-ryzen-7-9800x3d-47-ghz-8-core-processor-100-1000001084wof",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/7e2d17b7b777f8b56e1b5119aa97be20.1600.jpg",
+        "reference_price": 3088.8,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "AM5 游戏旗舰，3D V-Cache"
+    },
+    {
+      "hardware_id": "cpu-intel-core-ultra-5-245k",
+      "category": "CPU",
+      "brand": "Intel",
+      "model_name": "Intel Core Ultra 5 245K",
+      "display_name": "Intel Core Ultra 5 245K 4.2 GHz 14-Core Processor",
+      "specifications": {
+        "socket": "LGA1851",
+        "platform": "LGA1851",
+        "core_count": 14,
+        "thread_count": 14,
+        "tdp_w": 125,
+        "integrated_graphics": "Intel Xe",
+        "includes_cooler": false,
+        "max_memory": "256 GB"
+      },
+      "source": {
+        "dataset": "pcpp_cpu",
+        "pcpp_id": "549457",
+        "source_url": "https://pcpartpicker.com/product/xNXV3C/intel-core-ultra-5-245k-42-ghz-14-core-processor-bx80768245k",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/1e9e70d03e7edd0274691d5f49a34a50.1600.jpg",
+        "reference_price": 1295.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "LGA1851 主流，含核显"
+    },
+    {
+      "hardware_id": "cpu-intel-core-ultra-7-265k",
+      "category": "CPU",
+      "brand": "Intel",
+      "model_name": "Intel Core Ultra 7 265K",
+      "display_name": "Intel Core Ultra 7 265K 3.9 GHz 20-Core Processor",
+      "specifications": {
+        "socket": "LGA1851",
+        "platform": "LGA1851",
+        "core_count": 20,
+        "thread_count": 20,
+        "tdp_w": 125,
+        "integrated_graphics": "Intel Xe",
+        "includes_cooler": false,
+        "max_memory": "256 GB"
+      },
+      "source": {
+        "dataset": "pcpp_cpu",
+        "pcpp_id": "549455",
+        "source_url": "https://pcpartpicker.com/product/mBsV3C/intel-core-ultra-7-265k-39-ghz-20-core-processor-bx80768265k",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/19fb12d5828d3ae540e91eefa4160b79.1600.jpg",
+        "reference_price": 2159.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "LGA1851 生产力，含核显"
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb",
+      "category": "GPU",
+      "brand": "Asus",
+      "model_name": "GeForce RTX 5060 Ti 16GB",
+      "display_name": "Asus DUAL OC GeForce RTX 5060 Ti 16 GB Video Card",
+      "specifications": {
+        "chipset": "GeForce RTX 5060 Ti",
+        "vram_gb": 16,
+        "memory_type": "GDDR7",
+        "tdp_w": 180,
+        "length_mm": 229,
+        "slot_width": 3,
+        "external_power": {
+          "connector_type": "PCIE_8PIN",
+          "count": 1
+        }
+      },
+      "source": {
+        "dataset": "pcpp_gpu",
+        "pcpp_id": "580313",
+        "source_url": "https://pcpartpicker.com/product/ss8Pxr/asus-dual-oc-geforce-rtx-5060-ti-16-gb-video-card-dual-rtx5060ti-o16g",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/59667fe806af75adbdce293b8f5fb626.1600.jpg",
+        "reference_price": 5719.46,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "NVIDIA 主流 1080p/2K，1×8pin"
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb",
+      "category": "GPU",
+      "brand": "MSI",
+      "model_name": "GeForce RTX 5070 Ti 16GB",
+      "display_name": "MSI SHADOW 3X OC GeForce RTX 5070 Ti 16 GB Video Card",
+      "specifications": {
+        "chipset": "GeForce RTX 5070 Ti",
+        "vram_gb": 16,
+        "memory_type": "GDDR7",
+        "tdp_w": 300,
+        "length_mm": 303,
+        "slot_width": 3,
+        "external_power": {
+          "connector_type": "PCIE_12VHPWR",
+          "count": 1
+        }
+      },
+      "source": {
+        "dataset": "pcpp_gpu",
+        "pcpp_id": "569995",
+        "source_url": "https://pcpartpicker.com/product/8VcBD3/msi-shadow-3x-oc-geforce-rtx-5070-ti-16-gb-video-card-g507t-16s3c",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/7221b486502c1d25055ea2c4178c77c9.1600.jpg",
+        "reference_price": 8495.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "NVIDIA 2K/4K，12VHPWR"
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb",
+      "category": "GPU",
+      "brand": "PowerColor",
+      "model_name": "Radeon RX 9060 XT 16GB",
+      "display_name": "PowerColor Reaper Radeon RX 9060 XT 16 GB Video Card",
+      "specifications": {
+        "chipset": "Radeon RX 9060 XT",
+        "vram_gb": 16,
+        "memory_type": "GDDR6",
+        "tdp_w": 160,
+        "length_mm": 200,
+        "slot_width": 2,
+        "external_power": {
+          "connector_type": "PCIE_8PIN",
+          "count": 1
+        }
+      },
+      "source": {
+        "dataset": "pcpp_gpu",
+        "pcpp_id": "587541",
+        "source_url": "https://pcpartpicker.com/product/fzh2FT/powercolor-reaper-radeon-rx-9060-xt-16-gb-video-card-rx9060xt-16g-a",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/f534d935371e62d5ae8e46e9f05f300d.1600.jpg",
+        "reference_price": 3599.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "AMD 主流 1080p/2K，短卡"
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9070-xt-16gb",
+      "category": "GPU",
+      "brand": "Gigabyte",
+      "model_name": "Radeon RX 9070 XT 16GB",
+      "display_name": "Gigabyte GAMING OC Radeon RX 9070 XT 16 GB Video Card",
+      "specifications": {
+        "chipset": "Radeon RX 9070 XT",
+        "vram_gb": 16,
+        "memory_type": "GDDR6",
+        "tdp_w": 304,
+        "length_mm": 288,
+        "slot_width": 3,
+        "external_power": {
+          "connector_type": "PCIE_8PIN",
+          "count": 3
+        }
+      },
+      "source": {
+        "dataset": "pcpp_gpu",
+        "pcpp_id": "573223",
+        "source_url": "https://pcpartpicker.com/product/h7RnTW/gigabyte-gaming-oc-radeon-rx-9070-xt-16-gb-video-card-gv-r9070xtgaming-oc-16gd",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/c667996432f428a46dd9e6286ff95b5f.1600.jpg",
+        "reference_price": 5862.89,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "AMD 2K/4K，3×8pin"
+    },
+    {
+      "hardware_id": "motherboard-msi-mag-b850-tomahawk-max-wifi",
+      "category": "MOTHERBOARD",
+      "brand": "MSI",
+      "model_name": "MSI MAG B850 TOMAHAWK MAX WIFI",
+      "display_name": "MSI MAG B850 TOMAHAWK MAX WIFI ATX AM5 Motherboard",
+      "specifications": {
+        "socket": "AM5",
+        "platform": "AM5",
+        "form_factor": "ATX",
+        "chipset": "AMD B850",
+        "memory_type": "DDR5",
+        "memory_slots": 4,
+        "max_memory_speed_mts": 8400,
+        "m2_slot_count": 4,
+        "sata_ports": 4,
+        "pcie_x16_slots": 3
+      },
+      "source": {
+        "dataset": "pcpp_motherboard",
+        "pcpp_id": "566547",
+        "source_url": "https://pcpartpicker.com/product/vjpD4D/msi-mag-b850-tomahawk-max-wifi-atx-am5-motherboard-mag-b850-tomahawk-max-wifi",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/fe0743e587416e7fa161bfd0dca8237f.1600.jpg",
+        "reference_price": 1511.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "AM5 ATX 主流"
+    },
+    {
+      "hardware_id": "motherboard-gigabyte-b650-eagle-ax",
+      "category": "MOTHERBOARD",
+      "brand": "Gigabyte",
+      "model_name": "Gigabyte B650 EAGLE AX",
+      "display_name": "Gigabyte B650 EAGLE AX ATX AM5 Motherboard",
+      "specifications": {
+        "socket": "AM5",
+        "platform": "AM5",
+        "form_factor": "ATX",
+        "chipset": "AMD B650",
+        "memory_type": "DDR5",
+        "memory_slots": 4,
+        "max_memory_speed_mts": 7600,
+        "m2_slot_count": 3,
+        "sata_ports": 4,
+        "pcie_x16_slots": 4
+      },
+      "source": {
+        "dataset": "pcpp_motherboard",
+        "pcpp_id": "505393",
+        "source_url": "https://pcpartpicker.com/product/CvcgXL/gigabyte-b650-eagle-ax-atx-am5-motherboard-b650-eagle-ax",
+        "image_url": "https://m.media-amazon.com/images/I/51BdjazabVL.jpg",
+        "reference_price": 1007.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "AM5 ATX 性价比"
+    },
+    {
+      "hardware_id": "motherboard-asrock-b860-rock-wifi-7",
+      "category": "MOTHERBOARD",
+      "brand": "ASRock",
+      "model_name": "ASRock B860 Rock WiFi 7",
+      "display_name": "ASRock B860 Rock WiFi 7 ATX LGA1851 Motherboard",
+      "specifications": {
+        "socket": "LGA1851",
+        "platform": "LGA1851",
+        "form_factor": "ATX",
+        "chipset": "Intel B860",
+        "memory_type": "DDR5",
+        "memory_slots": 4,
+        "max_memory_speed_mts": 8600,
+        "m2_slot_count": 3,
+        "sata_ports": 4,
+        "pcie_x16_slots": 2
+      },
+      "source": {
+        "dataset": "pcpp_motherboard",
+        "pcpp_id": "618961",
+        "source_url": "https://pcpartpicker.com/product/QTTFf7/asrock-b860-rock-wifi-7-atx-lga1851-motherboard-b860-rock-wifi-7",
+        "image_url": "https://m.media-amazon.com/images/I/41sQVMXZVCL.jpg",
+        "reference_price": 1007.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "LGA1851 ATX 主流"
+    },
+    {
+      "hardware_id": "motherboard-asus-tuf-gaming-b860m-plus-wifi",
+      "category": "MOTHERBOARD",
+      "brand": "Asus",
+      "model_name": "Asus TUF GAMING B860M-PLUS WIFI",
+      "display_name": "Asus TUF GAMING B860M-PLUS WIFI Micro ATX LGA1851 Motherboard",
+      "specifications": {
+        "socket": "LGA1851",
+        "platform": "LGA1851",
+        "form_factor": "Micro ATX",
+        "chipset": "Intel B860",
+        "memory_type": "DDR5",
+        "memory_slots": 4,
+        "max_memory_speed_mts": 8800,
+        "m2_slot_count": 3,
+        "sata_ports": 4,
+        "pcie_x16_slots": 1
+      },
+      "source": {
+        "dataset": "pcpp_motherboard",
+        "pcpp_id": "564483",
+        "source_url": "https://pcpartpicker.com/product/p3bypg/asus-tuf-gaming-b860m-plus-wifi-micro-atx-lga1851-motherboard-tuf-gaming-b860m-plus-wifi",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/2656853c7563ea7353bcb7ebbb3ef261.1600.jpg",
+        "reference_price": 1511.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "LGA1851 mATX 紧凑"
+    },
+    {
+      "hardware_id": "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-6000-cl36",
+      "category": "MEMORY",
+      "brand": "Corsair",
+      "model_name": "Corsair Vengeance 32 GB (2 x 16 GB) DDR5-6000 CL36",
+      "display_name": "Corsair Vengeance 32 GB (2 x 16 GB) DDR5-6000 CL36 Memory",
+      "specifications": {
+        "memory_type": "DDR5",
+        "capacity_gb": 32,
+        "module_count": 2,
+        "module_size_gb": 16,
+        "speed_mts": 6000,
+        "form_factor": "DIMM",
+        "cas_latency": 36
+      },
+      "source": {
+        "dataset": "pcpp_memory",
+        "pcpp_id": "464671",
+        "source_url": "https://pcpartpicker.com/product/r7XV3C/corsair-vengeance-32-gb-2-x-16-gb-ddr5-6000-cl36-memory-cmk32gx5m2e6000c36",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/5c1b521170c68c5440170c5f2666b17d.1600.jpg",
+        "reference_price": 3743.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "32GB 双通道主流"
+    },
+    {
+      "hardware_id": "memory-silicon-power-value-gaming-32-gb-2-x-16-gb-ddr5-6000-cl30",
+      "category": "MEMORY",
+      "brand": "Silicon Power",
+      "model_name": "Silicon Power Value Gaming 32 GB (2 x 16 GB) DDR5-6000 CL30",
+      "display_name": "Silicon Power Value Gaming 32 GB (2 x 16 GB) DDR5-6000 CL30 Memory",
+      "specifications": {
+        "memory_type": "DDR5",
+        "capacity_gb": 32,
+        "module_count": 2,
+        "module_size_gb": 16,
+        "speed_mts": 6000,
+        "form_factor": "DIMM",
+        "cas_latency": 30
+      },
+      "source": {
+        "dataset": "pcpp_memory",
+        "pcpp_id": "497733",
+        "source_url": "https://pcpartpicker.com/product/cCKscf/silicon-power-value-gaming-32-gb-2-x-16-gb-ddr5-6000-cl30-memory-sp032gxlwu60afdeae",
+        "image_url": "https://m.media-amazon.com/images/I/318GA-iDDxL.jpg",
+        "reference_price": 3167.78,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "32GB CL30 性价比"
+    },
+    {
+      "hardware_id": "memory-kingston-fury-beast-32-gb-2-x-16-gb-ddr5-6000-cl36",
+      "category": "MEMORY",
+      "brand": "Kingston",
+      "model_name": "Kingston FURY Beast 32 GB (2 x 16 GB) DDR5-6000 CL36",
+      "display_name": "Kingston FURY Beast 32 GB (2 x 16 GB) DDR5-6000 CL36 Memory",
+      "specifications": {
+        "memory_type": "DDR5",
+        "capacity_gb": 32,
+        "module_count": 2,
+        "module_size_gb": 16,
+        "speed_mts": 6000,
+        "form_factor": "DIMM",
+        "cas_latency": 36
+      },
+      "source": {
+        "dataset": "pcpp_memory",
+        "pcpp_id": "610546",
+        "source_url": "https://pcpartpicker.com/product/q4vscf/kingston-fury-beast-32-gb-2-x-16-gb-ddr5-6000-cl36-memory-kf560c36bbe2k2-32",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/9511975a18cb170eb65697fb23d8ad91.256p.jpg",
+        "reference_price": 4031.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "32GB 品牌主流"
+    },
+    {
+      "hardware_id": "memory-g-skill-flare-x5-64-gb-2-x-32-gb-ddr5-6000-cl30",
+      "category": "MEMORY",
+      "brand": "G.Skill",
+      "model_name": "G.Skill Flare X5 64 GB (2 x 32 GB) DDR5-6000 CL30",
+      "display_name": "G.Skill Flare X5 64 GB (2 x 32 GB) DDR5-6000 CL30 Memory",
+      "specifications": {
+        "memory_type": "DDR5",
+        "capacity_gb": 64,
+        "module_count": 2,
+        "module_size_gb": 32,
+        "speed_mts": 6000,
+        "form_factor": "DIMM",
+        "cas_latency": 30
+      },
+      "source": {
+        "dataset": "pcpp_memory",
+        "pcpp_id": "482629",
+        "source_url": "https://pcpartpicker.com/product/6QcgXL/gskill-flare-x5-64-gb-2-x-32-gb-ddr5-6000-cl30-memory-f5-6000j3040g32gx2-fx5",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/f7d28bd70b14a7eaef6627ce7ecc3fd6.1600.jpg",
+        "reference_price": 8423.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "64GB 生产力"
+    },
+    {
+      "hardware_id": "storage-kingston-nv3-1-tb",
+      "category": "STORAGE",
+      "brand": "Kingston",
+      "model_name": "Kingston NV3 1 TB",
+      "display_name": "Kingston NV3 1 TB M.2-2280 PCIe 4.0 X4 NVME Solid State Drive",
+      "specifications": {
+        "capacity_gb": 1024,
+        "interface": "M.2 PCIe 4.0 X4",
+        "form_factor": "M.2-2280",
+        "nvme": true
+      },
+      "source": {
+        "dataset": "pcpp_storage",
+        "pcpp_id": "539621",
+        "source_url": "https://pcpartpicker.com/product/tmbRsY/kingston-nv3-1-tb-m2-2280-pcie-40-x4-nvme-solid-state-drive-snv3s1000g",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/0a0b12a29d901a2fef4cd49748f3cc54.1600.jpg",
+        "reference_price": 1130.33,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "1TB 入门 NVMe"
+    },
+    {
+      "hardware_id": "storage-silicon-power-ud90-1-tb",
+      "category": "STORAGE",
+      "brand": "Silicon Power",
+      "model_name": "Silicon Power UD90 1 TB",
+      "display_name": "Silicon Power UD90 1 TB M.2-2280 PCIe 4.0 X4 NVME Solid State Drive",
+      "specifications": {
+        "capacity_gb": 1024,
+        "interface": "M.2 PCIe 4.0 X4",
+        "form_factor": "M.2-2280",
+        "nvme": true
+      },
+      "source": {
+        "dataset": "pcpp_storage",
+        "pcpp_id": "430419",
+        "source_url": "https://pcpartpicker.com/product/4kpzK8/silicon-power-ud90-1-tb-m2-2280-pcie-40-x4-nvme-solid-state-drive-sp01kgbp44ud9005",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/b897eb9b6b500cbebe80985cb7c8ba7e.1600.jpg",
+        "reference_price": 1043.78,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "1TB 性价比 NVMe"
+    },
+    {
+      "hardware_id": "storage-samsung-990-pro-2-tb",
+      "category": "STORAGE",
+      "brand": "Samsung",
+      "model_name": "Samsung 990 Pro 2 TB",
+      "display_name": "Samsung 990 Pro 2 TB M.2-2280 PCIe 4.0 X4 NVME Solid State Drive",
+      "specifications": {
+        "capacity_gb": 2048,
+        "interface": "M.2 PCIe 4.0 X4",
+        "form_factor": "M.2-2280",
+        "nvme": true
+      },
+      "source": {
+        "dataset": "pcpp_storage",
+        "pcpp_id": "438389",
+        "source_url": "https://pcpartpicker.com/product/34ytt6/samsung-990-pro-2-tb-m2-2280-pcie-40-x4-nvme-solid-state-drive-mz-v9p2t0bw",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/55fb148a837f9e33dfdb095188af8a74.1600.jpg",
+        "reference_price": 2807.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "2TB 高性能 NVMe"
+    },
+    {
+      "hardware_id": "cooler-thermalright-peerless-assassin-120-se",
+      "category": "COOLER",
+      "brand": "Thermalright",
+      "model_name": "Thermalright Peerless Assassin 120 SE",
+      "display_name": "Thermalright Peerless Assassin 120 SE 66.17 CFM CPU Cooler",
+      "specifications": {
+        "cooler_type": "AIR",
+        "height_mm": 155,
+        "radiator_size_mm": null,
+        "supported_sockets": [
+          "AM4",
+          "AM5",
+          "LGA1150",
+          "LGA1151",
+          "LGA1155",
+          "LGA1156",
+          "LGA1200",
+          "LGA1700",
+          "LGA1851"
+        ],
+        "fanless": false
+      },
+      "source": {
+        "dataset": "pcpp_cooler",
+        "pcpp_id": "425596",
+        "source_url": "https://pcpartpicker.com/product/hYxRsY/thermalright-peerless-assassin-120-se-6617-cfm-cpu-cooler-pa120-se-d3",
+        "image_url": "https://m.media-amazon.com/images/I/41hFTmi5aUL.jpg",
+        "reference_price": 251.28,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "双塔风冷，155mm"
+    },
+    {
+      "hardware_id": "cooler-noctua-nh-d15",
+      "category": "COOLER",
+      "brand": "Noctua",
+      "model_name": "Noctua NH-D15",
+      "display_name": "Noctua NH-D15 82.5 CFM CPU Cooler",
+      "specifications": {
+        "cooler_type": "AIR",
+        "height_mm": 165,
+        "radiator_size_mm": null,
+        "supported_sockets": [
+          "AM2",
+          "AM2+",
+          "AM3",
+          "AM3+",
+          "AM4",
+          "AM5",
+          "FM1",
+          "FM2",
+          "FM2+",
+          "LGA1150",
+          "LGA1151",
+          "LGA1155",
+          "LGA1156",
+          "LGA1200",
+          "LGA1700",
+          "LGA1851",
+          "LGA2011",
+          "LGA2011-3",
+          "LGA2066"
+        ],
+        "fanless": false
+      },
+      "source": {
+        "dataset": "pcpp_cooler",
+        "pcpp_id": "30543",
+        "source_url": "https://pcpartpicker.com/product/4vzv6h/noctua-nh-d15-825-cfm-cpu-cooler-nh-d15",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/ca16d42d3e187f96c728c09183df14a7.med.1600.jpg",
+        "reference_price": 791.64,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "高端风冷，165mm"
+    },
+    {
+      "hardware_id": "cooler-arctic-liquid-freezer-iii-pro-360",
+      "category": "COOLER",
+      "brand": "ARCTIC",
+      "model_name": "ARCTIC Liquid Freezer III Pro 360",
+      "display_name": "ARCTIC Liquid Freezer III Pro 360 77 CFM Liquid CPU Cooler",
+      "specifications": {
+        "cooler_type": "LIQUID",
+        "height_mm": 68,
+        "radiator_size_mm": 360,
+        "supported_sockets": [
+          "AM4",
+          "AM5",
+          "LGA1700",
+          "LGA1851"
+        ],
+        "fanless": false
+      },
+      "source": {
+        "dataset": "pcpp_cooler",
+        "pcpp_id": "578015",
+        "source_url": "https://pcpartpicker.com/product/v2kqqs/arctic-liquid-freezer-iii-pro-360-77-cfm-liquid-cpu-cooler-acfre00180a",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/a0b2a92bb4ec2c95b5e492c9513b2c0b.1600.jpg",
+        "reference_price": 503.21,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "360 一体水冷"
+    },
+    {
+      "hardware_id": "case-lian-li-lancool-216",
+      "category": "CASE",
+      "brand": "Lian Li",
+      "model_name": "Lian Li LANCOOL 216",
+      "display_name": "Lian Li LANCOOL 216 ATX Mid Tower Case",
+      "specifications": {
+        "supported_mainboard_form_factors": [
+          "ATX",
+          "EATX",
+          "Micro ATX",
+          "Mini ITX"
+        ],
+        "max_gpu_length_mm": 392,
+        "max_cooler_height_mm": null,
+        "psu_form_factor": null,
+        "radiator_support": "120 mm / 140 mm / 240 mm / 280 mm / 360 mm",
+        "expansion_slots": 7
+      },
+      "source": {
+        "dataset": "pcpp_case",
+        "pcpp_id": "443132",
+        "source_url": "https://pcpartpicker.com/product/qP2WGX/lian-li-lancool-216-atx-mid-tower-case-lancool-216x",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/dc1a8a0fc34540a759fcee0a553949e0.1600.jpg",
+        "reference_price": 691.13,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "PARTIAL",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [
+        "max_cooler_height_mm"
+      ],
+      "selection_reason": "ATX 中塔，显卡 392mm"
+    },
+    {
+      "hardware_id": "case-fractal-design-pop-air",
+      "category": "CASE",
+      "brand": "Fractal Design",
+      "model_name": "Fractal Design Pop Air",
+      "display_name": "Fractal Design Pop Air ATX Mid Tower Case",
+      "specifications": {
+        "supported_mainboard_form_factors": [
+          "ATX",
+          "Micro ATX",
+          "Mini ITX"
+        ],
+        "max_gpu_length_mm": 405,
+        "max_cooler_height_mm": null,
+        "psu_form_factor": null,
+        "radiator_support": "120 mm / 140 mm / 240 mm / 280 mm",
+        "expansion_slots": 7
+      },
+      "source": {
+        "dataset": "pcpp_case",
+        "pcpp_id": "423816",
+        "source_url": "https://pcpartpicker.com/product/KLQcCJ/fractal-design-pop-air-atx-mid-tower-case-fd-c-poa1a-01",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/3c204ed1b1c08f33621eac87362ced71.1600.jpg",
+        "reference_price": 611.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "PARTIAL",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [
+        "max_cooler_height_mm"
+      ],
+      "selection_reason": "ATX 中塔，显卡 405mm"
+    },
+    {
+      "hardware_id": "case-nzxt-h5-flow-2024",
+      "category": "CASE",
+      "brand": "NZXT",
+      "model_name": "NZXT H5 Flow (2024)",
+      "display_name": "NZXT H5 Flow (2024) ATX Mid Tower Case",
+      "specifications": {
+        "supported_mainboard_form_factors": [
+          "ATX",
+          "EATX",
+          "Micro ATX",
+          "Mini ITX"
+        ],
+        "max_gpu_length_mm": 410,
+        "max_cooler_height_mm": null,
+        "psu_form_factor": null,
+        "radiator_support": "Front: 360 / 240 / 120 mm / Top: 280 / 240 / 140 / 120 mm",
+        "expansion_slots": 7
+      },
+      "source": {
+        "dataset": "pcpp_case",
+        "pcpp_id": "541941",
+        "source_url": "https://pcpartpicker.com/product/bvTZxr/nzxt-h5-flow-2024-atx-mid-tower-case-cc-h52fb-01",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/640e44d6b2b0264413b089545b628d0a.1600.jpg",
+        "reference_price": 503.86,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "PARTIAL",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [
+        "max_cooler_height_mm"
+      ],
+      "selection_reason": "ATX 中塔，显卡 410mm"
+    },
+    {
+      "hardware_id": "psu-msi-mag-a650gls-pcie5",
+      "category": "PSU",
+      "brand": "MSI",
+      "model_name": "MSI MAG A650GLS PCIE5",
+      "display_name": "MSI MAG A650GLS PCIE5 650 W 80+ Gold Certified Fully Modular ATX Power Supply",
+      "specifications": {
+        "wattage_w": 650,
+        "efficiency": "80+ Gold",
+        "modular": "Full",
+        "form_factor": "ATX",
+        "pcie_8pin_count": 2,
+        "pcie_12vhpwr_count": 1,
+        "length_mm": 150,
+        "sata_connectors": 5
+      },
+      "source": {
+        "dataset": "pcpp_psu",
+        "pcpp_id": "609497",
+        "source_url": "https://pcpartpicker.com/product/DsgZxr/msi-mag-a650gls-pcie5-650-w-80-gold-certified-fully-modular-atx-power-supply-mag-a650gls-pcie5",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/b3f5ce174d631594ae9f8f2dc3b291d1.1600.jpg",
+        "reference_price": 575.93,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "650W 金牌，2×6+2 与 12VHPWR"
+    },
+    {
+      "hardware_id": "psu-be-quiet-pure-power-13-m",
+      "category": "PSU",
+      "brand": "be quiet!",
+      "model_name": "be quiet! Pure Power 13 M",
+      "display_name": "be quiet! Pure Power 13 M 750 W 80+ Gold Certified Fully Modular ATX Power Supply",
+      "specifications": {
+        "wattage_w": 750,
+        "efficiency": "80+ Gold",
+        "modular": "Full",
+        "form_factor": "ATX",
+        "pcie_8pin_count": 4,
+        "pcie_12vhpwr_count": 1,
+        "length_mm": 160,
+        "sata_connectors": 6
+      },
+      "source": {
+        "dataset": "pcpp_psu",
+        "pcpp_id": "588680",
+        "source_url": "https://pcpartpicker.com/product/yWJBD3/be-quiet-pure-power-13-m-750-w-80-gold-certified-fully-modular-atx-power-supply-bp026us",
+        "image_url": "https://m.media-amazon.com/images/I/51NcpqwxV1L.jpg",
+        "reference_price": 647.28,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "750W 金牌，4×6+2 与 12VHPWR"
+    },
+    {
+      "hardware_id": "psu-montech-century-ii",
+      "category": "PSU",
+      "brand": "Montech",
+      "model_name": "Montech CENTURY II",
+      "display_name": "Montech CENTURY II 850 W 80+ Gold Certified Fully Modular ATX Power Supply",
+      "specifications": {
+        "wattage_w": 850,
+        "efficiency": "80+ Gold",
+        "modular": "Full",
+        "form_factor": "ATX",
+        "pcie_8pin_count": 4,
+        "pcie_12vhpwr_count": 1,
+        "length_mm": 140,
+        "sata_connectors": 8
+      },
+      "source": {
+        "dataset": "pcpp_psu",
+        "pcpp_id": "581347",
+        "source_url": "https://pcpartpicker.com/product/sqbypg/montech-century-ii-850-w-80-gold-certified-fully-modular-atx-power-supply-century-ii-850w",
+        "image_url": "https://cdna.pcpartpicker.com/static/forever/images/product/19a563823463535f3c22b650a63a2452.1600.jpg",
+        "reference_price": 647.28,
+        "reference_price_note": "PCPartPicker 2026-10 快照；币种标注与实际量级不一致，仅作参考，不参与预算"
+      },
+      "data_quality_status": "VERIFIED_STRUCTURED",
+      "lifecycle_status": "CURRENT",
+      "recommendation_status": "ELIGIBLE",
+      "unverified_fields": [],
+      "selection_reason": "850W 金牌，4×6+2 与 12VHPWR"
+    }
+  ]
+}

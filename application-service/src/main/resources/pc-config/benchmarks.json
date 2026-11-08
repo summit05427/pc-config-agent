@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-11-08T00:00:00+00:00",
+  "source": {
+    "name": "PassMark",
+    "snapshot_date": "2026-10-05"
+  },
+  "entries": [
+    {
+      "hardware_id": "cpu-amd-ryzen-5-9600x",
+      "benchmark_type": "CPUMARK",
+      "score": 30040.0,
+      "secondary_score": 4569.0,
+      "rank_no": 573,
+      "samples": 9695,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6199",
+        "source_name": "AMD Ryzen 5 9600X",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-9800x3d",
+      "benchmark_type": "CPUMARK",
+      "score": 39917.0,
+      "secondary_score": 4420.0,
+      "rank_no": 379,
+      "samples": 26916,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6344",
+        "source_name": "AMD Ryzen 7 9800X3D",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-ultra-5-245k",
+      "benchmark_type": "CPUMARK",
+      "score": 43047.0,
+      "secondary_score": 4716.0,
+      "rank_no": 341,
+      "samples": 1104,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6324",
+        "source_name": "Intel Core Ultra 5 245K",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-ultra-7-265k",
+      "benchmark_type": "CPUMARK",
+      "score": 58567.0,
+      "secondary_score": 4928.0,
+      "rank_no": 193,
+      "samples": 8487,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6326",
+        "source_name": "Intel Core Ultra 7 265K",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 32330.0,
+      "secondary_score": 1322.0,
+      "rank_no": 14,
+      "samples": 21860,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5878",
+        "source_name": "GeForce RTX 5070 Ti",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 20136.0,
+      "secondary_score": 1167.0,
+      "rank_no": 93,
+      "samples": 9206,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5957",
+        "source_name": "Radeon RX 9060 XT 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9070-xt-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 26919.0,
+      "secondary_score": 1310.0,
+      "rank_no": 38,
+      "samples": 18079,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5956",
+        "source_name": "Radeon RX 9070 XT",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    }
+  ],
+  "unmatched": []
+}

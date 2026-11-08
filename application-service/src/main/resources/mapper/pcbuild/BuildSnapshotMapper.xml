@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.pcbuild.infrastructure.BuildSnapshotMapper">
+
+    <resultMap id="buildSnapshotRowMap" type="com.example.agent.pcbuild.infrastructure.BuildSnapshotRow">
+        <constructor>
+            <arg column="build_id" javaType="java.util.UUID"/>
+            <arg column="user_id" javaType="java.util.UUID"/>
+            <arg column="parent_build_id" javaType="java.util.UUID"/>
+            <arg column="requirements_snapshot" javaType="java.lang.String"/>
+            <arg column="components" javaType="java.lang.String"/>
+            <arg column="total_price_fen" javaType="java.lang.Long"/>
+            <arg column="budget_max_fen" javaType="java.lang.Long"/>
+            <arg column="compatibility_report" javaType="java.lang.String"/>
+            <arg column="benchmark_snapshot" javaType="java.lang.String"/>
+            <arg column="offer_snapshot" javaType="java.lang.String"/>
+            <arg column="solver_version" javaType="java.lang.String"/>
+            <arg column="compatibility_rule_version" javaType="java.lang.String"/>
+            <arg column="catalog_version" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.OffsetDateTime"/>
+        </constructor>
+    </resultMap>
+
+    <sql id="snapshotColumns">
+        build_id, user_id, parent_build_id, requirements_snapshot, components,
+        total_price_fen, budget_max_fen, compatibility_report, benchmark_snapshot,
+        offer_snapshot, solver_version, compatibility_rule_version, catalog_version, created_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO pc_build_snapshots
+            (build_id, user_id, parent_build_id, requirements_snapshot, components,
+             total_price_fen, budget_max_fen, compatibility_report, benchmark_snapshot,
+             offer_snapshot, solver_version, compatibility_rule_version, catalog_version, created_at)
+        VALUES
+            (#{buildId}, #{userId}, #{parentBuildId,jdbcType=OTHER},
+             CAST(#{requirementsSnapshot} AS jsonb), CAST(#{components} AS jsonb),
+             #{totalPriceFen}, #{budgetMaxFen,jdbcType=BIGINT},
+             CAST(#{compatibilityReport} AS jsonb), CAST(#{benchmarkSnapshot} AS jsonb),
+             CAST(#{offerSnapshot} AS jsonb), #{solverVersion}, #{compatibilityRuleVersion},
+             #{catalogVersion}, #{createdAt})
+    </insert>
+
+    <select id="findByIdAndUserId" resultMap="buildSnapshotRowMap">
+        SELECT <include refid="snapshotColumns"/>
+        FROM pc_build_snapshots
+        WHERE build_id = #{buildId}
+          AND user_id = #{userId}
+    </select>
+</mapper>

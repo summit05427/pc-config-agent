@@ -1,0 +1,279 @@
+package com.example.agent.pcbuild;
+
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.empty;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.jayway.jsonpath.JsonPath;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+/**
+ * PC 配置内部接口集成测试：完整安全过滤器链 + 真实 PostgreSQL。
+ */
+@SpringBootTest(properties = {
+        "spring.flyway.enabled=true",
+        "app.model.runtime-enabled=true",
+        "app.model.internal-auth.client-id=agent-service",
+        "app.model.internal-auth.client-secret=test-only-internal-secret"
+})
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+@Testcontainers
+class PcBuildApiTests {
+
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:18-alpine");
+
+    @DynamicPropertySource
+    static void registerDatasource(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
+
+    private static final String CANDIDATES_PATH = "/internal/v1/pc/hardware/candidates";
+
+    private static final String HARDWARE_PATH = "/internal/v1/pc/hardware";
+
+    private static final String BENCHMARKS_PATH = "/internal/v1/pc/benchmarks";
+
+    private static final String OFFERS_PATH = "/internal/v1/pc/offers";
+
+    private static final String SOLVE_PATH = "/internal/v1/pc/builds/solve";
+
+    private static final String VALIDATE_PATH = "/internal/v1/pc/builds/validate";
+
+    private static final String BUILDS_PATH = "/internal/v1/pc/builds";
+
+    private static final String USER_TOKEN_HEADER = "X-User-Token";
+
+    private static final String SERVICE_TOKEN_PATH = "/internal/v1/auth/service-token";
+
+    private static final String LOGIN_PATH = "/api/v1/auth/login";
+
+    private static final String CLIENT_ID = "agent-service";
+
+    private static final String CLIENT_SECRET = "test-only-internal-secret";
+
+    private static final String ADMIN_PASSWORD = "test-only-password";
+
+    private static final String DEMO_PASSWORD = "test-only-demo-password";
+
+    private static final String BASELINE_VALIDATE_BODY = """
+            {
+              "cpu": "cpu-amd-ryzen-7-9800x3d",
+              "motherboard": "motherboard-msi-mag-b850-tomahawk-max-wifi",
+              "memory": "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-6000-cl36",
+              "gpu": "gpu-geforce-rtx-5070-ti-16gb",
+              "psu": "psu-montech-century-ii",
+              "case": "case-lian-li-lancool-216",
+              "cooler": "cooler-thermalright-peerless-assassin-120-se",
+              "storage": "storage-kingston-nv3-1-tb"
+            }
+            """;
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void candidates_shouldRequireServiceTokenAndSupportCategoryFilter() throws Exception {
+        mockMvc.perform(get(CANDIDATES_PATH))
+                .andExpect(status().isUnauthorized());
+
+        String bearer = bearerToken();
+        mockMvc.perform(get(CANDIDATES_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.total").value(28))
+                .andExpect(jsonPath("$.data.catalogVersion").isNotEmpty());
+
+        mockMvc.perform(get(CANDIDATES_PATH)
+                        .param("category", "GPU")
+                        .header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(4))
+                .andExpect(jsonPath("$.data.list[*].category", not(empty())));
+
+        mockMvc.perform(get(CANDIDATES_PATH)
+                        .param("category", "UNKNOWN")
+                        .header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void hardwareDetail_shouldReturnBrandAnd404ForUnknown() throws Exception {
+        String bearer = bearerToken();
+        mockMvc.perform(get(HARDWARE_PATH + "/gpu-geforce-rtx-5070-ti-16gb")
+                        .header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.hardwareId").value("gpu-geforce-rtx-5070-ti-16gb"))
+                .andExpect(jsonPath("$.data.specSummary").isNotEmpty());
+
+        mockMvc.perform(get(HARDWARE_PATH + "/not-exists")
+                        .header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(40301));
+    }
+
+    @Test
+    void benchmarksAndOffers_shouldExposeSourceAndUnits() throws Exception {
+        String bearer = bearerToken();
+        mockMvc.perform(get(BENCHMARKS_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(8));
+
+        mockMvc.perform(get(OFFERS_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.dataStatus").value("MIXED_DEMO"))
+                .andExpect(jsonPath("$.data.priceUnit").value("CNY_FEN"))
+                .andExpect(jsonPath("$.data.verifiedOfferCount").value(10))
+                .andExpect(jsonPath("$.data.mockOfferCount").value(18))
+                .andExpect(jsonPath("$.data.total").value(28));
+
+        mockMvc.perform(get(OFFERS_PATH)
+                        .param("hardwareId", "cpu-amd-ryzen-7-9800x3d")
+                        .header(HttpHeaders.AUTHORIZATION, bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.list[0].priceFen").value(299900))
+                .andExpect(jsonPath("$.data.list[0].priceSource").value("OWNER_VERIFIED"))
+                .andExpect(jsonPath("$.data.list[0].verifiedPrice").value(true));
+    }
+
+    @Test
+    void validate_shouldReturnAllEightRulesAndKeepUnknownCoolerHeight() throws Exception {
+        mockMvc.perform(post(VALIDATE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BASELINE_VALIDATE_BODY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.valid").value(true))
+                .andExpect(jsonPath("$.data.report.ruleVersion").value("pc-compat-1.0.0"))
+                .andExpect(jsonPath("$.data.report.hasFailure").value(false))
+                // 机箱未提供限高，整体只能是 UNKNOWN，不能是 PASS
+                .andExpect(jsonPath("$.data.report.overallStatus").value("UNKNOWN"))
+                .andExpect(jsonPath("$.data.report.checks.length()").value(8))
+                .andExpect(jsonPath("$.data.report.checks[5].ruleId").value("cooler_case_height"))
+                .andExpect(jsonPath("$.data.report.checks[5].status").value("UNKNOWN"));
+    }
+
+    @Test
+    void validate_shouldRejectIncompleteSelection() throws Exception {
+        mockMvc.perform(post(VALIDATE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cpu\":\"cpu-amd-ryzen-7-9800x3d\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void solve_shouldPersistSnapshotAndEnforceOwnership() throws Exception {
+        String bearer = bearerToken();
+        String adminToken = userToken("admin", ADMIN_PASSWORD);
+        String demoToken = userToken("demo", DEMO_PASSWORD);
+
+        MvcResult result = mockMvc.perform(post(SOLVE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .header(USER_TOKEN_HEADER, adminToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"budgetMaxFen\":2000000,\"scenario\":\"GAMING\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.solved").value(true))
+                .andExpect(jsonPath("$.data.build.buildId").isNotEmpty())
+                .andExpect(jsonPath("$.data.build.totalPriceFen").value(
+                        org.hamcrest.Matchers.lessThanOrEqualTo(2_000_000)))
+                .andExpect(jsonPath("$.data.build.components.length()").value(8))
+                .andExpect(jsonPath("$.data.build.offerDataStatus").value("MIXED_DEMO"))
+                .andExpect(jsonPath("$.data.build.components[*].priceSource", not(empty())))
+                .andReturn();
+        String buildId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.build.buildId");
+
+        mockMvc.perform(get(BUILDS_PATH + "/" + buildId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .header(USER_TOKEN_HEADER, adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.buildId").value(buildId))
+                .andExpect(jsonPath("$.data.components.length()").value(8));
+
+        // 另一个用户读取同一快照必须按不存在处理，不泄露存在性
+        mockMvc.perform(get(BUILDS_PATH + "/" + buildId)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .header(USER_TOKEN_HEADER, demoToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(40302));
+    }
+
+    @Test
+    void solve_shouldRequireUserToken() throws Exception {
+        mockMvc.perform(post(SOLVE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"budgetMaxFen\":2000000}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(40306));
+    }
+
+    @Test
+    void solve_shouldReturnStructuredFailureWhenBudgetTooLow() throws Exception {
+        mockMvc.perform(post(SOLVE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"budgetMaxFen\":500000}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.solved").value(false))
+                .andExpect(jsonPath("$.data.build").doesNotExist())
+                .andExpect(jsonPath("$.data.failure.reason").value("BUDGET_EXCEEDED"))
+                .andExpect(jsonPath("$.data.failure.minimumRequiredBudgetFen",
+                        greaterThan(500_000)));
+    }
+
+    @Test
+    void solve_shouldNotSilentlyUseMockPricesWhenVerifiedOnly() throws Exception {
+        mockMvc.perform(post(SOLVE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"budgetMaxFen\":2000000,\"requireVerifiedOffers\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.solved").value(false))
+                .andExpect(jsonPath("$.data.failure.reason").value("NO_CANDIDATES"))
+                .andExpect(jsonPath("$.data.failure.missingCategories", not(empty())));
+    }
+
+    private String bearerToken() throws Exception {
+        MvcResult result = mockMvc.perform(post(SERVICE_TOKEN_PATH)
+                        .param("client_id", CLIENT_ID)
+                        .param("client_secret", CLIENT_SECRET))
+                .andExpect(status().isOk())
+                .andReturn();
+        String token = JsonPath.read(result.getResponse().getContentAsString(), "$.data.accessToken");
+        return "Bearer " + token;
+    }
+
+    private String userToken(String username, String password) throws Exception {
+        MvcResult result = mockMvc.perform(post(LOGIN_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"" + username + "\",\"password\":\"" + password + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data.accessToken");
+    }
+}
