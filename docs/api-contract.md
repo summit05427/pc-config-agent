@@ -274,6 +274,26 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 
 字段级 DTO 与校验规则见 `services/application-service/api-reference.md` §8；Agent 侧调用实现见 `agent-service/app/services/control_plane.py`。
 
+### 5.7 PC 配置（`/internal/v1/pc/**`）
+
+同样只允许 Agent 经容器内网直连，鉴权沿用服务令牌 + `X-User-Token`。金额全部为整数分（`*Fen`）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/internal/v1/pc/hardware/candidates?category=` | 返回候选硬件摘要，`category` 可省略 |
+| GET | `/internal/v1/pc/hardware/{hardwareId}` | 单条硬件详情，含规格与数据质量状态 |
+| GET | `/internal/v1/pc/benchmarks?category=&hardwareId=` | PassMark 跑分；无数据返回空结果，不猜测分数 |
+| GET | `/internal/v1/pc/offers?category=&hardwareId=&verifiedOnly=` | 报价列表，`verifiedOnly=true` 时只返回 `matchStatus=VERIFIED` |
+| POST | `/internal/v1/pc/builds/solve` | 确定性求解，返回 `buildId`、8 类组件、总价、兼容性报告 |
+| POST | `/internal/v1/pc/builds/validate` | 复核完整性与兼容性，返回 `checks[]`、`overallStatus`、`ruleVersion` |
+| GET | `/internal/v1/pc/builds/{buildId}` | 读取快照；仅所属用户可见，越权返回 403 `40302` |
+
+求解请求字段：`budgetMaxFen`（为空表示无硬预算）、`scenario`（`GAMING` / `VIDEO_EDITING` / `CREATIVE` / `PROGRAMMING` / `WORKSTATION` / `OFFICE` / `GENERAL_USE` / `BALANCED`）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers`。
+
+报价字段含 `priceSource`：`OWNER_VERIFIED` 为人工核验价，`MOCK_DEMO` 为演示占位价。**`MOCK_DEMO` 不得在用户侧表述为已核验报价**，前端与 `response_generator` 必须显式标注。
+
+兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。
+
 ## 6. Agent 接口
 
 所有路径均在 `/api/v1` 下；下表「公网路径」已包含 `/agent` 前缀。
@@ -448,8 +468,21 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 | `tool_call` | `{ "name": "...", "args": {}, "schema_version": "1" }` | 模型发起工具调用 |
 | `tool_result` | `{ "name": "...", "preview": "...", "schema_version": "1" }` | 工具结果摘要，`preview` 截断到 200 字符 |
 | `citations` | `{ "citations": [{ "source_id": "...", "title": "...", "snippet": "...", "score": 0.9 }], "schema_version": "1" }` | 可选：仅 `RAG__ENABLED=true` 且检索到结果时发送，位于首个 `token` 之前；`score` 可省略 |
-| `done` | `{ "thread_id": "...", "schema_version": "1" }` | 正常结束；`thread_id` 是客户端原始值，不含用户命名空间 |
+| `done` | `{ "thread_id": "...", "schema_version": "1", "build_result": { ... } }` | 正常结束；`thread_id` 是客户端原始值，不含用户命名空间。`build_result` 可选，仅 PC 配置求解成功时出现 |
 | `error` | `{ "code": "...", "message": "...", "schema_version": "1" }` | 流内错误；此时 HTTP 状态码已是 200 |
+
+`build_result` 结构（snake_case，前端容忍字段缺失）：
+
+| 字段 | 说明 |
+| --- | --- |
+| `build_id` | 配置快照 ID |
+| `components[]` | 8 类硬件，含 `category`、`model_name`、`brand`、`title`、`platform`、`seller`、`price_source`、`spec_summary`、`price_fen`、`purchase_url`、`benchmark`、`offer_verified_at` |
+| `total_price_fen` / `budget_max_fen` / `budget_status` | 总价、预算上限与预算校验结论；均为整数分 |
+| `compatibility[]` / `overall_status` | 兼容性明细与总状态，取值为 `PASS`/`WARNING`/`FAIL`/`UNKNOWN` |
+| `demo_offer_count` | 演示价条数，大于 0 时前端必须常驻展示「演示价格，非真实在售」 |
+| `reason_summary` | 选型理由摘要；正文的权威来源仍是 `token` 事件 |
+
+`components[].price_source=MOCK_DEMO` 表示该行价格为演示占位价，禁止表述为已核验报价。
 
 版本化约定（WP2.3）：
 

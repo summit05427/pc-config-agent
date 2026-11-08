@@ -62,7 +62,24 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/stop-local.ps1
 - 端口已占用时自动跳过，不会重复启动。
 - 日志写入 `logs/dev/*.log`；`logs/` 已被 `.gitignore` 排除。
 - 启动 Java 前会用容器网络（`scram-sha-256`）真实校验 `POSTGRES_PASSWORD`，口令不一致时直接给出提示，不让 Flyway 报错掩盖根因。
+- 启动前会先执行 `scripts/dev/preflight.ps1`，比对根 `.env`、`agent-service/.env`、`frontend/.env` 之间的契约型配置，存在阻断项时中止启动。
 - 脚本只做进程编排，不替代下面的手工命令；需要理解每一步时按 2.2–2.6 操作。
+
+预检可以单独执行，适合部署前或 CI 中调用（存在阻断项时退出码为 1）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/preflight.ps1
+```
+
+预检覆盖的范围：
+
+- `COMPOSE_PROJECT_NAME` 合法性与 `IMAGE_PREFIX` 是否仍为模板默认值（防止与同机其它项目共用容器、卷、镜像）
+- 八个宿主端口是否互不重复，并提示已被占用的端口
+- JWT KID 与公钥在根 `.env` 和 `agent-service/.env` 中是否一致（不一致会导致 Agent 验签失败，前端把 401 当登录失效）
+- `MODEL_RUNTIME_ENABLED` 与 Agent 的 `MODEL_RUNTIME__ENABLED` 是否一致；`BYOK_ENABLED` 开启时 `MODEL_CRED_MASTER_KEY` 是否为 32 字节 base64
+- `MODEL_GATEWAY_MASTER_KEY` 是否与 `LITELLM_MASTER_KEY` 一致
+- OpenUI 开关在根 `.env`、`agent-service/.env`、`frontend/.env` 中是否同步
+- `LLM_API_KEY` 是否仍为空、过短或示例值（仅告警，BYOK 场景可接受）
 
 ### 2.2 启动基础设施
 

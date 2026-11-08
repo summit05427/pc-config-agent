@@ -52,6 +52,7 @@
 | [services/agent-service/architecture.md](services/agent-service/architecture.md) | 服务事实说明 | Agent 分层、生命周期、数据归属、已知问题 |
 | [services/agent-service/agent-workflows.md](services/agent-service/agent-workflows.md) | 服务事实说明 | 图结构、上下文裁剪、工具治理、checkpointer、一次对话时序 |
 | [services/agent-service/api-reference.md](services/agent-service/api-reference.md) | 服务契约 | Agent 端点、SSE 事件、错误码 |
+| [pc-config/README.md](pc-config/README.md) | 模块文档集（**PC 配置主题入口**） | 12 份文档导航：范围、架构、工作流、状态与工具、数据模型、数据质量、报价运营、求解与兼容、接口、测试、路线图 |
 | [services/admin/architecture.md](services/admin/architecture.md) | 服务事实说明 | 管理端定位、目录、认证与会话、路由守卫、页面能力、已知边界 |
 | [services/admin/development-guide.md](services/admin/development-guide.md) | 服务规范 | 命令、环境变量、新增页面/接口步骤、认证改动检查、部署待接入 |
 
@@ -60,8 +61,10 @@
 | 目录 / 文档 | 类型 | 内容 |
 | --- | --- | --- |
 | [quality/enterprise-readiness.md](quality/enterprise-readiness.md) | 质量基线（**企业级达标唯一评分表**） | 六大域评分口径、逐项验收方式、P0–P2 整改 backlog、业界基准映射 |
-| [adr/](adr/) | 架构决策 | 目前 6 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm` |
+| [adr/](adr/) | 架构决策 | 目前 10 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm`、`0009-single-pc-workflow-over-generic-chat`、`0010-deterministic-markdown-build-output`、`0011-manually-verified-offer-dataset`、`0012-persist-build-snapshot` |
 | [planning/closure-plan.md](planning/closure-plan.md) | 规划（**当前待办与放行条件唯一权威**） | 已处理事项及关闭依据、未完成 P0–P3 清单、收尾执行顺序与验收标准 |
+| [planning/pc-config-implementation-plan.md](planning/pc-config-implementation-plan.md) | 规划（PC 配置分期设计） | 决策 D1–D8、Stage 1–6 任务与验收指标；执行进度以本文件与 closure-plan 为准 |
+| [quality/pc-config-e2e-2026-11.md](quality/pc-config-e2e-2026-11.md) | 质量证据 | Stage 5 端到端联调：三组 Demo、指标核对、基础设施回归、遗留问题 |
 
 `docs/quality/` 现存放企业级达标评分表；`docs/archive/` 仍为空：2026-11-05 文档清理已删除全部历史归档，历史内容见 Git（清理前提交 `d4e349b`）。新增证据报告仍按 [documentation-governance.md](documentation-governance.md) §2、§10 放入对应目录。
 

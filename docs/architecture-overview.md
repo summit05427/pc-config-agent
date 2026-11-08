@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | 前端 | `frontend/` | React 19 + TypeScript + Vite + TanStack Router/Query + Zustand + Tailwind/Radix；容器内 Nginx 同时承担静态托管与反向代理 | 界面、路由、状态、SSE 消费、登录态维护 | 不保存模型密钥、不签发 Token、不做真实权限校验 |
 | Java 业务端 | `application-service/` | Java 21 + Spring Boot 4.1.1 + Spring Modulith 2.1.2 + MyBatis + Flyway + Spring Security（OAuth2 Resource Server, RS256） | 用户认证、双令牌签发与刷新会话、业务数据与权限、模型运行时控制面（模型目录 / BYOK 凭证 / 额度 / 用量） | 不调用 Agent、不执行对话编排、不下发模型密钥明文 |
-| Python Agent 端 | `agent-service/` | Python 3.12 + FastAPI + LangGraph + LangChain OpenAI + sse-starlette | 对话编排、工具调用、会话持久化、SSE 推流 | 不建用户表、不签发生产 Token、不查 Java 业务库 |
+| Python Agent 端 | `agent-service/` | Python 3.12 + FastAPI + LangGraph + LangChain OpenAI + sse-starlette | 对话编排、工具调用、会话持久化、SSE 推流；PC 配置走确定性六节点流水线（需求解析 → 候选检索 → Java 求解 → 兼容性复核 → 解释渲染） | 不建用户表、不签发生产 Token、不查 Java 业务库、不自行计算价格与兼容性 |
 | 管理端 | `admin/` | React 19 + TypeScript + Vite + TanStack Router/Query + Zustand + Tailwind/shadcn-admin | 管理员登录、用户管理（状态 / 角色）、审计日志查询 | 不调用 Agent、不连接数据库、不持有模型密钥、不实现用户端功能 |
 
 证据：`frontend/package.json`、`application-service/pom.xml`、`agent-service/pyproject.toml`、`admin/package.json`、`frontend/deploy/nginx/default.conf.template`。
@@ -59,6 +59,10 @@ Agent ──服务令牌 + X-User-Token──> Java(内网直连) /internal/v1/a
                                               /internal/v1/model-tasks/{taskId}/credential-lease
                                               /internal/v1/model-access/check
                                               /internal/v1/model-usage
+                                              /internal/v1/pc/hardware/**
+                                              /internal/v1/pc/benchmarks
+                                              /internal/v1/pc/offers
+                                              /internal/v1/pc/builds/**
 ```
 
 - **已验证事实**：前端有两套请求门面。Java 请求走 `frontend/src/core/http/httpJson.ts`（axios + 信封拆解 + 401 单飞刷新）；Agent 请求走 `frontend/src/core/http/sseStream.ts`（`fetch` + ReadableStream，读裸 JSON 与 SSE）。业务域 API 在 `frontend/src/features/<domain>/api/`，组件与 feature 不直接使用 `axios` / `fetch`。
@@ -118,6 +122,7 @@ Agent ──服务令牌 + X-User-Token──> Java(内网直连) /internal/v1/a
 - Agent 侧的人工审批、多 Agent 编排。
 - 接口限流：**登录失败限流已实现**（`InMemoryLoginAttemptLimiter`，进程内单实例，超限 429 `10007`，仅统计认证失败、成功登录清零）；**其余接口未实现限流**。模型请求额度（`40201`）属于模型运行时配额，不是通用限流。
 - 前端对 Agent 的跨域直连：当前走同源 `/agent/`，`CORS_ALLOWED_ORIGINS` 与 Agent `cors_origins` 只在分域部署时才需要。
+- PC 配置：**已实现**（2026-11-08，分支 `feature/pc-config-agent`）。Java 提供候选、跑分、报价、求解、兼容性校验与快照七类内部接口；Agent 以确定性单图替换原 ReAct 图，LLM 只做需求解析与解释生成。当前数据为 `MIXED_DEMO`（10 条人工核验价 + 18 条演示价），真实报价替换、机箱散热限高字段与入门/高端候选扩充仍待完成，见 [pc-config/extension-roadmap.md](pc-config/extension-roadmap.md)。
 
 ## 8. 已知不一致与待确认
 

@@ -2,10 +2,10 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | 已验证（源码级） |
-| 基线 | 分支 `fix/post-refactor-bugfix`，HEAD `397b1fb`，含未提交改动 |
-| 最后核验 | 2026-11-04 |
-| 主要证据 | `app/agent/{graph,state,context,registry,tools,profiles,prompts,checkpointer,tool_context}.py`、`app/agents/*.yaml`、`app/api/v1/chat.py`、`app/services/{turn,lock,session_store,session_model,llm,model_resolver,model_runtime}.py` |
+| 状态 | 已验证（PC 配置单图重构后） |
+| 基线 | 分支 `feature/pc-config-agent` |
+| 最后核验 | 2026-11-08 |
+| 主要证据 | `app/agent/pc/`（六个节点与状态）、`app/agents/pc-config.yaml`、`app/services/pc_client.py`、`app/services/model_runtime.py`、`app/services/turn.py` |
 
 ## 权威文档导航
 
@@ -24,30 +24,44 @@
 ## 1. 图结构
 
 ```
-START → model ─┬─(有 tool_calls)→ tools → model（循环）
-               └─(无 tool_calls)→ END
+START
+  → requirement_parser        （LLM 结构化解析需求，打 TAG_NOSTREAM）
+  → requirement_validator     （纯代码校验与澄清判断）
+  → candidate_retriever       （调 Java 取候选硬件）
+  → build_solver              （调 Java 确定性求解）
+  → build_validator           （调 Java 复核；失败最多重解 1 次）
+  → response_generator        （LLM 生成解释文案 + 确定性数据渲染）
+  → END
 ```
 
-- 由 [graph.py](file:///f:/agent-project-template/agent-service/app/agent/graph.py) 的 `build_agent` 组装：2 个节点 `model` / `tools`，条件边用 LangGraph 预置的 `tools_condition`。
-- `tools` 节点是预置 `ToolNode`，自动执行 `model` 产出的 `tool_calls` 并把结果作为 `ToolMessage` 追加进状态。
-- 循环上限由 `config.recursion_limit` 控制（默认 12，来自 `AGENT__RECURSION_LIMIT`）；超限时 LangGraph 抛错，路由层转成 `error` 事件。
-- 进程内用 `@lru_cache` 复用编译后的图；checkpointer 切换时会 `get_agent.cache_clear()`，避免仍用旧存储。
-- `build_agent` 的参数（model / tools / checkpointer / 上下文预算 / 系统提示词 / `profile`）全部可注入，测试用假模型替换。
-- 请求未指定 `agent_id` 或走进程默认模型时复用 `get_agent()`；指定了 Profile 或运行时模型时走 `get_agent_for_runtime`，图缓存键含 `agent_id`（见 §7）。流前的运行时解析、凭证兑换与图选择统一走 `app/services/model_runtime.py` 的 `prepare_agent`，路由不再自行拼装这四步。
-- 模型客户端统一由 `app/services/llm.py` 装配：所有请求经 LiteLLM 网关出站，Agent 不维护 Provider 分支与适配器（ADR 0008）；BYOK 凭证通过请求体 `user_config` 单次传递，平台密钥只用于网关鉴权。
-
-**当前只有一条链路**：没有意图识别、没有路由分支、没有人工审批节点、没有多 Agent 协作。
+- 单图替换，不再保留通用 ReAct 图；设计与决策见 [ADR-0009](../../adr/0009-single-pc-workflow-over-generic-chat.md)。
+- 图装配唯一入口仍是 `app/services/model_runtime.py` 的 `_default_graph` / `prepare_agent`，路由不自行拼装。
+- LLM 只用于需求解析与解释生成；硬件组合、价格、总价、SKU、链接全部来自 Java 内部接口的确定性结果。
+- 节点不发 SSE，统一返回 `tool_events`，由 `app/services/turn.py` 映射为既有 `tool_call` / `tool_result` 事件；`done` 事件可附带可选 `build_result`（结构见 [api-contract.md](../../api-contract.md) §7）。
+- 循环上限由 `AGENT__RECURSION_LIMIT` 控制；`build_validator` 的重解次数另有配置上限，默认 1 次。
+- 模型不可用时走确定性 Markdown 兜底（[ADR-0010](../../adr/0010-deterministic-markdown-build-output.md)），结果不丢失。
 
 ## 2. 状态
 
 ```python
-class AgentState(TypedDict):
+class PCConfigState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     preference_prompt: NotRequired[str | None]
     use_history: NotRequired[bool]
+    user_message: str
+    requirements: NotRequired[dict | None]
+    validation_result: NotRequired[dict | None]
+    candidate_pool_id: NotRequired[str | None]
+    build_id: NotRequired[str | None]
+    compatibility_report: NotRequired[list | None]
+    budget_report: NotRequired[dict | None]
+    retry_count: int
+    workflow_status: str
+    clarification_required: bool
+    final_result: NotRequired[dict | None]
 ```
 
-`add_messages` 保证节点返回的是**追加**而非覆盖。偏好相关字段只描述「本轮」行为，每轮由路由显式传入（缺省时 `use_history=True`、`preference_prompt=None`），避免同一 thread 沿用上一轮的设置；它们不会写入会话业务表。
+`messages` / `preference_prompt` / `use_history` 必须保留，`turn.py` 依赖这三个字段完成输入、落库与事件翻译；`response_generator` 必须写入 `messages`，否则前端拿不到正文。State 中不保存模型密钥、服务令牌、完整 JWT 与完整商品列表。
 
 ## 3. 上下文窗口管理
 
@@ -126,7 +140,7 @@ class AgentState(TypedDict):
 - 目录：`app/agent/prompts/*.md`，文件名即 `AGENT__SYSTEM_PROMPT` 的值（不含后缀）。
 - 名称白名单正则 `^[a-z0-9][a-z0-9-]*$`，再校验解析后路径必须在提示词目录内（双保险，防路径穿越）。
 - 文件缺失或内容为空抛 `PromptNotFoundError`；按名称 `lru_cache(maxsize=16)`，进程内只读一次。
-- 当前可用文件：`default.md`（默认人格）、`writer.md`（写作助手 Profile 使用）；`openui.md` 是前端生成产物（`corepack pnpm --dir frontend openui:prompt`），禁止手改，CI 的 `openui:prompt:check` 负责漂移检查。
+- 当前可用文件：`pc-config-system.md`（PC 配置默认人格）、`requirement-parser.md`（需求解析节点）、`response-generator.md`（推荐说明节点）；`openui.md` 是前端生成产物（`corepack pnpm --dir frontend openui:prompt`），禁止手改，CI 的 `openui:prompt:check` 负责漂移检查。
 - 生成式 UI：`OPENUI__ENABLED=true` 时最终提示词为「基础提示词 + OpenUI 组件契约 + 输出规模限制（`OPENUI__MAX_BLOCKS`）」，由 `compose_openui_system_prompt` 拼接；关闭时逐字节保持基础提示词，不读取契约文件。
 - 启动期校验：`create_app` 先加载基础提示词，开关开启时同时加载契约；任一失败抛 `RuntimeError`，不等到首个对话请求。
 - 用户偏好（`preferences`）不在提示词文件里：路由用 [preferences.py](file:///f:/agent-project-template/agent-service/app/agent/preferences.py) 的 `build_preference_prompt` 渲染成 `## 用户偏好` 片段，`model` 节点把它追加在基础提示词之后。指令、语言、风格都为空时返回 `None`，不改变原提示词。
@@ -156,9 +170,9 @@ app/agents/**/*.yaml（按路径排序递归加载）
 | `model.temperature` / `model.max_tokens` | 否 | 0..2 / 1..8192，覆盖全局 LLM 配置 |
 | `context.max_tokens` | 否 | 1..100000，覆盖 `AGENT__CONTEXT_MAX_TOKENS` |
 
-- Agent 解析优先级：`request.agent_id` > `AGENT__DEFAULT_PROFILE` > `default`；未知 id 在**建立流之前**返回 404 `agent_not_found`。
+- Agent 解析优先级：`request.agent_id` > `AGENT__DEFAULT_PROFILE`（默认 `pc-config`）；两者都不命中时在**建立流之前**返回 404 `agent_not_found`，不存在第三层兜底。
 - 模型优先级：`request.model` > 会话 `model_key` > `profile.model.default_key` > Auto。Profile 默认模型按**显式模型**处理，控制面不可达时**不降级**。
-- `default` Profile 省略全部可选块，行为与改造前等价：仍受全局 `AGENT__SYSTEM_PROMPT` / `AGENT__CONTEXT_MAX_TOKENS` / `LLM__*` 控制。
+- `pc-config` Profile 绑定 5 个 PC 工具与 `pc-config-system` 提示词，行为见 [docs/pc-config/agent-workflow.md](../../pc-config/agent-workflow.md)。
 - 缓存隔离：`get_chat_model` 与 `get_agent_for_runtime` 的键都含 `agent_id`，同一模型下不同 Profile 不复用实例；凭证撤销仍按 `credential_id` 清理。
 - 失败策略：YAML 非法、id 与文件名不一致、提示词缺失、工具未注册、目录为空或不存在、id 重复，均在 `create_app` 启动期抛 `RuntimeError`，不等到首个请求。
 

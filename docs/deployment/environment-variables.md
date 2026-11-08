@@ -211,12 +211,13 @@ cron 含空格，`.env` 与 YAML 中必须整体加引号。
 | `STORAGE__POOL_SIZE` | 连接池上限（1–50） | `5` | 否 | 无 | `config.py` L177 |
 | `STORAGE__AUTO_SETUP` | 启动时幂等建表；无 DDL 权限的托管库设为 `false` 并手工迁移 | `true` | 否 | 无 | `config.py` L179 |
 | `AGENT__CONTEXT_MAX_TOKENS` | 上下文预算，超出按完整消息单元从旧到新裁剪 | `6000` | 否 | 无 | `config.py` L264 |
-| `AGENT__RECURSION_LIMIT` | ReAct 循环上限（1–100） | `12` | 否 | 无 | `config.py` L266 |
+| `AGENT__RECURSION_LIMIT` | 图执行步数上限（1–100） | `12` | 否 | 无 | `config.py` L266 |
 | `AGENT__REQUEST_TIMEOUT_SECONDS` | 单次流总超时，超时下发 `error` 事件 | `120` | 否 | 无 | `config.py` L268 |
 | `AGENT__THREAD_LOCK_TTL_SECONDS` | 同会话串行化锁持有时间 | `300` | 否 | 无 | `config.py` L270 |
 | `AGENT__THREAD_LOCK_WAIT_SECONDS` | 抢锁等待窗口，`0` 表示立即 409 | `3` | 否 | 无 | `config.py` L272 |
 | `AGENT__SSE_HEARTBEAT_SECONDS` | SSE 心跳注释行间隔 | `15` | 否 | 无 | `config.py` L274 |
-| `AGENT__SYSTEM_PROMPT` | 提示词文件名（不含 `.md`，取自 `app/agent/prompts/`） | `default` | 否 | 启动即校验文件存在，缺失抛 `RuntimeError` | `config.py` L276 |
+| `AGENT__SYSTEM_PROMPT` | 提示词文件名（不含 `.md`，取自 `app/agent/prompts/`） | `pc-config-system` | 否 | 启动即校验文件存在，缺失抛 `RuntimeError` | `config.py` L280 |
+| `AGENT__MAX_SOLVE_RETRIES` | 兼容性校验失败后自动重解次数（0–2），重解只放宽 `require_verified_offers` | `1` | 否 | 字段级范围校验 | `config.py` L282；`agent-service/.env.example` |
 | `AGENT__TOOL_TIMEOUT_SECONDS` | 工具默认超时 | `10` | 否 | 无 | `config.py` L278 |
 | `AGENT__TOOL_MAX_RETRIES` | 工具失败重试次数（0–5） | `1` | 否 | 无 | `config.py` L280 |
 | `AGENT__TOOL_MAX_OUTPUT_TOKENS` | 工具单次返回的 token 上限；超出后截断并附加提示 | `2000` | 否 | 字段级 `>0` | `config.py` L311 |
@@ -227,7 +228,7 @@ cron 含空格，`.env` 与 YAML 中必须整体加引号。
 | `AGENT__SUMMARY_ENABLED` | 长会话摘要总开关；关闭时行为与接入前逐字节一致 | `false` | 否 | 无（摘要失败自动回退到普通裁剪） | `config.py` L301；`agent-service/.env.example` L122 |
 | `AGENT__SUMMARY_TRIGGER_TOKENS` | 历史估算 token 超过该值才触发摘要（1–100000） | `5000` | 否 | 字段级范围校验 | `config.py` L302；`agent-service/.env.example` L123 |
 | `AGENT__PROFILES_DIR` | Agent Profile 配置目录；相对路径按服务根目录解析 | `app/agents` | 否 | 启动期递归加载 `*.yaml`；目录不存在/为空、id 重复、提示词缺失、工具未注册均拒绝启动 | `config.py` L311 |
-| `AGENT__DEFAULT_PROFILE` | 请求未携带 `agent_id` 时使用的 Profile | `default` | 否 | 必须存在于 Profile 目录，否则启动失败 | `config.py` L313 |
+| `AGENT__DEFAULT_PROFILE` | 请求未携带 `agent_id` 时使用的 Profile | `pc-config` | 否 | 必须存在于 Profile 目录，否则启动失败 | `config.py` L319 |
 | `AGENT__SESSION_INDEX_TTL_SECONDS` | **已废弃（2026-10-29）**，仅为兼容旧 `.env` 保留 | `2592000` | 否 | 无 | `config.py` L306 |
 | `AGENT__SESSION_INDEX_MAX` | **已废弃（2026-10-29）**，同上 | `100` | 否 | 无 | `config.py` L308 |
 | `OPENUI__ENABLED` | 生成式 UI 总开关；关闭时系统提示词与接入前逐字节一致 | `false` | 否 | 无（无密钥依赖）；必须与前端 `VITE_OPENUI_ENABLED` 同步 | `config.py` L318-335；`docker-compose.yml` L215 |

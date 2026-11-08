@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 状态 | Current |
-| 最后核验 | 2026-11-07 |
+| 最后核验 | 2026-11-08 |
 | 用途 | 按任务给出最小必读清单，避免加载无关文档与整目录浏览 |
 
 **读取规则**：先查本表命中任务 → 只读「必读」列出的 1–3 份 → 用 Grep 定位章节后按 offset/limit 读取命中段。禁止整目录读取。
@@ -17,6 +17,8 @@
 | 改管理端 | `admin/CODEMAP.md` → `docs/services/admin/development-guide.md` → `docs/services/admin/architecture.md` | `docs/api-contract-quick-reference.md` |
 | 改 Java 接口 / 业务 | `.trae/rules-on-demand/20-backend-java.md` → `application-service/CODEMAP.md` → `docs/services/application-service/architecture.md` | `api-reference.md` 对应端点、`security.md` |
 | 改 Agent 节点 / 工具 / 流式 | `.trae/rules-on-demand/30-agent-python.md` → `agent-service/CODEMAP.md` → `docs/services/agent-service/agent-workflows.md` | `api-reference.md`、`model-runtime-architecture.md` |
+| 改 PC 配置需求解析 / 求解 / 推荐 | `docs/pc-config/README.md` → `docs/pc-config/agent-workflow.md` → `docs/pc-config/solver-and-compatibility.md` | `agent-state-and-tools.md`、`data-model.md`、`docs/api-contract.md` §5.7 |
+| 改报价数据 / 核验报价 | `docs/pc-config/market-offer-management.md` → `docs/pc-config/data-quality-and-lifecycle.md` | `docs/pc-config/offers.template.json`、`scripts/pc-config/ingest_offers.py` |
 | 跨端契约变更 | `docs/development-rules.md` §1 → `docs/api-contract-quick-reference.md` | `docs/api-contract.md` 全文 |
 | 环境变量 / 部署 / 排障 | `docs/deployment/env-quick-reference.md` | `deployment-guide.md`、`environment-variables.md` |
 | Solo（只跑 Agent，dev-token 体验） | `docs/deployment/solo-mode.md` | `deployment-guide.md` §3.3 |

@@ -640,6 +640,24 @@ v1 的 `/api/v1/models`、`/api/v1/model-connections` 继续返回全量数组�
 - **凭证兑换**：任务过期或撤销 404 `40206`；已兑换 409 `40215`；非 BYOK 任务 409 `40218`；凭证已撤销 401 `40216`；Provider 拒绝 422 `40219`；上游不可用 502 `40217`。
 - **用量上报**：同一 `invocationId` 重复上报计入 `duplicated` 不重复入库；批次超过 20 条返回 400 `10001`。
 
+### 8.4 PC 配置内部接口（2026-11-08 新增）
+
+字段级契约以根 [`docs/api-contract.md`](../../api-contract.md) §5.7 为准，本表只列实现入口与鉴权差异。
+
+| 方法 | 路径 | 鉴权 | 实现要点 |
+| --- | --- | --- | --- |
+| `GET` | `/internal/v1/pc/hardware/candidates` | 服务令牌 | 可选 `category`；响应 `catalogVersion` / `total` / `list[]`，硬件字段含 `hardwareId`、`category`、`brand`、`modelName`、`displayName`、`specifications`、`specSummary`、三个状态位 |
+| `GET` | `/internal/v1/pc/hardware/{hardwareId}` | 服务令牌 | 单硬件详情；不存在 404 `40301` |
+| `GET` | `/internal/v1/pc/benchmarks` | 服务令牌 | 可选 `hardwareId` / `category`；无数据返回空列表，不猜分 |
+| `GET` | `/internal/v1/pc/offers` | 服务令牌 | 可选 `hardwareId` / `category` / `verifiedOnly`；响应含 `dataStatus`、`priceUnit=CNY_FEN`、`verifiedOfferCount`、`mockOfferCount` |
+| `POST` | `/internal/v1/pc/builds/solve` | 服务令牌 + `X-User-Token` | 请求 `budgetMaxFen` / `scenario` / `minMemoryGb` / `minStorageGb` / `requireVerifiedOffers`；成功写快照，无解返回 `solved=false` 与结构化 `failure` |
+| `POST` | `/internal/v1/pc/builds/validate` | 服务令牌 | 请求固定八个类别字段；缺类别 400 `40303`；只校验不落库 |
+| `GET` | `/internal/v1/pc/builds/{buildId}` | 服务令牌 + `X-User-Token` | 按 `build_id + user_id` 查询，归属判断下推到 SQL；不存在或他人 404 `40302` |
+
+- 错误码：`40301` 硬件不存在、`40302` 快照不存在或非本人、`40303` 配置不完整、`40304` 需求非法、`40305` 目录不可用、`40306` 用户令牌无效。
+- 金额一律人民币整数分；`priceSource=OWNER_VERIFIED` 表示人工核验价，`MOCK_DEMO` 表示演示占位价，**不得表述为已核验**。
+- scope 复用 `model-runtime:read`（服务令牌默认携带）；实现细节见 [docs/pc-config/api-contract.md](../../pc-config/api-contract.md)。
+
 ## 9. 管理端接口（已实现）
 
 > **已验证（2026-11-01）**：`AdminUserController` / `AdminAuditLogController` 与 `AdminUserService` / `AdminAuditLogService` 已落地；用户查询与更新走 `UserDirectory`，审计查询走新增的 `AuthAuditQuery` 端口（`MyBatisAuthAuditQuery`）。V18 补充 `users(created_at)`、`users(status, created_at)` 与 `auth_audit_logs(event, created_at)` 索引。接口测试见 `AdminUserApiTests`、`AdminAuditLogApiTests`；模型目录与定价见 §9.5。
