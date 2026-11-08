@@ -2,6 +2,29 @@ import dayjs from 'dayjs'
 
 type DateInput = string | number | Date | null | undefined
 
+/** 千分位分组：纯整数运算，不依赖运行环境的 locale */
+const groupThousands = (value: number): string =>
+    value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+/**
+ * 金额：输入为人民币分，输出固定两位小数与千分位。
+ *
+ * 全程按整数分运算，避免浮点累加产生 0.1 + 0.2 类的误差；
+ * 非有限数返回空串，交给调用方决定占位文案。
+ */
+export function formatFen(amountFen: number): string {
+    if (!Number.isFinite(amountFen)) {
+        return ''
+    }
+
+    const rounded = Math.trunc(amountFen)
+    const sign = rounded < 0 ? '-' : ''
+    const absolute = Math.abs(rounded)
+    const yuan = Math.floor(absolute / 100)
+    const fen = String(absolute % 100).padStart(2, '0')
+    return `${sign}¥${groupThousands(yuan)}.${fen}`
+}
+
 /**
  * 绝对时间：设备会话、用量记录等需要精确到秒的场景统一使用该格式。
  * 与 Vue 基线保持一致，保证迁移前后同一份数据展示差异只来自语言。

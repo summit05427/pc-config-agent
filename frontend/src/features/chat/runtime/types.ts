@@ -1,4 +1,5 @@
 import type {
+    BuildResult,
     ChatPreferences,
     ChatRequest,
     ChatStreamEvent,
@@ -30,6 +31,8 @@ export interface RuntimeMessage {
     readonly steps: readonly RuntimeToolStep[]
     readonly status: ChatMessageStatus
     readonly createdAt: number
+    /** `done.build_result` 的结构化副本；仅当前轮临时消息持有，历史回放走 Markdown */
+    readonly buildResult?: BuildResult
 }
 
 export type AgentRuntimeStatus = 'idle' | 'streaming' | 'done' | 'cancelled' | 'error'

@@ -127,6 +127,36 @@ describe('auth 模块', () => {
       expect(onUnauthorized).not.toHaveBeenCalled()
     })
 
+    it('isolated：刷新成功后返回 replay', async () => {
+      refresh.mockImplementation(async () => {
+        acceptToken('fresh-token')
+        return 'fresh-token'
+      })
+
+      await expect(handleUnauthorized({ policy: 'isolated' })).resolves.toBe('replay')
+      expect(getAccessToken()).toBe('fresh-token')
+      expect(onUnauthorized).not.toHaveBeenCalled()
+    })
+
+    it('isolated：刷新成功但重放仍 401 时保留登录态', async () => {
+      acceptToken('still-valid')
+
+      await expect(
+        handleUnauthorized({ policy: 'isolated', isReplayed: true }),
+      ).resolves.toBe('reject')
+      expect(refresh).not.toHaveBeenCalled()
+      expect(getAccessToken()).toBe('still-valid')
+      expect(onUnauthorized).not.toHaveBeenCalled()
+    })
+
+    it('isolated：刷新失败说明会话过期，仍清理并跳转', async () => {
+      acceptToken('expired-token')
+
+      await expect(handleUnauthorized({ policy: 'isolated' })).resolves.toBe('redirect')
+      expect(getAccessToken()).toBe('')
+      expect(onUnauthorized).toHaveBeenCalledTimes(1)
+    })
+
     it('并发 401 只触发一次全局跳转', async () => {
       await Promise.all([handleUnauthorized(), handleUnauthorized(), handleUnauthorized()])
 

@@ -21,6 +21,12 @@ export type { BatchSessionResult } from './sessions'
 export { streamChat } from './stream-chat'
 export { sessionsListQueryOptions, sessionMessagesQueryOptions } from './queries'
 export type {
+  BuildBenchmark,
+  BuildBudgetStatus,
+  BuildCompatibilityCheck,
+  BuildCompatibilityStatus,
+  BuildComponent,
+  BuildResult,
   ChatCitation,
   ChatPreferences,
   ChatRequest,

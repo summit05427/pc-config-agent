@@ -114,6 +114,47 @@ describe('AgentRuntime 流式事件', () => {
         })
     })
 
+    it('done 携带 build_result 时挂到当前助手消息，畸形数据不阻断完成', async () => {
+        const { runtime } = createHarness(streamChat)
+        vi.mocked(sendAgentRequest).mockResolvedValue(
+            createSseResponse([
+                tokenFrame('配置如下'),
+                'event: done\ndata: {"thread_id":"thread-1","build_result":{"components":[{"category":"CPU","model_name":"R7 7800X3D","price_fen":229900,"purchase_url":null,"benchmark":null,"offer_verified_at":null}],"total_price_fen":229900,"budget_max_fen":800000,"budget_status":"WITHIN_BUDGET","compatibility":[{"rule":"CPU 插槽","status":"PASS","message":"一致"}],"reason_summary":"均衡"}}\n\n',
+            ]),
+        )
+
+        const snapshots: ReturnType<AgentRuntime['getSnapshot']>[] = []
+        runtime.subscribe(() => snapshots.push(runtime.getSnapshot()))
+
+        await runtime.send('配一台')
+
+        const doneSnapshot = snapshots.filter((item) => item.status === 'done').at(-1)
+        const assistant = findAssistant(doneSnapshot?.messages ?? [])
+        expect(assistant?.buildResult?.components[0]?.modelName).toBe('R7 7800X3D')
+        expect(assistant?.buildResult?.totalPriceFen).toBe(229900)
+        expect(assistant?.buildResult?.overallCompatibility).toBe('PASS')
+    })
+
+    it('build_result 结构异常时按普通回答完成，不回填卡片', async () => {
+        const { runtime } = createHarness(streamChat)
+        vi.mocked(sendAgentRequest).mockResolvedValue(
+            createSseResponse([
+                tokenFrame('纯文本回答'),
+                'event: done\ndata: {"thread_id":"thread-1","build_result":{"components":"bad"}}\n\n',
+            ]),
+        )
+
+        const snapshots: ReturnType<AgentRuntime['getSnapshot']>[] = []
+        runtime.subscribe(() => snapshots.push(runtime.getSnapshot()))
+
+        await runtime.send('配一台')
+
+        const doneSnapshot = snapshots.filter((item) => item.status === 'done').at(-1)
+        const assistant = findAssistant(doneSnapshot?.messages ?? [])
+        expect(assistant?.content).toBe('纯文本回答')
+        expect(assistant?.buildResult).toBeUndefined()
+    })
+
     it('思考内容与正文分开累积，不污染回答正文', async () => {
         const { runtime } = createHarness(streamChat)
         vi.mocked(sendAgentRequest).mockResolvedValue(

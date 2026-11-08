@@ -1,5 +1,6 @@
 import { ApiError, isSseEventType, readSseStream, type SseMessage } from '@/core/http'
 
+import { parseBuildResult } from './build-result'
 import { INVALID_RESPONSE_MESSAGE, sendAgentRequest } from './request'
 import type { ChatCitation, ChatRequest, ChatStreamEvent, StreamChatOptions } from './types'
 
@@ -84,8 +85,18 @@ const toChatStreamEvent = (message: SseMessage): ChatStreamEvent | null => {
     }
     case 'citations':
       return { type: 'citations', citations: toCitations(data.citations) }
-    case 'done':
-      return { type: 'done', threadId: toText(data.thread_id) }
+    case 'done': {
+      const event: Extract<ChatStreamEvent, { type: 'done' }> = {
+        type: 'done',
+        threadId: toText(data.thread_id),
+      }
+      // 结构异常时省略 buildResult，由渲染层回退到 Markdown，不影响整条流
+      const buildResult = parseBuildResult(data.build_result)
+      if (buildResult) {
+        event.buildResult = buildResult
+      }
+      return event
+    }
     case 'error':
       return {
         type: 'error',

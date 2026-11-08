@@ -9,9 +9,13 @@ import { formatMessageTimestamp } from '@/shared/lib/format'
 import { cn } from '@/shared/lib/utils'
 
 import type { ChatMessageStatus, RuntimeMessage } from '../runtime/types'
+import { BuildResultCard } from './build-result-card'
 import { ExecutionTrace } from './execution-trace'
 import { MessageContent } from './message-content'
 import { ReasoningPanel } from './reasoning-panel'
+
+/** 正文里出现该片段说明本轮含演示价；作为 Stage 3 投影缺字段时的兜底信号 */
+const DEMO_PRICE_HINT = '演示价格'
 
 const STATUS_LABEL_KEYS: Record<ChatMessageStatus, string | null> = {
     pending: 'chat.status.pending',
@@ -115,7 +119,12 @@ function MessageItemComponent({
 
                 <ExecutionTrace steps={message.steps} live={isLive} />
 
-                {message.content ? (
+                {message.buildResult ? (
+                    <BuildResultCard
+                        result={message.buildResult}
+                        demoPriceHint={message.content.includes(DEMO_PRICE_HINT)}
+                    />
+                ) : message.content ? (
                     <MessageContent
                         content={message.content}
                         status={message.status}

@@ -129,7 +129,9 @@ export function ChatConversation({
                         ))}
                     </div>
                 ) : isEmpty ? (
-                    <ChatEmptyState />
+                    <ChatEmptyState
+                        {...(onContinueConversation ? { onSelectExample: onContinueConversation } : {})}
+                    />
                 ) : (
                     <div className="space-y-6 pb-4">
                         {messages.map((message) => (

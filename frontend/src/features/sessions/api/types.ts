@@ -102,6 +102,65 @@ export interface ChatCitation {
   score?: number
 }
 
+/** 兼容性结论；UNKNOWN 表示参数缺失、无法确认，不能按通过展示 */
+export type BuildCompatibilityStatus = 'PASS' | 'WARNING' | 'FAIL' | 'UNKNOWN'
+
+/** 预算校验结论；服务端当前产出 WITHIN_BUDGET / OVER_BUDGET / NO_BUDGET */
+export type BuildBudgetStatus = 'WITHIN_BUDGET' | 'OVER_BUDGET' | 'NO_BUDGET' | 'UNKNOWN'
+
+export interface BuildBenchmark {
+  type: string
+  score: number
+}
+
+/**
+ * 单个硬件条目。
+ *
+ * Agent 当前把 `done.build_result` 投影为 snake_case 子集，展示层在解析边界
+ * 统一归一化为 camelCase。品牌、商品标题、平台、商家、价格来源等字段在
+ * 后端补齐投影后自动生效；缺失时保持 null，绝不由前端推断。
+ */
+export interface BuildComponent {
+  category: string
+  modelName: string
+  specSummary: string
+  priceFen: number
+  purchaseUrl: string | null
+  benchmark: BuildBenchmark | null
+  /** 报价核验时间；null 表示未核验 */
+  offerVerifiedAt: string | null
+  brand: string | null
+  title: string | null
+  platform: string | null
+  seller: string | null
+  /** MOCK_DEMO 时必须按演示价展示，不能当作已核验报价 */
+  priceSource: string | null
+  priceType: string | null
+  verifiedPrice: boolean | null
+}
+
+export interface BuildCompatibilityCheck {
+  rule: string
+  status: BuildCompatibilityStatus
+  message: string
+}
+
+/** `done.build_result`：结构化整机配置，供结果卡片渲染 */
+export interface BuildResult {
+  buildId: string | null
+  components: BuildComponent[]
+  totalPriceFen: number
+  budgetMaxFen: number | null
+  budgetStatus: BuildBudgetStatus
+  /** 整体结论：服务端给出则采用，否则按 FAIL > UNKNOWN > WARNING > PASS 合并 */
+  overallCompatibility: BuildCompatibilityStatus
+  compatibility: BuildCompatibilityCheck[]
+  reasonSummary: string
+  offerDataStatus: string | null
+  verifiedOfferCount: number | null
+  demoOfferCount: number | null
+}
+
 /**
  * SSE 的七类事件统一转换为带判别字段的联合类型，调用方用 switch 收窄。
  *
@@ -115,7 +174,8 @@ export type ChatStreamEvent =
   | { type: 'tool_call'; name: string; args: Record<string, unknown>; schema_version?: string }
   | { type: 'tool_result'; name?: string; preview: string; schema_version?: string }
   | { type: 'citations'; citations: ChatCitation[]; schema_version?: string }
-  | { type: 'done'; threadId: string; schema_version?: string }
+  /** buildResult 仅在 PC 确定性流水线成功时出现，解析失败时省略并回退 Markdown */
+  | { type: 'done'; threadId: string; buildResult?: BuildResult; schema_version?: string }
   | { type: 'error'; code: string; message: string; schema_version?: string }
 
 export interface StreamChatOptions {

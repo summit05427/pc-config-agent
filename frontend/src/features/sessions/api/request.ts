@@ -63,6 +63,9 @@ export const buildAgentUrl = (path: string, query?: AgentQuery): string => {
  *
  * 只处理响应头已到达、流尚未消费的 401；流开始读取后不再重发，
  * 避免重复执行带副作用的工具调用。
+ *
+ * 使用 isolated 策略：Agent 服务的 401 只代表该服务令牌校验失败，
+ * 刷新后重放仍失败时不能清掉全局会话，否则用户会被无关故障踢回登录页。
  */
 const fetchWithAuth = async (url: string, init: AgentRequestInit): Promise<Response> => {
   const send = (): Promise<Response> =>
@@ -73,7 +76,7 @@ const fetchWithAuth = async (url: string, init: AgentRequestInit): Promise<Respo
     return response
   }
 
-  const action = await handleUnauthorized()
+  const action = await handleUnauthorized({ policy: 'isolated' })
   if (action !== 'replay') {
     return response
   }
@@ -84,8 +87,8 @@ const fetchWithAuth = async (url: string, init: AgentRequestInit): Promise<Respo
     return replayed
   }
 
-  // 重放后仍 401：交给 auth 模块清理并触发全局跳转，错误由调用方归一化
-  await handleUnauthorized({ isReplayed: true })
+  // 重放后仍 401：交由调用方展示局部错误，登录态保持不变
+  await handleUnauthorized({ policy: 'isolated', isReplayed: true })
   return replayed
 }
 

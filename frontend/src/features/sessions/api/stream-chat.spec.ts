@@ -161,4 +161,42 @@ describe('streamChat', () => {
 
     await expect(collect(streamChat(payload))).rejects.toBe(apiError)
   })
+
+  it('done 携带合法 build_result 时解析为结构化结果', async () => {
+    vi.mocked(sendAgentRequest).mockResolvedValue(
+      createSseResponse(
+        [
+          'event: done\ndata: {"thread_id":"thread-1","build_result":{"build_id":"b-1","components":[{"category":"CPU","model_name":"R7 7800X3D","price_fen":229900,"purchase_url":null,"benchmark":{"type":"CPU_MARK","score":28000},"offer_verified_at":"2026-01-02"}],"total_price_fen":229900,"budget_max_fen":800000,"budget_status":"WITHIN_BUDGET","compatibility":[{"rule":"CPU 插槽","status":"PASS","message":"一致"}],"reason_summary":"均衡"}}\n\n',
+        ].join(''),
+      ),
+    )
+
+    const events = await collect(streamChat(payload))
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: 'done',
+      threadId: 'thread-1',
+      buildResult: {
+        buildId: 'b-1',
+        totalPriceFen: 229900,
+        budgetStatus: 'WITHIN_BUDGET',
+        overallCompatibility: 'PASS',
+      },
+    })
+  })
+
+  it('build_result 畸形时只保留 done，线程与后续帧不受影响', async () => {
+    vi.mocked(sendAgentRequest).mockResolvedValue(
+      createSseResponse(
+        [
+          'event: done\ndata: {"thread_id":"thread-1","build_result":{"components":"bad"}}\n\n',
+          'event: token\ndata: {"text":"后续"}\n\n',
+        ].join(''),
+      ),
+    )
+
+    const events = await collect(streamChat(payload))
+    expect(events[0]).toEqual({ type: 'done', threadId: 'thread-1' })
+    expect(events[1]).toEqual({ type: 'token', text: '后续' })
+  })
 })

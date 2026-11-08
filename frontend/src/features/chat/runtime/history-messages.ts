@@ -1,5 +1,6 @@
 import type { SessionMessage } from '@/features/sessions/api'
 
+import { readBuildResult } from './build-result-cache'
 import { attachToolResult, createRuntimeMessage, serializeArgs } from './message-model'
 import type { RuntimeMessage, RuntimeToolStep } from './types'
 
@@ -74,7 +75,9 @@ export function mapHistoryMessages(
             const steps = (item.tool_calls ?? []).map((call, stepIndex) =>
                 createHistoryStep(threadId, index, stepIndex, call),
             )
-            messages.push({ ...message, steps })
+            // 同一轮刚完成时用内存缓存恢复卡片；刷新后无缓存则保持 Markdown
+            const buildResult = readBuildResult(threadId, item.content)
+            messages.push({ ...message, steps, ...(buildResult ? { buildResult } : {}) })
             return
         }
 

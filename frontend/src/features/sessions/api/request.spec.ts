@@ -155,6 +155,26 @@ describe('Agent 请求', () => {
     expect(getAccessToken()).toBe('')
   })
 
+  it('刷新成功但重放仍 401 时保留登录态', async () => {
+    const onUnauthorized = vi.fn()
+    configureAuth({
+      refresh: async () => {
+        acceptToken('fresh-token')
+        return 'fresh-token'
+      },
+      onUnauthorized,
+    })
+    acceptToken('expired-token')
+
+    fetchMock.mockResolvedValue(createJsonResponse({ message: 'unauthorized' }, 401))
+
+    await expect(
+      sendAgentRequest('/sessions', { method: 'GET', silent: true }),
+    ).rejects.toMatchObject({ status: 401 })
+    expect(onUnauthorized).not.toHaveBeenCalled()
+    expect(getAccessToken()).toBe('fresh-token')
+  })
+
   it('404 静默返回业务结果，不弹全局提示', async () => {
     fetchMock.mockResolvedValue(createJsonResponse({ message: '会话不存在' }, 404))
 

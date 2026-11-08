@@ -19,8 +19,10 @@ type UnauthorizedHandler = () => void
  * - `default`：先刷新并重放一次，刷新失败才清理令牌并跳转
  * - `no-refresh`：跳过刷新，但仍执行清理与全局跳转（如 logout）
  * - `no-redirect`：跳过刷新与全局跳转，401 原样交给调用方（如 login / refresh）
+ * - `isolated`：先刷新并重放；刷新成功但重放仍 401 时只把错误交给调用方，
+ *   不清令牌、不跳转（下游服务鉴权异常不代表用户会话失效）
  */
-export type AuthPolicy = 'default' | 'no-refresh' | 'no-redirect'
+export type AuthPolicy = 'default' | 'no-refresh' | 'no-redirect' | 'isolated'
 
 export type UnauthorizedAction = 'replay' | 'redirect' | 'reject'
 
@@ -125,6 +127,24 @@ export const handleUnauthorized = async (
 
   if (policy === 'no-redirect') {
     return 'reject'
+  }
+
+  if (policy === 'isolated') {
+    // 下游服务的 401 不代表用户会话失效：
+    // 已刷新并重放过一次仍 401，说明是该服务的鉴权配置问题，保住登录态交给调用方
+    if (context.isReplayed) {
+      return 'reject'
+    }
+
+    const token = await refreshOnce()
+    if (token) {
+      return 'replay'
+    }
+
+    // 刷新本身就失败，说明会话确实过期，仍走清理与跳转
+    clearToken()
+    notifyUnauthorizedOnce()
+    return 'redirect'
   }
 
   if (policy === 'default' && !context.isReplayed) {

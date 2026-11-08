@@ -1,6 +1,7 @@
 import { normalizeError } from '@/core/http'
-import type { ChatStreamEvent } from '@/features/sessions/api'
+import type { BuildResult, ChatStreamEvent } from '@/features/sessions/api'
 
+import { forgetBuildResult, rememberBuildResult } from './build-result-cache'
 import {
     appendReasoning,
     appendToken,
@@ -262,8 +263,9 @@ export class AgentRuntime {
     ): number {
         this.nextRunId += 1
         this.activeRunId = this.nextRunId
-        // 上一轮的残余缓冲不能混入新一轮
+        // 上一轮的残余缓冲不能混入新一轮；旧的结构化结果也要清掉，避免错挂
         this.discardPending()
+        forgetBuildResult(threadId)
 
         const turnId = this.deps.createId()
         const assistantId = createAssistantId(turnId)
@@ -331,7 +333,7 @@ export class AgentRuntime {
                 return
             case 'done':
                 this.flushPending()
-                await this.completeTurn(event.threadId, runId)
+                await this.completeTurn(event.threadId, event.buildResult, runId)
                 return
             case 'error':
                 this.flushPending()
@@ -434,7 +436,11 @@ export class AgentRuntime {
         })
     }
 
-    private async completeTurn(threadId: string, runId: number): Promise<void> {
+    private async completeTurn(
+        threadId: string,
+        buildResult: BuildResult | undefined,
+        runId: number,
+    ): Promise<void> {
         const turn = this.turn
         if (!turn || turn.isClosed) {
             return
@@ -443,8 +449,13 @@ export class AgentRuntime {
         // 终态前兜底：任何尚未写回的 token 都要先进入消息内容
         this.flushPending()
         const resolvedThreadId = threadId.trim() || turn.threadId
-        // 先更新消息状态再关闭 turn，否则 updateAssistant 会直接返回
-        this.updateAssistant((message) => ({ ...message, status: 'done' }))
+        // 先更新消息状态再关闭 turn，否则 updateAssistant 会直接返回；
+        // build_result 只在解析成功时挂载，缺失时渲染层继续使用 Markdown
+        this.updateAssistant((message) => ({
+            ...message,
+            status: 'done',
+            ...(buildResult ? { buildResult } : {}),
+        }))
         turn.isClosed = true
         this.publish({
             ...this.snapshot,
@@ -452,6 +463,12 @@ export class AgentRuntime {
             status: 'done',
             isStreaming: false,
         })
+
+        // 历史响应不含 build_result：按回答正文暂存，交接后由历史映射恢复卡片
+        const finishedAssistant = findLastByRole(this.snapshot.messages, 'assistant')
+        if (buildResult && finishedAssistant) {
+            rememberBuildResult(resolvedThreadId, finishedAssistant.content, buildResult)
+        }
 
         await handoffTurn({
             threadId: resolvedThreadId,
