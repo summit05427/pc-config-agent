@@ -197,7 +197,9 @@ def main(argv: list[str] | None = None) -> int:
     summary_path = Path(args.summary)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     summary_path.write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
 
     print(f"[ok] 已分类 {len(records)} 条，人工覆盖 {summary['overrides_applied']} 条")

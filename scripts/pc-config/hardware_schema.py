@@ -341,13 +341,16 @@ def export_schemas(export_dir: Path) -> list[Path]:
         path.write_text(
             json.dumps(category_json_schema(category), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
+            newline="\n",
         )
         written.append(path)
         index["categories"][category] = path.name
 
     index_path = export_dir / "hardware-master.schema.json"
     index_path.write_text(
-        json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(index, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
     written.append(index_path)
     return written

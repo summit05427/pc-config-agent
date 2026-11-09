@@ -245,7 +245,9 @@ def build_benchmarks(catalog: dict[str, Any], data_dir: Path) -> dict[str, Any]:
 def write_json(payload: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
     )
 
 

@@ -446,6 +446,7 @@ def write_json(payload: dict[str, Any], path: Path) -> None:
     path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -470,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
 
     md_path = Path(args.output_md)
     md_path.parent.mkdir(parents=True, exist_ok=True)
-    md_path.write_text(render_markdown(result), encoding="utf-8")
+    md_path.write_text(render_markdown(result), encoding="utf-8", newline="\n")
 
     json_path = Path(args.output_json)
     write_json(result, json_path)
