@@ -1,0 +1,183 @@
+{
+  "batch_id": "20261109T000000Z-3d66ed",
+  "catalog_version": "2026.11.0",
+  "counts": {
+    "benchmarks": 3557,
+    "by_category": {
+      "CASE": 1098,
+      "COOLER": 863,
+      "CPU": 493,
+      "GPU": 1109,
+      "MEMORY": 1891,
+      "MOTHERBOARD": 781,
+      "PSU": 518,
+      "STORAGE": 1485
+    },
+    "export": 8096,
+    "governance": {
+      "INCOMPLETE": 1284,
+      "VALID": 6954
+    },
+    "hardware": 8238,
+    "lifecycle": {
+      "CURRENT": 1798,
+      "DISCONTINUED": 142,
+      "LEGACY": 1197,
+      "MATURE": 2319,
+      "UNKNOWN": 2782
+    },
+    "market": {
+      "UNVERIFIED": 8238
+    },
+    "pools": {
+      "archived": 142,
+      "budget-build": 7200,
+      "legacy-upgrade": 1197,
+      "standard-build": 4107
+    },
+    "recommendation": {
+      "ELIGIBLE": 7263,
+      "EXCLUDED": 142,
+      "RESTRICTED": 833
+    }
+  },
+  "distribution_status": "INTERNAL_ONLY",
+  "generated_at": "2026-11-09T00:00:00Z",
+  "inputs": [
+    {
+      "bytes": 203133,
+      "path": "csv/pcpp_cpu.csv",
+      "rows": null,
+      "sha256": "9db34e0a26d1a88e6a8684367d1c9436af5bb247faaa2b9fd6d19a635abbc6c3",
+      "table": "pcpp_cpu"
+    },
+    {
+      "bytes": 591126,
+      "path": "csv/pcpp_gpu.csv",
+      "rows": null,
+      "sha256": "76de3651dd40a3a98f02996f1cb1d61889d7a0945b94e43e6c9affe2252f6112",
+      "table": "pcpp_gpu"
+    },
+    {
+      "bytes": 946251,
+      "path": "csv/pcpp_motherboard.csv",
+      "rows": null,
+      "sha256": "2046ec1cd26b95304caf3d58f0eb7d049dfd68be875972144ce89d02c8eb4d30",
+      "table": "pcpp_motherboard"
+    },
+    {
+      "bytes": 841198,
+      "path": "csv/pcpp_memory.csv",
+      "rows": null,
+      "sha256": "6b27906b62df8500057c390c2aa1eef6b0825fdae67d296a99f008f367f29aef",
+      "table": "pcpp_memory"
+    },
+    {
+      "bytes": 666696,
+      "path": "csv/pcpp_storage.csv",
+      "rows": null,
+      "sha256": "839ab1edb23fad2c2ca8fe668c812aeb2cd6fcc25d73bdf700b2a8793f9a3f82",
+      "table": "pcpp_storage"
+    },
+    {
+      "bytes": 809185,
+      "path": "csv/pcpp_cooler.csv",
+      "rows": null,
+      "sha256": "83e27128a360428686f4205fcf6493f7c1a85c6e62f55463b4aeaeba92ee629d",
+      "table": "pcpp_cooler"
+    },
+    {
+      "bytes": 1312110,
+      "path": "csv/pcpp_case.csv",
+      "rows": null,
+      "sha256": "de49330832e7ebe5314be8f25bcaeb3d6579c2a7a209eca5c348be4c9c6a53b8",
+      "table": "pcpp_case"
+    },
+    {
+      "bytes": 270054,
+      "path": "csv/pcpp_psu.csv",
+      "rows": null,
+      "sha256": "f57eb78719d0cc379db2a3701321bd556434104a085d68dad37775a28e0679c3",
+      "table": "pcpp_psu"
+    },
+    {
+      "bytes": 697674,
+      "path": "csv/passmark_cpu.csv",
+      "rows": null,
+      "sha256": "b65b54d4421f61240cf749cc51bd91371e5f35800dc3543f79de621beb655492",
+      "table": "passmark_cpu"
+    },
+    {
+      "bytes": 280056,
+      "path": "csv/passmark_gpu.csv",
+      "rows": null,
+      "sha256": "a5b4b5857222b40f53cf4e218ec11ed20fe3fbd73f9e40b6aae76f12ae41cec5",
+      "table": "passmark_gpu"
+    },
+    {
+      "bytes": 1650548,
+      "path": "csv/passmark_disk.csv",
+      "rows": null,
+      "sha256": "782ba3b3f794cfcaefaf6dccf865e2fbe5ddcddb971a2cdcff7bec2f9d834728",
+      "table": "passmark_disk"
+    }
+  ],
+  "scripts": [
+    {
+      "name": "build_fixtures.py",
+      "sha256": "b479e3745b5d92af47367e2555295609a9b80b8aa907c75222897f9cbe890745"
+    },
+    {
+      "name": "classify_lifecycle.py",
+      "sha256": "daa9a0943ff7645428010e19994885bc77f09e7471bd3b19aa2262145a95f8e9"
+    },
+    {
+      "name": "deduplicate_hardware.py",
+      "sha256": "10a48b8112483b30bb508414efc48da4751e3c96c70144aa0d8db7e9c5b3fcc7"
+    },
+    {
+      "name": "generate_offer_template.py",
+      "sha256": "b385c82c9970ecc73c84db11538dcdac6f6112f846193d1eae53212666460477"
+    },
+    {
+      "name": "hardware_schema.py",
+      "sha256": "a572aef6b7a24c05dc40e4692bfa9c9abe20ce6525feaed8760088ecc09be185"
+    },
+    {
+      "name": "ingest_offers.py",
+      "sha256": "48d3644f292d8ce53be82dcf82ddd2ef72098478d3d052841bc7b09b77d6e020"
+    },
+    {
+      "name": "inspect_dataset.py",
+      "sha256": "0da8f4ed1bbd92258449fad6e23fa77b48fd9c707138b9f0ccef09c324f1af2d"
+    },
+    {
+      "name": "map_benchmarks.py",
+      "sha256": "be1d1cef3f26d650aadb3352edcb5323e193d45254b1735aa6aa17c5a71c4f54"
+    },
+    {
+      "name": "match_benchmarks.py",
+      "sha256": "7e7bc424fc35300828a101440afe9fb39a97d91b96a3cc92d8920a01f24224e7"
+    },
+    {
+      "name": "normalize_specs.py",
+      "sha256": "4ba0160c1be1a2645aed2f5bf50f7924628b68dc96a4e460bfc3996f21051888"
+    },
+    {
+      "name": "pc_config_data.py",
+      "sha256": "a73eb72d98cf1262a6e03fd5a91e33ddee84fae745c6aa3721b5b07fd76047d5"
+    },
+    {
+      "name": "publish_candidates.py",
+      "sha256": "c9efdb56b2f56b98ab831b3918f4041eb543c603a5b7dc25edb9c08d51f1c514"
+    },
+    {
+      "name": "select_candidates.py",
+      "sha256": "46c642ac16dbdd41572cbcbebc01b678b34be4c81e7f05ad6e9da81d7a41fca7"
+    },
+    {
+      "name": "validate_dataset.py",
+      "sha256": "eccc1d9117049b7ef72362cfce43dee95ba52c433f1e11c676b97427851c624d"
+    }
+  ]
+}

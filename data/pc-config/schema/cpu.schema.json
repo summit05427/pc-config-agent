@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/pc-config/cpu.schema.json",
+  "title": "PC Hardware Master - CPU",
+  "schema_version": "1.0.0",
+  "category": "CPU",
+  "type": "object",
+  "properties": {
+    "hardware_id": {
+      "type": "string",
+      "description": "稳定主键，沿用现有生成规则"
+    },
+    "source_id": {
+      "type": "string",
+      "description": "来源数据集内的原始 ID"
+    },
+    "source": {
+      "type": "object",
+      "description": "来源数据集、URL、图片与采集信息"
+    },
+    "category": {
+      "type": "string",
+      "description": "八类之一",
+      "enum": [
+        "CPU"
+      ]
+    },
+    "brand": {
+      "type": "string"
+    },
+    "model_name": {
+      "type": "string"
+    },
+    "manufacturer_part_number": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "aliases": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "description": "展示名与历史名称，用于检索与第三方匹配"
+    },
+    "specifications": {
+      "type": "object",
+      "properties": {
+        "socket": {
+          "type": "string"
+        },
+        "core_count": {
+          "type": "integer"
+        },
+        "tdp_w": {
+          "type": "integer",
+          "x-unit": "W"
+        },
+        "platform": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "thread_count": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "integrated_graphics": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "includes_cooler": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_memory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "socket",
+        "core_count",
+        "tdp_w"
+      ],
+      "additionalProperties": false
+    },
+    "raw_specs": {
+      "type": "object",
+      "description": "原始行键值，不允许改写"
+    },
+    "data_quality_status": {
+      "type": "string",
+      "description": "现有字段完整度语义",
+      "enum": [
+        "VERIFIED_STRUCTURED",
+        "PARTIAL"
+      ]
+    },
+    "governance_status": {
+      "type": "string",
+      "description": "本次治理结论",
+      "enum": [
+        "VALID",
+        "INCOMPLETE",
+        "INVALID",
+        "CONFLICT"
+      ]
+    },
+    "lifecycle_status": {
+      "type": "string",
+      "enum": [
+        "CURRENT",
+        "MATURE",
+        "LEGACY",
+        "DISCONTINUED",
+        "UNKNOWN"
+      ]
+    },
+    "market_status": {
+      "type": "string",
+      "enum": [
+        "AVAILABLE",
+        "UNAVAILABLE",
+        "UNVERIFIED"
+      ]
+    },
+    "recommendation_status": {
+      "type": "string",
+      "enum": [
+        "ELIGIBLE",
+        "RESTRICTED",
+        "EXCLUDED",
+        "ARCHIVED"
+      ]
+    },
+    "source_version": {
+      "type": "string",
+      "description": "来源快照版本"
+    },
+    "collected_at": {
+      "type": "string",
+      "description": "来源采集时间（ISO 8601）"
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "本次治理写入时间（ISO 8601）"
+    }
+  },
+  "required": [
+    "hardware_id",
+    "source_id",
+    "source",
+    "category",
+    "brand",
+    "model_name",
+    "specifications",
+    "raw_specs",
+    "data_quality_status",
+    "governance_status",
+    "lifecycle_status",
+    "market_status",
+    "recommendation_status",
+    "source_version",
+    "collected_at",
+    "updated_at"
+  ],
+  "additionalProperties": false
+}

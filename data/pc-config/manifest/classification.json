@@ -1,0 +1,89 @@
+{
+  "lifecycle": {
+    "CASE": {
+      "UNKNOWN": 1098
+    },
+    "COOLER": {
+      "UNKNOWN": 863
+    },
+    "CPU": {
+      "CURRENT": 57,
+      "DISCONTINUED": 86,
+      "LEGACY": 265,
+      "MATURE": 73,
+      "UNKNOWN": 12
+    },
+    "GPU": {
+      "CURRENT": 305,
+      "LEGACY": 335,
+      "MATURE": 259,
+      "UNKNOWN": 210
+    },
+    "MEMORY": {
+      "CURRENT": 883,
+      "DISCONTINUED": 43,
+      "LEGACY": 381,
+      "MATURE": 584
+    },
+    "MOTHERBOARD": {
+      "CURRENT": 458,
+      "DISCONTINUED": 13,
+      "LEGACY": 79,
+      "MATURE": 226,
+      "UNKNOWN": 5
+    },
+    "PSU": {
+      "UNKNOWN": 518
+    },
+    "STORAGE": {
+      "CURRENT": 95,
+      "LEGACY": 137,
+      "MATURE": 1177,
+      "UNKNOWN": 76
+    }
+  },
+  "overrides_applied": 0,
+  "recommendation": {
+    "CASE": {
+      "ELIGIBLE": 1097,
+      "RESTRICTED": 1
+    },
+    "COOLER": {
+      "ELIGIBLE": 863
+    },
+    "CPU": {
+      "ELIGIBLE": 130,
+      "EXCLUDED": 86,
+      "RESTRICTED": 277
+    },
+    "GPU": {
+      "ELIGIBLE": 554,
+      "RESTRICTED": 555
+    },
+    "MEMORY": {
+      "ELIGIBLE": 1848,
+      "EXCLUDED": 43
+    },
+    "MOTHERBOARD": {
+      "ELIGIBLE": 768,
+      "EXCLUDED": 13
+    },
+    "PSU": {
+      "ELIGIBLE": 518
+    },
+    "STORAGE": {
+      "ELIGIBLE": 1485
+    }
+  },
+  "rule_version": "1.0.0",
+  "unknown_ratio": {
+    "CASE": 1.0,
+    "COOLER": 1.0,
+    "CPU": 0.0243,
+    "GPU": 0.1894,
+    "MEMORY": 0.0,
+    "MOTHERBOARD": 0.0064,
+    "PSU": 1.0,
+    "STORAGE": 0.0512
+  }
+}

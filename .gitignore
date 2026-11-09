@@ -91,3 +91,11 @@ agent-service/docs/
 # ---------- taste-skill 技能运行时产物 ----------
 # 设计方向、浏览器审查截图与滚动场景快照均为本地中间产物，不作为交付物提交
 **/.taste-skill/
+
+# ---------- Stage 8 硬件数据治理产物 ----------
+# 原始数据许可未核实前，全量派生产物只保留在本地；版本库只提交
+# schema/、manifest/、samples/ 与 docs/quality 下的统计报告（ADR 0013）
+data/pc-config/master/
+data/pc-config/pools/
+data/pc-config/export/
+data/pc-config/staging/

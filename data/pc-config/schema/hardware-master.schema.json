@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "categories": {
+    "CPU": "cpu.schema.json",
+    "GPU": "gpu.schema.json",
+    "MOTHERBOARD": "motherboard.schema.json",
+    "MEMORY": "memory.schema.json",
+    "STORAGE": "storage.schema.json",
+    "COOLER": "cooler.schema.json",
+    "CASE": "case.schema.json",
+    "PSU": "psu.schema.json"
+  },
+  "enums": {
+    "governance_status": [
+      "VALID",
+      "INCOMPLETE",
+      "INVALID",
+      "CONFLICT"
+    ],
+    "lifecycle_status": [
+      "CURRENT",
+      "MATURE",
+      "LEGACY",
+      "DISCONTINUED",
+      "UNKNOWN"
+    ],
+    "market_status": [
+      "AVAILABLE",
+      "UNAVAILABLE",
+      "UNVERIFIED"
+    ],
+    "recommendation_status": [
+      "ELIGIBLE",
+      "RESTRICTED",
+      "EXCLUDED",
+      "ARCHIVED"
+    ],
+    "benchmark_type": [
+      "CPUMARK",
+      "SINGLE_THREAD",
+      "G3D_MARK",
+      "DISK_MARK"
+    ],
+    "match_scope": [
+      "PRODUCT",
+      "CHIPSET"
+    ],
+    "match_status": [
+      "MATCHED",
+      "UNMATCHED",
+      "AMBIGUOUS",
+      "CONFLICT"
+    ]
+  }
+}
