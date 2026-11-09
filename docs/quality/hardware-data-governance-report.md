@@ -125,9 +125,44 @@
 ## 8. 第三方映射输入
 
 - 输出 8,096 条，等于全部非 `EXCLUDED`/`ARCHIVED` 硬件。
-- 字段包含 `hardware_id`、`category`、`brand`、`model_name`、`manufacturer_part_number`、`aliases`、`key_specs`、状态字段与 `catalog_version`。
+- 字段包含 `hardware_id`、`category`、`brand`、`model_name`、`manufacturer_part_number`、`aliases`、`search_queries`、`key_specs`、状态字段与 `catalog_version`。
 - `matched_mpn`、`matched_specs`、`source`、`fetched_at` 固定为 `null`，`match_status=PENDING`，等待 Stage 9 接入真实商品源后回填。
 - 不包含 `raw_specs`，避免把原始行扩散到外部系统。
+
+### 8.1 中文检索键
+
+英文主数据无法直接命中中文电商标题，因此每条导出记录附带四级检索键，调用方按顺序降级：
+
+```json
+"search_queries": {
+  "zh": "华硕 TUF Gaming GeForce RTX 5060 Ti 16 GB",
+  "zh_short": "华硕 RTX 5060 Ti 16GB",
+  "model": "RTX 5060 Ti 16GB",
+  "en": "Asus GeForce RTX 5060 Ti 16GB"
+}
+```
+
+生成规则：
+
+- 品牌与系列只走受控词典（`scripts/pc-config/reference/brand-zh.json`、`series-zh.json`），共登记 79 个品牌与 6 条 CPU 系列规则。
+- 型号数字与字母保持原文；`GeForce`/`Radeon` 仅在 `zh_short` 中省略，因为中文电商标题普遍直接用 `RTX 5060 Ti` 这类写法。
+- 未登记品牌不机器翻译，直接沿用英文原名，并保证 `en` 键保留原始型号。
+- 该映射只做命名转换，不推断任何规格，与 ADR 0015 的「不猜测」一致。
+
+品牌覆盖：8,096 条导出记录中 7,163 条（88.5%）生成了含中文的 `zh` 键。
+
+| 类别 | 含中文 `zh` | 导出总数 | 覆盖率 |
+| --- | --- | --- | --- |
+| CPU | 389 | 407 | 95.6% |
+| GPU | 1,017 | 1,109 | 91.7% |
+| 主板 | 752 | 768 | 97.9% |
+| 内存 | 1,787 | 1,848 | 96.7% |
+| 存储 | 1,315 | 1,485 | 88.6% |
+| 散热 | 664 | 863 | 76.9% |
+| 机箱 | 819 | 1,098 | 74.6% |
+| 电源 | 420 | 518 | 81.1% |
+
+剩余 933 条走英文兜底，集中在机箱、散热与存储的小众品牌；补充词典即可提升，不需要改代码。
 
 ## 9. 质量门禁与幂等
 

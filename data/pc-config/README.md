@@ -21,7 +21,7 @@
 | `master/hardware-benchmarks.jsonl` | 否 | PassMark 跑分映射 |
 | `staging/duplicates.jsonl`、`conflicts.jsonl` | 否 | 重复与冲突的人工审核队列，只发现不合并 |
 | `pools/*.jsonl` | 否 | 四类发布候选池 |
-| `export/third-party-mapping-input.json` | 否 | 第三方商品映射输入，回填字段留给 Stage 9 |
+| `export/third-party-mapping-input.json` | 否 | 第三方商品映射输入，含中文检索键，回填字段留给 Stage 9 |
 
 ## 2. 许可门禁
 
@@ -46,7 +46,22 @@ python scripts/pc-config/classify_lifecycle.py
 python scripts/pc-config/publish_candidates.py
 ```
 
-## 4. 校验与发布门禁
+## 4. 中文检索键
+
+英文主数据不能直接命中中文电商标题，`export/third-party-mapping-input.json` 的每条记录都有 `search_queries`：
+
+| 键 | 用途 | 示例 |
+| --- | --- | --- |
+| `zh` | 完整中文检索串 | `华硕 TUF Gaming GeForce RTX 5060 Ti 16 GB` |
+| `zh_short` | 品牌 + 型号 | `华硕 RTX 5060 Ti 16GB` |
+| `model` | 纯型号，防止品牌译名差异 | `RTX 5060 Ti 16GB` |
+| `en` | 英文兜底 | `Asus GeForce RTX 5060 Ti 16GB` |
+
+- 词典：`scripts/pc-config/reference/brand-zh.json`、`series-zh.json`，只做命名映射，不推断规格。
+- 未登记品牌保持英文，不机器翻译；补词典即可提升覆盖率，无需改代码。
+- 词典的 `schema_version` 与 `sha256` 记录在 `catalog-manifest.json.references`。
+
+## 5. 校验与发布门禁
 
 ```powershell
 python -m pytest scripts/pc-config/tests -q
