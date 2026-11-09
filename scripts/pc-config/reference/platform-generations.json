@@ -1,0 +1,63 @@
+{
+  "version": "1.0.0",
+  "updated_at": "2026-11-09",
+  "sources": [
+    "人工整理的插槽、芯片组、内存代际与接口世代对照，不含具体发布日期",
+    "PassMark release_date 仅作 CPU/GPU 辅助佐证，不作为唯一判据（ADR 0015）"
+  ],
+  "cpu_socket": {
+    "AM5": "CURRENT",
+    "LGA1851": "CURRENT",
+    "LGA1700": "MATURE",
+    "AM4": "MATURE",
+    "LGA1200": "LEGACY",
+    "LGA1151": "LEGACY",
+    "LGA1150": "LEGACY",
+    "LGA2066": "LEGACY",
+    "LGA2011": "LEGACY",
+    "LGA2011-3": "LEGACY",
+    "LGA1366": "DISCONTINUED",
+    "LGA1156": "DISCONTINUED",
+    "LGA1155": "LEGACY",
+    "LGA775": "DISCONTINUED",
+    "AM3+": "DISCONTINUED",
+    "AM3": "DISCONTINUED",
+    "AM2+": "DISCONTINUED",
+    "FM2+": "DISCONTINUED",
+    "FM2": "DISCONTINUED"
+  },
+  "gpu_chipset_patterns": [
+    { "pattern": "^GeForce RTX 50\\d{2}", "lifecycle": "CURRENT" },
+    { "pattern": "^GeForce RTX 40\\d{2}", "lifecycle": "MATURE" },
+    { "pattern": "^GeForce RTX 30\\d{2}", "lifecycle": "MATURE" },
+    { "pattern": "^GeForce RTX 20\\d{2}", "lifecycle": "LEGACY" },
+    { "pattern": "^GeForce GTX 16\\d{2}", "lifecycle": "LEGACY" },
+    { "pattern": "^GeForce GTX 10\\d{2}", "lifecycle": "LEGACY" },
+    { "pattern": "^GeForce GT[ X]?[789]\\d{2}", "lifecycle": "LEGACY" },
+    { "pattern": "^Radeon RX 9\\d{3}", "lifecycle": "CURRENT" },
+    { "pattern": "^Radeon RX 7\\d{3}", "lifecycle": "MATURE" },
+    { "pattern": "^Radeon RX 6\\d{3}", "lifecycle": "LEGACY" },
+    { "pattern": "^Radeon RX 5\\d{3}", "lifecycle": "LEGACY" },
+    { "pattern": "^Radeon RX [45]\\d{2}(?!\\d)", "lifecycle": "LEGACY" },
+    { "pattern": "^Radeon (RX )?VEGA", "lifecycle": "LEGACY" },
+    { "pattern": "^Arc B\\d{3}", "lifecycle": "CURRENT" },
+    { "pattern": "^Arc A\\d{3}", "lifecycle": "LEGACY" }
+  ],
+  "memory_type": {
+    "DDR5": "CURRENT",
+    "DDR4": "MATURE",
+    "DDR3": "LEGACY",
+    "DDR2": "DISCONTINUED"
+  },
+  "storage_interface": [
+    { "contains": "PCIe 5.0", "lifecycle": "CURRENT" },
+    { "contains": "PCIe 4.0", "lifecycle": "MATURE" },
+    { "contains": "PCIe 3.0", "lifecycle": "LEGACY" },
+    { "contains": "SATA", "lifecycle": "MATURE" }
+  ],
+  "unknown_lifecycle_categories": ["COOLER", "CASE", "PSU"],
+  "notes": [
+    "机箱、散热器、电源缺少可靠发布日期，首期一律 UNKNOWN，不阻断推荐（ADR 0015）",
+    "socket 与 chipset 对照只能说明平台世代，不代表产品是否仍在销售"
+  ]
+}
