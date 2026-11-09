@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "note": "只翻译中文电商确实使用中文的系列名；型号数字与字母保持原文。GPU 的 GeForce/Radeon 在中文标题中普遍保留英文，因此不登记替换。",
+  "rules": [
+    {
+      "categories": ["CPU"],
+      "pattern": "threadripper",
+      "zh": "线程撕裂者"
+    },
+    {
+      "categories": ["CPU"],
+      "pattern": "ryzen",
+      "zh": "锐龙"
+    },
+    {
+      "categories": ["CPU"],
+      "pattern": "core",
+      "zh": "酷睿"
+    },
+    {
+      "categories": ["CPU"],
+      "pattern": "pentium",
+      "zh": "奔腾"
+    },
+    {
+      "categories": ["CPU"],
+      "pattern": "celeron",
+      "zh": "赛扬"
+    },
+    {
+      "categories": ["CPU"],
+      "pattern": "xeon",
+      "zh": "至强"
+    }
+  ]
+}
