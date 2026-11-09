@@ -129,7 +129,7 @@
     },
     {
       "name": "classify_lifecycle.py",
-      "sha256": "daa9a0943ff7645428010e19994885bc77f09e7471bd3b19aa2262145a95f8e9"
+      "sha256": "24d383436f0f8a352e0a66158ff5b4d74ac033cb896a0655135a7dcd9e21223e"
     },
     {
       "name": "deduplicate_hardware.py",
@@ -141,7 +141,7 @@
     },
     {
       "name": "hardware_schema.py",
-      "sha256": "a572aef6b7a24c05dc40e4692bfa9c9abe20ce6525feaed8760088ecc09be185"
+      "sha256": "e3ba203f3c15554e1e343d306d6df927243d9735d9a34b47004f6441173f6b93"
     },
     {
       "name": "ingest_offers.py",
@@ -149,7 +149,7 @@
     },
     {
       "name": "inspect_dataset.py",
-      "sha256": "0da8f4ed1bbd92258449fad6e23fa77b48fd9c707138b9f0ccef09c324f1af2d"
+      "sha256": "1ad7f8d1826594ae6b11c78af33db8be23f4c1466f0e7b2cfbbdaf473a5a6274"
     },
     {
       "name": "map_benchmarks.py",
@@ -157,11 +157,11 @@
     },
     {
       "name": "match_benchmarks.py",
-      "sha256": "7e7bc424fc35300828a101440afe9fb39a97d91b96a3cc92d8920a01f24224e7"
+      "sha256": "9709957333d6335c48d7a03da0613673d47d18ecd35f21c77994d726d1dea7e4"
     },
     {
       "name": "normalize_specs.py",
-      "sha256": "4ba0160c1be1a2645aed2f5bf50f7924628b68dc96a4e460bfc3996f21051888"
+      "sha256": "cc33767bbcebe0651a7857bcb910562f3542b4ff9e06b4ec3adf8853e8ed0ff6"
     },
     {
       "name": "pc_config_data.py",
@@ -169,7 +169,7 @@
     },
     {
       "name": "publish_candidates.py",
-      "sha256": "c9efdb56b2f56b98ab831b3918f4041eb543c603a5b7dc25edb9c08d51f1c514"
+      "sha256": "00cc4b3fa0366821efcc6e1f045cde22690819476e17433972a3ce253c2af9d7"
     },
     {
       "name": "select_candidates.py",

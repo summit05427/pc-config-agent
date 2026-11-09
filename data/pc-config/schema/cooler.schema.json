@@ -99,7 +99,8 @@
       "description": "现有字段完整度语义",
       "enum": [
         "VERIFIED_STRUCTURED",
-        "PARTIAL"
+        "PARTIAL",
+        "BLOCKED"
       ]
     },
     "governance_status": {
@@ -150,6 +151,27 @@
     "updated_at": {
       "type": "string",
       "description": "本次治理写入时间（ISO 8601）"
+    },
+    "lifecycle_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "生命周期判定规则与依据"
+    },
+    "recommendation_reason": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "推荐资格判定规则与依据"
+    },
+    "rule_version": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "分类规则版本，便于回溯"
     }
   },
   "required": [
