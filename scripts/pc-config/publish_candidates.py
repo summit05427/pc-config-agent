@@ -16,6 +16,14 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from search_queries import (
+    BRAND_DICT_PATH,
+    SERIES_DICT_PATH,
+    build_search_queries,
+    load_brand_map,
+    load_series_rules,
+)
+
 CATALOG_VERSION = "2026.11.0"
 DEFAULT_GENERATED_AT = "2026-11-09T00:00:00Z"
 DISTRIBUTION_STATUS = "INTERNAL_ONLY"
@@ -174,8 +182,15 @@ def build_pools(
     return pools
 
 
-def build_export(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def build_export(
+    records: list[dict[str, Any]],
+    brand_map: dict[str, str] | None = None,
+    series_rules: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     """第三方商品映射输入：只包含未被归档的硬件，价格与链接由 Stage 9 回填。"""
+
+    brand_map = brand_map if brand_map is not None else load_brand_map()
+    series_rules = series_rules if series_rules is not None else load_series_rules()
 
     export: list[dict[str, Any]] = []
     for record in records:
@@ -190,6 +205,8 @@ def build_export(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "model_name": record["model_name"],
                 "manufacturer_part_number": record.get("manufacturer_part_number"),
                 "aliases": record.get("aliases") or [],
+                # 中文电商检索键，按 zh → zh_short → model → en 降级
+                "search_queries": build_search_queries(record, brand_map, series_rules),
                 "key_specs": key_specs(record),
                 "lifecycle_status": record["lifecycle_status"],
                 "recommendation_status": record["recommendation_status"],
@@ -217,6 +234,22 @@ def script_digests() -> list[dict[str, str]]:
         digests.append(
             {
                 "name": path.name,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+    return digests
+
+
+def reference_digests() -> list[dict[str, str]]:
+    """记录中英检索词典的版本与摘要，便于回溯检索键由哪一版词典生成。"""
+
+    digests: list[dict[str, str]] = []
+    for path in (BRAND_DICT_PATH, SERIES_DICT_PATH):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        digests.append(
+            {
+                "name": path.name,
+                "schema_version": payload["schema_version"],
                 "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
             }
         )
@@ -284,6 +317,7 @@ def build_manifest(
             ),
         },
         "scripts": script_digests(),
+        "references": reference_digests(),
     }
 
 

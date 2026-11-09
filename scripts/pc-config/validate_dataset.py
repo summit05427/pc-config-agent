@@ -54,6 +54,7 @@ EXPORT_REQUIRED_FIELDS: tuple[str, ...] = (
     "model_name",
     "manufacturer_part_number",
     "aliases",
+    "search_queries",
     "key_specs",
     "lifecycle_status",
     "recommendation_status",
@@ -66,6 +67,7 @@ EXPORT_BACKFILL_FIELDS: tuple[str, ...] = (
     "fetched_at",
 )
 DISTRIBUTION_STATUSES: tuple[str, ...] = ("PUBLISHABLE", "INTERNAL_ONLY")
+SEARCH_QUERY_KEYS: tuple[str, ...] = ("zh", "zh_short", "model", "en")
 BATCH_ID_PATTERN = re.compile(r"^\d{8}T\d{6}Z-[0-9a-f]{6}$")
 ERROR_SAMPLE_LIMIT = 200
 
@@ -259,6 +261,19 @@ def check_export(
         exported_ids.add(hardware_id)
         if item.get("match_status") != "PENDING":
             report.error(f"导出条目 match_status 必须为 PENDING：{hardware_id}")
+        queries = item.get("search_queries")
+        if not isinstance(queries, dict):
+            report.error(f"导出条目缺少 search_queries：{hardware_id}")
+        else:
+            for name in SEARCH_QUERY_KEYS:
+                if not isinstance(queries.get(name), str) or not queries[name].strip():
+                    report.error(f"search_queries.{name} 为空：{hardware_id}")
+            # 英文兜底必须保留原始型号，否则未登记品牌的硬件无法检索
+            tokens = [token for token in item.get("model_name", "").lower().split() if len(token) > 2]
+            if tokens and queries.get("en") and not any(
+                token in queries["en"].lower() for token in tokens
+            ):
+                report.error(f"search_queries.en 未包含原始型号：{hardware_id}")
         for name in EXPORT_BACKFILL_FIELDS:
             if item.get(name) is not None:
                 report.error(f"导出条目的回填字段 {name} 必须为 null：{hardware_id}")
@@ -289,6 +304,8 @@ def check_manifest(
         report.error("manifest.inputs 不得为空")
     if not manifest.get("scripts"):
         report.error("manifest.scripts 不得为空，必须记录脚本摘要")
+    if not manifest.get("references"):
+        report.error("manifest.references 不得为空，必须记录检索词典摘要")
 
     counts = manifest.get("counts") or {}
     if counts.get("hardware") != len(records):

@@ -122,6 +122,18 @@
       "table": "passmark_disk"
     }
   ],
+  "references": [
+    {
+      "name": "brand-zh.json",
+      "schema_version": "1.0.0",
+      "sha256": "e9abb70f258990910fea144d63272d1d07b5c1a542117af404302031753f56d1"
+    },
+    {
+      "name": "series-zh.json",
+      "schema_version": "1.0.0",
+      "sha256": "bc640af2ac6af410b7e1c355d0e364aff3ca5c3442f8a06d1a63612cf04d6c7f"
+    }
+  ],
   "scripts": [
     {
       "name": "build_fixtures.py",
@@ -169,7 +181,11 @@
     },
     {
       "name": "publish_candidates.py",
-      "sha256": "00cc4b3fa0366821efcc6e1f045cde22690819476e17433972a3ce253c2af9d7"
+      "sha256": "f1a5df47af7d513d0c363ad872d9c2eb58a67d3d00c36e1f9451eb0f16bee590"
+    },
+    {
+      "name": "search_queries.py",
+      "sha256": "6626171e48e3244717f4a328263dcc104c817428af0c3505caddce768d9885d2"
     },
     {
       "name": "select_candidates.py",
@@ -177,7 +193,7 @@
     },
     {
       "name": "validate_dataset.py",
-      "sha256": "eccc1d9117049b7ef72362cfce43dee95ba52c433f1e11c676b97427851c624d"
+      "sha256": "8dfb1e8afb137487ff98a21f421b28584210a17ea7022e11b9a0535d0e74abc1"
     }
   ]
 }
