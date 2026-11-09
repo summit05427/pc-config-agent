@@ -43,6 +43,7 @@ def test_export_fields_and_placeholders() -> None:
         "model_name",
         "manufacturer_part_number",
         "aliases",
+        "search_queries",
         "key_specs",
         "lifecycle_status",
         "recommendation_status",
@@ -51,6 +52,14 @@ def test_export_fields_and_placeholders() -> None:
     assert item["match_status"] == "PENDING"
     for field in ("matched_mpn", "matched_specs", "source", "fetched_at"):
         assert item[field] is None
+
+
+def test_search_queries_provide_four_level_fallback() -> None:
+    item = publish.build_export([make_record("cpu-ok", "ELIGIBLE")])[0]
+    queries = item["search_queries"]
+    assert set(queries) == {"zh", "zh_short", "model", "en"}
+    assert "AMD" in queries["en"]
+    assert all(value.strip() for value in queries.values())
 
 
 def test_key_specs_do_not_leak_full_specifications() -> None:
