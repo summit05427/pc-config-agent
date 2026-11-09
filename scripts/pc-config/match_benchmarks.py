@@ -31,10 +31,42 @@ from select_candidates import resolve_data_dir
 SOURCE_NAME = "PassMark"
 SOURCE_SNAPSHOT = "2026-10-05"
 GPU_EXCLUDE_TOKENS = ("laptop", "mobile", "max-q", "max q")
+# PassMark 型号键会带描述性后缀（如 `fx 8350 eight`、`a10 6700 apu`），比较时必须剔除
+DESCRIPTOR_TOKENS = {
+    "apu",
+    "eight",
+    "six",
+    "four",
+    "quad",
+    "dual",
+    "hexa",
+    "octa",
+    "core",
+    "oem",
+    "tray",
+    "processor",
+    "edition",
+    "black",
+    "unlocked",
+}
 
 
 def _tokens(value: str) -> set[str]:
     return {token for token in normalize_name_for_match(value).split() if token}
+
+
+def _model_key_tokens(row: dict[str, str]) -> set[str]:
+    """型号键的区分性令牌，剔除描述词、核心数与时钟频率后缀。"""
+
+    raw = row.get("model_key") or ""
+    # PassMark 会把频率写进型号键（如 `430 1 80ghz`、`i5 10400 2 90ghz`），必须剥离
+    raw = re.sub(r"\s*@.*$", "", raw)
+    raw = re.sub(r"\s*\d+\s+\d+\s*ghz\s*$", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"\s*\d+(?:\.\d+)?\s*ghz\s*$", "", raw, flags=re.IGNORECASE)
+    tokens = _tokens(raw) - DESCRIPTOR_TOKENS
+    # 1-2 位纯数字多为核心数或代数，没有区分度
+    tokens = {token for token in tokens if not re.fullmatch(r"\d{1,2}", token)}
+    return tokens if any(re.search(r"\d", token) for token in tokens) else set()
 
 
 def _similarity(left: str, right: str) -> float:
@@ -61,8 +93,23 @@ def match_cpu(hardware: dict[str, Any], rows: list[dict[str, str]]) -> dict[str,
     if suffix:
         return _cpu_entry(hardware["hardware_id"], _pick_best(suffix), "MODEL_KEY_SUFFIX", 0.95)
 
+    # 型号键去掉描述性后缀后做令牌包含匹配，覆盖 `FX-8350` / `A10-6700 APU` 这类命名差异
+    target_tokens = set(target_norm.split())
+    token_matches = [
+        row
+        for row in rows
+        if _model_key_tokens(row) and _model_key_tokens(row) <= target_tokens
+    ]
+    if token_matches:
+        return _cpu_entry(
+            hardware["hardware_id"], _pick_best(token_matches), "MODEL_KEY_TOKENS", 0.92
+        )
+
+    # 只按相似度排序：同名相似度并列时不能比较 dict，否则会抛 TypeError
     fuzzy = sorted(
-        ((_similarity(target_name, row["name"]), row) for row in rows), reverse=True
+        ((_similarity(target_name, row["name"]), row) for row in rows),
+        key=lambda item: item[0],
+        reverse=True,
     )
     if fuzzy and fuzzy[0][0] >= 0.9:
         return _cpu_entry(hardware["hardware_id"], fuzzy[0][1], "FUZZY_TOKEN_OVERLAP", 0.9)

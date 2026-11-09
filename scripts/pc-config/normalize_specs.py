@@ -15,6 +15,7 @@ from typing import Any
 
 from pc_config_data import (
     DEFAULT_OUTPUT_DIR,
+    CATEGORY_ORDER,
     CATEGORY_TABLES,
     SelectedItem,
     build_hardware_id,
@@ -30,6 +31,7 @@ from pc_config_data import (
     parse_speed_mts,
     parse_supported_sockets,
     parse_watts,
+    read_csv_rows,
     split_multiline,
 )
 from select_candidates import load_selection, resolve_data_dir
@@ -70,13 +72,14 @@ def _yes_no(value: str | None) -> bool | None:
 
 
 def _memory_type_from_speed(speed: str | None) -> str | None:
+    """从 speed 文本派生 DDR 代际，覆盖 DDR2/DDR3/DDR4/DDR5（含 L 与 ECC 后缀）。"""
+
     if not speed:
         return None
     for token in split_multiline(speed):
-        if "DDR5" in token.upper():
-            return "DDR5"
-        if "DDR4" in token.upper():
-            return "DDR4"
+        match = re.search(r"DDR(\d)", token.upper())
+        if match:
+            return f"DDR{match.group(1)}"
     return None
 
 
@@ -324,14 +327,160 @@ def write_json(payload: dict[str, Any], output_path: Path) -> None:
     )
 
 
+DEFAULT_SOURCE_VERSION = "pcpp-2026-10-05"
+DEFAULT_COLLECTED_AT = "2026-10-05T00:00:00Z"
+REFERENCE_PRICE_NOTE = (
+    "PCPartPicker 2026-10 美元参考价，币种与量级不一致，仅作来源信息，禁止作为人民币报价"
+)
+
+
+def build_master_record(
+    category: str,
+    row: dict[str, str],
+    *,
+    hardware_id: str,
+    source_version: str,
+    collected_at: str,
+    updated_at: str,
+) -> dict[str, Any]:
+    """把一条原始行转换为 Hardware Master 记录（Stage 8.3）。
+
+    只做规范化与状态标注：生命周期留给 8.6，市场状态默认 UNVERIFIED，
+    推荐资格默认 RESTRICTED，避免在分类完成前就宣称可推荐。
+    """
+
+    display_name = (row.get("name") or "").strip()
+    model_name = derive_model_name(category, row) or display_name
+    specifications = NORMALIZERS[category](row)
+    quality, _legacy_recommendation, unverified = evaluate_quality(category, specifications)
+
+    governance = "INCOMPLETE" if quality in {"PARTIAL", "BLOCKED"} else "VALID"
+    aliases = [display_name] if display_name and display_name != model_name else []
+
+    return {
+        "hardware_id": hardware_id,
+        "source_id": (row.get("pcpp_id") or "").strip(),
+        "source": {
+            "dataset": CATEGORY_TABLES[category],
+            "source_url": (row.get("source_url") or "").strip() or None,
+            "image_url": (row.get("image_url") or "").strip() or None,
+            "reference_price": parse_number(row.get("price")),
+            "reference_price_note": REFERENCE_PRICE_NOTE,
+            "license_status": "UNVERIFIED",
+        },
+        "category": category,
+        "brand": (row.get("brand") or "").strip(),
+        "model_name": model_name,
+        "manufacturer_part_number": (row.get("part_number") or "").strip() or None,
+        "aliases": aliases,
+        "specifications": specifications,
+        "raw_specs": dict(row),
+        "data_quality_status": quality,
+        "governance_status": governance,
+        "lifecycle_status": "UNKNOWN",
+        "market_status": "UNVERIFIED",
+        "recommendation_status": "RESTRICTED",
+        "source_version": source_version,
+        "collected_at": collected_at,
+        "updated_at": updated_at,
+        "unverified_fields": unverified,
+    }
+
+
+def build_master(
+    data_dir: Path,
+    *,
+    source_version: str = DEFAULT_SOURCE_VERSION,
+    collected_at: str = DEFAULT_COLLECTED_AT,
+    updated_at: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """构建全量主数据；返回记录与统计。签名 ID 冲突用来源 ID 后缀消歧。"""
+
+    generated_at = updated_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    records: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
+    collisions = 0
+    per_category: dict[str, int] = {}
+
+    for category in CATEGORY_ORDER:
+        rows = read_csv_rows(data_dir, CATEGORY_TABLES[category])
+        per_category[category] = len(rows)
+        for row in rows:
+            base_id = build_hardware_id(
+                category, derive_model_name(category, row) or row.get("name", "")
+            )
+            hardware_id = base_id
+            if hardware_id in used_ids:
+                # 名称签名在多色/多版本商品上会撞车，用来源 ID 派生确定性后缀保证稳定
+                hardware_id = f"{base_id}-{row['pcpp_id']}"
+                collisions += 1
+            used_ids.add(hardware_id)
+            records.append(
+                build_master_record(
+                    category,
+                    row,
+                    hardware_id=hardware_id,
+                    source_version=source_version,
+                    collected_at=collected_at,
+                    updated_at=generated_at,
+                )
+            )
+
+    governance: dict[str, int] = {}
+    for record in records:
+        status = record["governance_status"]
+        governance[status] = governance.get(status, 0) + 1
+
+    stats = {
+        "total": len(records),
+        "per_category": per_category,
+        "id_collisions": collisions,
+        "governance": governance,
+        "generated_at": generated_at,
+    }
+    return records, stats
+
+
+def write_jsonl(records: list[dict[str, Any]], output_path: Path) -> None:
+    """按 hardware_id 排序写出 JSONL，保证重复执行的文件内容稳定。"""
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with output_path.open("w", encoding="utf-8", newline="\n") as handle:
+        for record in sorted(records, key=lambda item: item["hardware_id"]):
+            handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="归一化候选硬件并生成 catalog.json")
     parser.add_argument("--data-dir", help="Hardware data 根目录，也可用 PC_DATA_DIR")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--generated-at", default=None)
+    parser.add_argument(
+        "--full-catalog-jsonl",
+        help="Stage 8.3：生成全量 Hardware Master JSONL 到指定路径（不写 catalog.json）",
+    )
+    parser.add_argument("--source-version", default=DEFAULT_SOURCE_VERSION)
+    parser.add_argument("--collected-at", default=DEFAULT_COLLECTED_AT)
     args = parser.parse_args(argv)
 
     data_dir = resolve_data_dir(args.data_dir)
+
+    if args.full_catalog_jsonl:
+        records, stats = build_master(
+            data_dir,
+            source_version=args.source_version,
+            collected_at=args.collected_at,
+            updated_at=args.generated_at,
+        )
+        output_path = Path(args.full_catalog_jsonl)
+        write_jsonl(records, output_path)
+        print(
+            f"[ok] Hardware Master 已写入 {output_path}，共 {stats['total']} 条，"
+            f"ID 冲突消歧 {stats['id_collisions']} 条"
+        )
+        print(f"[ok] governance：{stats['governance']}")
+        return 0
+
     config, selected = load_selection(
         Path(__file__).resolve().parent / "candidate_selection.json", data_dir
     )

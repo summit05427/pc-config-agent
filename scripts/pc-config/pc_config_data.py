@@ -40,7 +40,7 @@ CATEGORY_ORDER: tuple[str, ...] = (
 )
 
 NUMBER_PATTERN = re.compile(r"(\d+(?:\.\d+)?)")
-SPEED_PATTERN = re.compile(r"DDR[45]-(\d+)")
+SPEED_PATTERN = re.compile(r"DDR\d-(\d+)")
 CAPACITY_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*(TB|GB)", re.IGNORECASE)
 MODULES_PATTERN = re.compile(r"(\d+)\s*x\s*(\d+)\s*GB", re.IGNORECASE)
 EXTERNAL_POWER_PATTERN = re.compile(r"(\d+)\s*x\s*(.+)")
