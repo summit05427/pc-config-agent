@@ -331,6 +331,8 @@ def write_json(payload: dict[str, Any], output_path: Path) -> None:
 
 DEFAULT_SOURCE_VERSION = "pcpp-2026-10-05"
 DEFAULT_COLLECTED_AT = "2026-10-05T00:00:00Z"
+# 治理批次时间固定，避免重复执行时 updated_at 取 wall clock 破坏字节幂等
+DEFAULT_UPDATED_AT = "2026-11-09T00:00:00Z"
 REFERENCE_PRICE_NOTE = (
     "PCPartPicker 2026-10 美元参考价，币种与量级不一致，仅作来源信息，禁止作为人民币报价"
 )
@@ -394,11 +396,11 @@ def build_master(
     *,
     source_version: str = DEFAULT_SOURCE_VERSION,
     collected_at: str = DEFAULT_COLLECTED_AT,
-    updated_at: str | None = None,
+    updated_at: str = DEFAULT_UPDATED_AT,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """构建全量主数据；返回记录与统计。签名 ID 冲突用来源 ID 后缀消歧。"""
 
-    generated_at = updated_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    generated_at = updated_at
     records: list[dict[str, Any]] = []
     used_ids: set[str] = set()
     collisions = 0
@@ -472,7 +474,7 @@ def main(argv: list[str] | None = None) -> int:
             data_dir,
             source_version=args.source_version,
             collected_at=args.collected_at,
-            updated_at=args.generated_at,
+            updated_at=args.generated_at or DEFAULT_UPDATED_AT,
         )
         output_path = Path(args.full_catalog_jsonl)
         write_jsonl(records, output_path)

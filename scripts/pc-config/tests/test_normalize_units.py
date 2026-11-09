@@ -95,3 +95,9 @@ def test_reference_price_is_not_exposed_as_cny_amount() -> None:
     assert "price_cny_fen" not in record
     assert record["source"]["reference_price"] == 199.0
     assert record["source"]["reference_price_note"]
+
+
+def test_master_timestamp_defaults_are_fixed_for_idempotency() -> None:
+    # 默认 updated_at 取 wall clock 会让重复执行产生不同字节，必须固定
+    assert norms.build_master.__kwdefaults__["updated_at"] == norms.DEFAULT_UPDATED_AT
+    assert norms.DEFAULT_UPDATED_AT.startswith("2026-11-09")
