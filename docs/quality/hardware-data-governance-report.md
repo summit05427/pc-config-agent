@@ -37,6 +37,13 @@
 
 8,238 条原始记录全部保留，没有因治理而删除硬件。
 
+| 环节 | 数量 | 说明 |
+| --- | --- | --- |
+| 原始记录 | 8,238 | PCPartPicker 八类合计 |
+| 清洗后 | 8,238 | 零删除；异常与缺失通过状态字段表达 |
+| 无效（`INVALID`） | 0 | 没有无法解析到类别的记录 |
+| 冲突待复核 | 473 组 | 保留在主数据，仅进入审核队列 |
+
 | 状态字段 | 取值分布 |
 | --- | --- |
 | `data_quality_status` | `VERIFIED_STRUCTURED` 6,954 / `PARTIAL` 1,071 / `BLOCKED` 213 |
@@ -126,9 +133,10 @@
 
 - `validate_dataset.py` 校验 Schema、必填、枚举、兼容性关键字段、重复 ID、跑分关联、池准入复算、导出契约与清单一致性，本次 0 错误。
 - `publish_candidates.py` 在写盘前执行同一套内存校验，失败时不覆盖上一批次产物。
-- 同一输入重复执行，主数据、候选池与导出清单的字节内容一致；`tests/test_idempotency.py` 覆盖该约束。
+- 幂等实测：连续两次执行完整流水线，`hardware-master.jsonl`、`hardware-benchmarks.jsonl`、`third-party-mapping-input.json` 与 `catalog-manifest.json` 的 `sha256` 完全一致。
+- 原始数据零写入：11 个输入 CSV 的 `sha256` 与 `manifest/baseline.json` 记录逐项一致，未做任何修改。
 - 现有 28 条 classpath 夹具的 `hardware_id` 100% 可复现，`tests/test_id_stability.py` 守护该契约。
-- CI 新增 `data` 任务：运行 pytest 与入库样本 Schema 校验；全量数据由 `verify-release.ps1` 在本地验收。
+- `scripts/pc-config/tests` 共 99 项测试全部通过；CI 新增 `data` 任务运行 pytest 与入库样本 Schema 校验，全量数据由 `verify-release.ps1` 在本地验收。
 
 ## 10. 已知限制与 Stage 9 前置条件
 
