@@ -98,3 +98,22 @@
 - 用 `reference_price` 判断预算或中国区价格；它明确不参与预算。
 - 用 `SELECT *` 读快照；应按业务列读取，并同时带 `build_id` 与 `user_id`。
 - 把 `PENDING` 写进运行时（脚本会跳过）；重复 `hardware_id` 会被 `Map` 静默覆盖，生成阶段必须保证唯一。
+
+## 11. 治理产物 `data/pc-config/`（Stage 8）
+
+| 路径 | 权威性 | 说明 |
+| --- | --- | --- |
+| `master/hardware-master.jsonl` | 全量主数据（本地生成） | 8 类硬件，含 `raw_specs` 原始行与五个状态字段；JSONL 是权威格式 |
+| `master/hardware-benchmarks.jsonl` | 全量跑分映射（本地生成） | PassMark 映射，含 `match_method`、`match_confidence`、`match_scope` |
+| `schema/*.schema.json` | 入库 | 公共字段与八类专属规格的 JSON Schema |
+| `manifest/catalog-manifest.json` | 入库 | 发布批次、输入 `sha256`、脚本摘要、计数与分发状态 |
+| `pools/*.jsonl` | 派生（本地生成） | 四类发布候选池，由主数据与跑分派生 |
+| `export/third-party-mapping-input.json` | 派生（本地生成） | 第三方商品映射输入，回填字段为 `null` |
+
+关系约束：
+
+- 治理产物与 classpath 夹具**互不替换**：`catalog.json` 仍是运行时唯一入口，`data/pc-config/` 只服务离线治理与 Stage 9 接入准备。
+- `hardware_id` 规则与 `catalog.json` 完全一致；8,238 条主数据中仅 2,094 条因重名追加 `-<source_id>` 后缀，现有 28 条 ID 不受影响。
+- 原始 CSV 不进入仓库；`manifest.inputs` 用 `sha256` 标识输入版本。
+- 金额仍以 Java 侧 `long` 分为准，治理产物不提供 `price_cny_fen`，报价沿用 [market-offer-management.md](./market-offer-management.md)。
+- 字段级细节与产物目录说明见 `data/pc-config/README.md`，实测数据见 [硬件主数据治理报告](../quality/hardware-data-governance-report.md)。

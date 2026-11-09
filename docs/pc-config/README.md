@@ -2,8 +2,8 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | Completed（Stage 1–6 完成） |
-| 最后核验 | 2026-11-08 |
+| 状态 | Completed（Stage 1–6 完成；Stage 8 离线数据治理完成，待 Stage 9 接入运行时） |
+| 最后核验 | 2026-11-09 |
 | 权威性 | 本文件是 `docs/pc-config/` 的入口与 SSOT 索引；术语、HTTP/SSE 契约与环境变量不在本文件重复定义 |
 | 主要证据 | [实施计划](../planning/pc-config-implementation-plan.md)、[联调报告](../quality/pc-config-e2e-2026-11.md)、`agent-service/app/agent/pc/`、`application-service/.../pcbuild/**` |
 
@@ -12,6 +12,7 @@
 - **数据**：`catalog.json` 28 款硬件（CPU 4 / GPU 4 / 主板 4 / 内存 4 / 存储 3 / 散热 3 / 机箱 3 / 电源 3）；`offers.json` 28 条（10 条 `OWNER_VERIFIED` + 18 条 `MOCK_DEMO`），`dataStatus=MIXED_DEMO`；`benchmarks.json` 8 条聚合跑分。
 - **阶段**：Stage 1 数据、Stage 2 Java `pcbuild`、Stage 3 Agent 单图、Stage 4 前端卡片、Stage 5 联调、Stage 6 文档集与根文档同步均已完成。
 - **实测结论**（2026-11-08）：15000 元 GAMING 生成 8 件配置、总价 146.42 万分的方案；3000 元返回无解且不放宽预算；缺预算与用途时只追问。证据见 [联调报告](../quality/pc-config-e2e-2026-11.md)。
+- **数据治理**（2026-11-09）：`data/pc-config/` 已生成 8,238 条硬件主数据、3,557 行跑分映射、四类发布候选池与 8,096 条第三方映射输入；**尚未接入运行时**，在线推荐覆盖率本期不变。详见 [硬件主数据治理报告](../quality/hardware-data-governance-report.md)。
 
 ## 2. 文档集导航
 
@@ -41,6 +42,7 @@
 | 环境变量名、默认值与生产校验 | [docs/deployment/environment-variables.md](../deployment/environment-variables.md) |
 | 阶段任务与验收指标 | [docs/planning/pc-config-implementation-plan.md](../planning/pc-config-implementation-plan.md) §5、§8 |
 | 联调证据与遗留问题 | [docs/quality/pc-config-e2e-2026-11.md](../quality/pc-config-e2e-2026-11.md) |
+| 治理产物、发布批次与生命周期分布 | [硬件主数据治理报告](../quality/hardware-data-governance-report.md)、`data/pc-config/manifest/catalog-manifest.json` |
 
 ## 4. 读者路径
 

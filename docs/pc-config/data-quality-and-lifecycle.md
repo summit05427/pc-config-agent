@@ -76,3 +76,35 @@
 - 生命周期状态自动流转（如自动标记 `EOL`）与数据质量自动升级。
 - 快照的保留期、归档与物理清理策略。
 - `parent_build_id` 写入、方案对比与硬件替换链路。
+
+## 8. 治理状态与生命周期分类（Stage 8 离线产物）
+
+本章描述 `data/pc-config/` 下的治理数据，**尚未接入 Java 运行时**；运行时仍读取 classpath 夹具，规则以 §1–§7 为准（[ADR 0016](../adr/0016-offline-governance-without-runtime-hookup.md)）。
+
+### 8.1 五个独立状态字段
+
+| 字段 | 取值 | 判定来源 |
+| --- | --- | --- |
+| `data_quality_status` | 沿用运行时语义：`VERIFIED_STRUCTURED`、`PARTIAL`、`BLOCKED` | 原 `evaluate_quality`，语义不变 |
+| `governance_status` | `VALID`、`INCOMPLETE`、`INVALID`、`CONFLICT` | 字段完整性、重复与冲突审核结果 |
+| `lifecycle_status` | `CURRENT`、`MATURE`、`LEGACY`、`DISCONTINUED`、`UNKNOWN` | 类别规则，见 8.2 |
+| `market_status` | `UNVERIFIED`、`AVAILABLE`、`EOL` | 市场在售证据；本期全部 `UNVERIFIED` |
+| `recommendation_status` | `ELIGIBLE`、`RESTRICTED`、`EXCLUDED`、`ARCHIVED` | 由前四个字段按类别规则派生 |
+
+五个字段互不覆盖。新增 `governance_status` 而不是改写 `data_quality_status`，避免破坏现有 28 条夹具与 Java 读取逻辑（[ADR 0014](../adr/0014-governance-status-separate-from-data-quality.md)）。
+
+### 8.2 生命周期与推荐资格
+
+- CPU 按 Socket 代际、GPU 按 Chipset 正则、主板按 Socket + Chipset、内存按 DDR 代际、存储按接口代际判定；散热、机箱、电源一律 `UNKNOWN`。
+- 判定只使用结构化字段与参考表，禁止用 LLM 记忆补全（[ADR 0015](../adr/0015-lifecycle-unknown-is-not-excluded.md)）。
+- `UNKNOWN` 不等于 `EXCLUDED`：CPU/GPU 的 `UNKNOWN` 为 `RESTRICTED`；机箱/散热/电源只要兼容性关键字段齐全即可 `ELIGIBLE`。
+- `CURRENT` 也不自动等于 `ELIGIBLE`：治理状态为 `INCOMPLETE` 时仍为 `RESTRICTED`。
+- `DISCONTINUED` 或 `governance_status=INVALID` 为 `EXCLUDED`。
+
+实测分布、每类 UNKNOWN 占比与候选池数量见 [硬件主数据治理报告](../quality/hardware-data-governance-report.md)。
+
+### 8.3 与运行时夹具的关系
+
+- `data/pc-config/master/` 是离线治理主数据，`catalog.json` 仍是运行时唯一夹具。
+- 本期不替换 `catalog.json`、不改 `PcFixtureRepositoryTests`；候选池扩容不会提升在线推荐覆盖率，因为 `BuildSolver` 只接受有可用 offer 的硬件。
+- 接入点与前置条件在 Stage 9 单独评审。

@@ -61,10 +61,12 @@
 | 目录 / 文档 | 类型 | 内容 |
 | --- | --- | --- |
 | [quality/enterprise-readiness.md](quality/enterprise-readiness.md) | 质量基线（**企业级达标唯一评分表**） | 六大域评分口径、逐项验收方式、P0–P2 整改 backlog、业界基准映射 |
-| [adr/](adr/) | 架构决策 | 目前 10 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm`、`0009-single-pc-workflow-over-generic-chat`、`0010-deterministic-markdown-build-output`、`0011-manually-verified-offer-dataset`、`0012-persist-build-snapshot` |
+| [adr/](adr/) | 架构决策 | 目前 15 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm`、`0009-single-pc-workflow-over-generic-chat`、`0010-deterministic-markdown-build-output`、`0011-manually-verified-offer-dataset`、`0012-persist-build-snapshot`、`0013-jsonl-governed-artifacts-in-repo`、`0014-governance-status-separate-from-data-quality`、`0015-lifecycle-unknown-is-not-excluded`、`0016-offline-governance-without-runtime-hookup`、`0017-single-etl-entry-with-ci-gate` |
 | [planning/closure-plan.md](planning/closure-plan.md) | 规划（**当前待办与放行条件唯一权威**） | 已处理事项及关闭依据、未完成 P0–P3 清单、收尾执行顺序与验收标准 |
 | [planning/pc-config-implementation-plan.md](planning/pc-config-implementation-plan.md) | 规划（PC 配置分期设计） | 决策 D1–D8、Stage 1–6 任务与验收指标；执行进度以本文件与 closure-plan 为准 |
 | [quality/pc-config-e2e-2026-11.md](quality/pc-config-e2e-2026-11.md) | 质量证据 | Stage 5 端到端联调：三组 Demo、指标核对、基础设施回归、遗留问题 |
+| [quality/hardware-data-governance-report.md](quality/hardware-data-governance-report.md) | 质量证据 | Stage 8 数据治理：输入规模、五状态分布、生命周期与 UNKNOWN 占比、跑分匹配率、候选池与发布门禁 |
+| [planning/Stage8.md](planning/Stage8.md) | 规划（数据治理实施方案） | 数据产物目录、字段兼容、生命周期规则、CI 门禁与九阶段任务拆分 |
 
 `docs/quality/` 现存放企业级达标评分表；`docs/archive/` 仍为空：2026-11-05 文档清理已删除全部历史归档，历史内容见 Git（清理前提交 `d4e349b`）。新增证据报告仍按 [documentation-governance.md](documentation-governance.md) §2、§10 放入对应目录。
 

@@ -19,6 +19,7 @@
 | 改 Agent 节点 / 工具 / 流式 | `.trae/rules-on-demand/30-agent-python.md` → `agent-service/CODEMAP.md` → `docs/services/agent-service/agent-workflows.md` | `api-reference.md`、`model-runtime-architecture.md` |
 | 改 PC 配置需求解析 / 求解 / 推荐 | `docs/pc-config/README.md` → `docs/pc-config/agent-workflow.md` → `docs/pc-config/solver-and-compatibility.md` | `agent-state-and-tools.md`、`data-model.md`、`docs/api-contract.md` §5.7 |
 | 改报价数据 / 核验报价 | `docs/pc-config/market-offer-management.md` → `docs/pc-config/data-quality-and-lifecycle.md` | `docs/pc-config/offers.template.json`、`scripts/pc-config/ingest_offers.py` |
+| 硬件主数据治理 / 生命周期分类 / 发布候选池 | `docs/quality/hardware-data-governance-report.md` → `data/pc-config/README.md` | `docs/planning/Stage8.md`、`docs/adr/0013`–`0017`、`docs/pc-config/data-quality-and-lifecycle.md` §8 |
 | 跨端契约变更 | `docs/development-rules.md` §1 → `docs/api-contract-quick-reference.md` | `docs/api-contract.md` 全文 |
 | 环境变量 / 部署 / 排障 | `docs/deployment/env-quick-reference.md` | `deployment-guide.md`、`environment-variables.md` |
 | Solo（只跑 Agent，dev-token 体验） | `docs/deployment/solo-mode.md` | `deployment-guide.md` §3.3 |

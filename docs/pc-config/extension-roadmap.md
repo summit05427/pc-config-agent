@@ -16,6 +16,8 @@
 
 ## 2. 后续项
 
+Stage 8 已完成离线数据治理：8,238 条硬件主数据、生命周期分类、四类发布候选池与第三方映射输入，详见 [治理报告](../quality/hardware-data-governance-report.md)。这些产物**尚未接入运行时**，因此下表 P0 的“扩展候选”只有在 Stage 9 接入真实报价后才会体现在在线推荐结果中。
+
 | 优先级 | 后续项 | 目标 | 影响面 | 前置条件 | 验收方式 |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 真实报价替换 18 条 `MOCK_DEMO` | 28 条器件全部有可追溯真实报价，`verifiedOnly` 可独立成单 | Java 报价仓储与 fixture；Agent 提示与投影；前端演示价横幅；数据核验台账 | 每个 `hardwareId` 至少 1 条可访问链接；记录核验时间、平台、SKU；许可证与抓取合规确认 | `verifiedOfferCount=28`、`mockOfferCount=0`；`requireVerifiedOffers=true` 时在已支持预算档内可解；无演示价横幅；端到端用例不出现 `MOCK_DEMO` |
