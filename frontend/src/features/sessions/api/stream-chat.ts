@@ -1,8 +1,14 @@
 import { ApiError, isSseEventType, readSseStream, type SseMessage } from '@/core/http'
 
 import { parseBuildResult } from './build-result'
+import { parseHitlInterrupt } from './hitl-payload'
 import { INVALID_RESPONSE_MESSAGE, sendAgentRequest } from './request'
-import type { ChatCitation, ChatRequest, ChatStreamEvent, StreamChatOptions } from './types'
+import type {
+  ChatCitation,
+  ChatRequest,
+  ChatStreamEvent,
+  StreamChatOptions,
+} from './types'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -85,10 +91,20 @@ const toChatStreamEvent = (message: SseMessage): ChatStreamEvent | null => {
     }
     case 'citations':
       return { type: 'citations', citations: toCitations(data.citations) }
+    case 'interrupt': {
+      const interrupt = parseHitlInterrupt(data)
+      // 载荷缺关键字段时按未知事件忽略，避免渲染出无法提交的空表单
+      return interrupt ? { type: 'interrupt', interrupt } : null
+    }
     case 'done': {
       const event: Extract<ChatStreamEvent, { type: 'done' }> = {
         type: 'done',
         threadId: toText(data.thread_id),
+      }
+      // 旧服务端没有 message_id：省略后该条回答不展示反馈入口，绝不自行编造 ID
+      const messageId = toText(data.message_id)
+      if (messageId) {
+        event.messageId = messageId
       }
       // 结构异常时省略 buildResult，由渲染层回退到 Markdown，不影响整条流
       const buildResult = parseBuildResult(data.build_result)

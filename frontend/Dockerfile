@@ -22,7 +22,7 @@ COPY . .
 # 构建期变量注入：.dockerignore 已排除本地 .env 文件，镜像构建不应依赖开发机配置。
 # ARG 在 RUN 阶段不可直接读取，需转成 ENV 才能被 check-env.mjs / Vite 读到。
 ARG VITE_APP_ENV=production
-ARG VITE_APP_TITLE=Agent Analytics
+ARG VITE_APP_TITLE=PC Build Agent
 ARG VITE_API_BASE_URL=/api/v1
 ARG VITE_AGENT_BASE_URL=/agent/api/v1
 ARG VITE_API_TIMEOUT=10000

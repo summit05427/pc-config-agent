@@ -18,6 +18,13 @@ export interface ChatComposerProps {
   readonly autofocus?: boolean
   /** 发送按钮左侧的操作槽位（当前用于会话模型选择器） */
   readonly modelPicker?: ReactNode
+  /**
+   * 左下角快捷选择槽位。
+   *
+   * 用 render prop 而不是普通 ReactNode：面板需要把生成的描述写回输入框，
+   * 而输入内容是本组件内部状态，外部不应持有或镜像它。
+   */
+  readonly quickPicker?: (insertPrompt: (prompt: string) => void) => ReactNode
   readonly onSend: (text: string) => void
   readonly onStop: () => void
 }
@@ -35,11 +42,13 @@ export function ChatComposer({
   maxLength = DEFAULT_MAX_LENGTH,
   autofocus = false,
   modelPicker = null,
+  quickPicker,
   onSend,
   onStop,
 }: ChatComposerProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
+  const [insertTick, setInsertTick] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const isComposingRef = useRef(false)
 
@@ -67,6 +76,19 @@ export function ChatComposer({
       textareaRef.current?.focus()
     }
   }, [autofocus])
+
+  /** 快捷选择生成的描述追加到已有内容之后，保留用户已写的部分 */
+  const insertPrompt = useCallback((prompt: string): void => {
+    setText((previous) => (previous.trimEnd() ? `${previous.trimEnd()}\n${prompt}` : prompt))
+    // 用计数器触发一次聚焦：写回后光标直接落在输入框末尾，方便继续补充
+    setInsertTick((tick) => tick + 1)
+  }, [])
+
+  useEffect(() => {
+    if (insertTick > 0) {
+      textareaRef.current?.focus()
+    }
+  }, [insertTick])
 
   const submit = (): void => {
     if (!canSubmit) {
@@ -112,7 +134,9 @@ export function ChatComposer({
         }}
       />
 
-      <div className="mt-1 flex items-center gap-2 pl-2">
+      <div className="mt-1 flex items-center gap-2 pl-1">
+        {quickPicker ? quickPicker(insertPrompt) : null}
+
         {showCounter ? (
           <span
             className={cn(

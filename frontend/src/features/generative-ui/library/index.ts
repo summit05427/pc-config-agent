@@ -1,5 +1,6 @@
 import { createLibrary } from '@openuidev/react-lang'
 
+import { OpenBuildDetailAction } from './actions/build-detail'
 import { Accordion, AccordionItem } from './components/accordion'
 import { ActionGroup } from './components/action-group'
 import { Badge } from './components/badge'
@@ -34,6 +35,7 @@ import { Timeline, TimelineItem } from './components/timeline'
  * 否则模型生成的引用无法解析。
  */
 export const OPENUI_LIBRARY = createLibrary({
+  actions: [OpenBuildDetailAction],
   components: [
     Stack,
     Text,

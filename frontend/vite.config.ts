@@ -25,7 +25,9 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:18080',
-        changeOrigin: true,
+        // 必须保留浏览器原始 Host：Java 用 Origin 与 Host 判同源（/auth/refresh 的 CSRF 兜底），
+        // 改成后端主机名会被判为跨域，而白名单为空时所有 /api 请求都会 403。
+        changeOrigin: false,
       },
       '/agent': {
         target: 'http://127.0.0.1:18000',

@@ -9,6 +9,8 @@ import { ChatComposer } from '@/features/chat/components/chat-composer'
 import { ChatConversation } from '@/features/chat/components/chat-conversation'
 import { ChatErrorNotice } from '@/features/chat/components/chat-error-notice'
 import { ModelSelector } from '@/features/chat/components/model-selector'
+import { QuickPromptPicker } from '@/features/chat/components/quick-prompt-picker'
+import type { HitlInterrupt } from '@/features/sessions/api'
 
 /** 动作桥已过滤 http/https，这里只负责新窗口打开并阻断来源信息 */
 const openExternalUrl = (url: string): void => {
@@ -103,6 +105,15 @@ function ChatPage({ sessionId, isNewSession }: ChatPageProps) {
         void runtimeState.regenerate(lastUser.content, modelState.modelKey)
     }, [session.messages, runtimeState, modelState.modelKey])
 
+    // HITL 表单提交走同一条 SSE 流，只是多带 resume；回答文本同时进入用户气泡
+    const resumeRuntime = runtimeState.resume
+    const handleHitlSubmit = useCallback(
+        (message: string, interrupt: HitlInterrupt, answer: Record<string, unknown>): void => {
+            void resumeRuntime(message, interrupt, answer, modelState.modelKey)
+        },
+        [resumeRuntime, modelState.modelKey],
+    )
+
     return (
         <div className="flex h-full min-h-0">
             <section className="flex min-w-0 flex-1 flex-col bg-background">
@@ -119,6 +130,7 @@ function ChatPage({ sessionId, isNewSession }: ChatPageProps) {
                     onRegenerate={handleRegenerate}
                     onContinueConversation={handleSend}
                     onOpenUrl={openExternalUrl}
+                    onHitlSubmit={handleHitlSubmit}
                 />
 
                 <div className="shrink-0 border-t border-border bg-background px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-8 sm:py-4">
@@ -142,6 +154,9 @@ function ChatPage({ sessionId, isNewSession }: ChatPageProps) {
                             }
                             onSend={handleSend}
                             onStop={runtimeState.stop}
+                            quickPicker={(insertPrompt) => (
+                                <QuickPromptPicker onConfirm={insertPrompt} />
+                            )}
                         />
 
                         <p className="mt-2 text-center text-[0.6875rem] leading-relaxed text-muted-foreground">

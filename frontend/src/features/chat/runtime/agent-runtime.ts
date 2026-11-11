@@ -1,13 +1,15 @@
 import { normalizeError } from '@/core/http'
-import type { BuildResult, ChatStreamEvent } from '@/features/sessions/api'
+import type { BuildResult, ChatStreamEvent, HitlInterrupt } from '@/features/sessions/api'
 
 import { forgetBuildResult, rememberBuildResult } from './build-result-cache'
 import {
     appendReasoning,
     appendToken,
     appendToolStep,
+    attachCitations,
     attachToolResult,
     buildTurnMessages,
+    clearAnsweredHitl,
     createToolStep,
     finalizeSteps,
     findLastByRole,
@@ -177,6 +179,29 @@ export class AgentRuntime {
         await this.runTurn(lastUser.content, true, model)
     }
 
+    /**
+     * 回答 HITL 提问并继续本轮。
+     *
+     * 与普通发送共用一条流，只是多带 `resume`：服务端据此从断点续跑，
+     * 回答文本进入用户气泡，结构化答案交给门控节点校验。
+     */
+    async resume(
+        text: string,
+        interrupt: HitlInterrupt,
+        answer: Record<string, unknown>,
+        model?: string | null,
+    ): Promise<void> {
+        const content = text.trim()
+        if (!content || this.snapshot.status === 'streaming' || !this.snapshot.sessionId) {
+            return
+        }
+
+        await this.runTurn(content, false, model, false, {
+            interrupt_id: interrupt.interruptId,
+            answer,
+        })
+    }
+
     /** 停止生成：先把缓冲写回，再中止流；已生成内容不丢失 */
     stop(): void {
         if (this.snapshot.status !== 'streaming') {
@@ -198,9 +223,16 @@ export class AgentRuntime {
         isRetry: boolean,
         model?: string | null,
         isRegenerate = false,
+        resumeRequest?: { interrupt_id: string; answer: Record<string, unknown> },
     ): Promise<void> {
         const threadId = this.snapshot.sessionId ?? this.deps.createId()
-        const runId = this.beginRun(threadId, content, isRetry, isRegenerate)
+        const runId = this.beginRun(
+            threadId,
+            content,
+            isRetry,
+            isRegenerate,
+            resumeRequest !== undefined,
+        )
         const controller = new AbortController()
         this.controller = controller
         this.isStopRequested = false
@@ -216,6 +248,7 @@ export class AgentRuntime {
                     model: model ?? undefined,
                     preferences: preferences ?? undefined,
                     ...(isRegenerate ? { regenerate: true } : {}),
+                    ...(resumeRequest ? { resume: resumeRequest } : {}),
                 },
                 { signal: controller.signal, idempotencyKey: this.deps.createId() },
             )
@@ -260,6 +293,7 @@ export class AgentRuntime {
         content: string,
         isRetry: boolean,
         isRegenerate: boolean,
+        isResume = false,
     ): number {
         this.nextRunId += 1
         this.activeRunId = this.nextRunId
@@ -270,7 +304,8 @@ export class AgentRuntime {
         const turnId = this.deps.createId()
         const assistantId = createAssistantId(turnId)
         const messages = buildTurnMessages({
-            messages: this.snapshot.messages,
+            // 中断已作答：先摘掉旧表单，否则提交后页面上还留着一份可重复提交的表单
+            messages: isResume ? clearAnsweredHitl(this.snapshot.messages) : this.snapshot.messages,
             content,
             isRetry,
             userId: createUserId(turnId),
@@ -331,9 +366,18 @@ export class AgentRuntime {
                     attachToolResult(message, event.name ?? '', event.preview, this.deps.now()),
                 )
                 return
+            case 'citations':
+                // 引用先于正文到达，先落盘已缓冲的 token，保持展示顺序与到达顺序一致
+                this.flushPending()
+                this.updateAssistant((message) => attachCitations(message, event.citations))
+                return
+            case 'interrupt':
+                this.flushPending()
+                this.awaitInput(event.interrupt)
+                return
             case 'done':
                 this.flushPending()
-                await this.completeTurn(event.threadId, event.buildResult, runId)
+                await this.completeTurn(event.threadId, event.buildResult, event.messageId, runId)
                 return
             case 'error':
                 this.flushPending()
@@ -409,6 +453,34 @@ export class AgentRuntime {
         this.pendingReasoning = ''
     }
 
+    /**
+     * HITL 暂停：本轮以 interrupt 结束，不属于失败。
+     *
+     * 关闭本轮并清空 this.turn，使 settleAfterStream 不再补发 stream_incomplete；
+     * 状态切到 awaiting_input，消息上挂载表单等待用户回答。
+     */
+    private awaitInput(interrupt: HitlInterrupt): void {
+        const turn = this.turn
+        if (!turn || turn.isClosed) {
+            return
+        }
+        const now = this.deps.now()
+        this.updateAssistant((message) => ({
+            ...finalizeSteps(message, 'stopped', now),
+            status: 'awaiting_input',
+            hitl: interrupt,
+        }))
+        turn.isClosed = true
+        this.turn = null
+        this.publish({
+            ...this.snapshot,
+            status: 'awaiting_input',
+            isStreaming: false,
+            canRetry: false,
+            error: null,
+        })
+    }
+
     private updateAssistant(updater: (message: RuntimeMessage) => RuntimeMessage): void {
         const turn = this.turn
         if (!turn || turn.isClosed) {
@@ -439,6 +511,7 @@ export class AgentRuntime {
     private async completeTurn(
         threadId: string,
         buildResult: BuildResult | undefined,
+        messageId: string | undefined,
         runId: number,
     ): Promise<void> {
         const turn = this.turn
@@ -454,6 +527,8 @@ export class AgentRuntime {
         this.updateAssistant((message) => ({
             ...message,
             status: 'done',
+            // messageId 与 build_result 同理只在服务端给出时挂载，缺失时保留 undefined
+            ...(messageId ? { messageId } : {}),
             ...(buildResult ? { buildResult } : {}),
         }))
         turn.isClosed = true

@@ -59,12 +59,71 @@ describe('sessions api', () => {
   })
 
   it('历史消息带分页与读取方向，并对 threadId 编码', async () => {
+    vi.mocked(requestAgentJson).mockResolvedValueOnce({
+      thread_id: 'thread/1',
+      list: [],
+      total: 0,
+      page: 2,
+      size: 10,
+    })
     await getSessionMessages('thread/1', 2, 10, 'desc')
     expect(requestAgentJson).toHaveBeenCalledWith(
       '/sessions/thread%2F1/messages',
       { method: 'GET' },
       { page: 2, size: 10, order: 'desc' },
     )
+  })
+
+  it('把历史消息里的原始 hitl 载荷解析为表单结构', async () => {
+    vi.mocked(requestAgentJson).mockResolvedValueOnce({
+      thread_id: 'thread-1',
+      list: [
+        { role: 'user', content: '预算 8000 元' },
+        {
+          role: 'assistant',
+          content: '是否继续查看这份方案？',
+          hitl: {
+            interrupt_id: 'int-1',
+            interaction_type: 'confirm_compatibility',
+            question: '是否继续查看这份方案？',
+            input_schema: { fields: [], submit_label: '确认' },
+            context: {},
+            schema_version: '1',
+          },
+        },
+      ],
+      total: 2,
+      page: 1,
+      size: 20,
+    })
+
+    const result = await getSessionMessages('thread-1')
+
+    expect(result.list[0]?.hitl).toBeUndefined()
+    expect(result.list[1]?.hitl).toEqual({
+      interruptId: 'int-1',
+      interactionType: 'confirm_compatibility',
+      question: '是否继续查看这份方案？',
+      fields: [],
+      submitLabel: '确认',
+      context: {},
+      schemaVersion: '1',
+    })
+  })
+
+  it('历史 hitl 载荷不完整时省略该字段而不是透传', async () => {
+    vi.mocked(requestAgentJson).mockResolvedValueOnce({
+      thread_id: 'thread-1',
+      list: [{ role: 'assistant', content: '待确认', hitl: { question: '缺 id' } }],
+      total: 1,
+      page: 1,
+      size: 20,
+    })
+
+    const result = await getSessionMessages('thread-1')
+
+    expect(result.list[0]).not.toHaveProperty('hitl')
+    expect(result.list[0]?.content).toBe('待确认')
   })
 
   it('重命名以 PATCH 提交 JSON', async () => {

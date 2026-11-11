@@ -11,6 +11,8 @@ export interface MessageContentProps {
   readonly threadId: string
   readonly onContinueConversation?: (message: string) => void
   readonly onOpenUrl?: (url: string) => void
+  /** 消息含 buildResult 时由 MessageItem 注入，打开固定样式详情面板 */
+  readonly onOpenBuildDetail?: () => void
 }
 
 /**
@@ -26,6 +28,7 @@ export function MessageContent({
   threadId,
   onContinueConversation,
   onOpenUrl,
+  onOpenBuildDetail,
 }: MessageContentProps): ReactNode {
   const isOpenUiEnabled = useOpenUiEnabled()
   const splitResult = useMemo(
@@ -43,6 +46,7 @@ export function MessageContent({
   const callbacks = {
     ...(onContinueConversation ? { onContinueConversation } : {}),
     ...(onOpenUrl ? { onOpenUrl } : {}),
+    ...(onOpenBuildDetail ? { onOpenBuildDetail } : {}),
   }
   const lastIndex = splitResult.segments.length - 1
 

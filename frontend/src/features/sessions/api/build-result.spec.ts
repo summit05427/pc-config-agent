@@ -99,7 +99,7 @@ describe('parseBuildResult', () => {
 
     expect(result?.overallCompatibility).toBe('WARNING')
     expect(result?.compatibility).toEqual([
-      { rule: '显卡供电', status: 'WARNING', message: '需 850W' },
+      { ruleId: 'r1', rule: '显卡供电', status: 'WARNING', message: '需 850W' },
     ])
     expect(result?.components[0]).toMatchObject({
       brand: 'NVIDIA',
@@ -114,6 +114,157 @@ describe('parseBuildResult', () => {
     })
     expect(result?.demoOfferCount).toBe(1)
     expect(result?.offerDataStatus).toBe('MIXED_DEMO')
+  })
+
+  it('透传可选的用途、评分版本与风险等级字段', () => {
+    const result = parseBuildResult({
+      components: [{ category: 'CPU', model_name: 'R7' }],
+      compatibility: [
+        { rule: '机箱限高', status: 'UNKNOWN', message: '', risk_level: 'BLOCKING' },
+        { rule: '内存超频', status: 'WARNING', message: '', risk_level: 'ADVISORY' },
+      ],
+      workload_profile: 'GAMING',
+      scoring_version: 'pc-scoring-1.0.0',
+    })
+
+    expect(result?.workloadProfile).toBe('GAMING')
+    expect(result?.scoringVersion).toBe('pc-scoring-1.0.0')
+    expect(result?.compatibility[0]?.riskLevel).toBe('BLOCKING')
+    expect(result?.compatibility[1]?.riskLevel).toBe('ADVISORY')
+
+    // Java DTO 直接透传时字段为 camelCase，解析边界同样需要兼容
+    const camelCase = parseBuildResult({
+      components: [{ category: 'CPU' }],
+      compatibility: [{ rule: '显卡供电', status: 'PASS', message: '', riskLevel: 'ADVISORY' }],
+      workloadProfile: 'OFFICE',
+      scoringVersion: 'pc-scoring-1.1.0',
+    })
+
+    expect(camelCase?.workloadProfile).toBe('OFFICE')
+    expect(camelCase?.scoringVersion).toBe('pc-scoring-1.1.0')
+    expect(camelCase?.compatibility[0]?.riskLevel).toBe('ADVISORY')
+  })
+
+  it('新增字段缺失或取值非法时只丢弃该字段，不丢弃整份结果', () => {
+    const result = parseBuildResult({
+      components: [{ category: 'CPU', model_name: 'R7' }],
+      compatibility: [{ rule: '机箱限高', status: 'UNKNOWN', message: '', risk_level: 'MAYBE' }],
+      workload_profile: 'UNKNOWN_PROFILE',
+      scoring_version: 123,
+    })
+
+    expect(result).not.toBeNull()
+    expect(result?.workloadProfile).toBeUndefined()
+    expect(result?.scoringVersion).toBeUndefined()
+    expect(result?.compatibility[0]).toEqual({
+      rule: '机箱限高',
+      status: 'UNKNOWN',
+      message: '',
+    })
+
+    // 历史消息完全不含新增字段，仍能解析出完整结构
+    const legacy = parseBuildResult({
+      components: [{ category: 'CPU' }],
+      compatibility: [{ rule: 'CPU 插槽', status: 'PASS', message: '一致' }],
+    })
+    expect(legacy).not.toBeNull()
+    expect(legacy?.workloadProfile).toBeUndefined()
+    expect(legacy?.scoringVersion).toBeUndefined()
+    expect(legacy?.compatibility[0]?.riskLevel).toBeUndefined()
+  })
+
+  it('解析并透传逐件选型理由，同时兼容 snake_case 与 camelCase', () => {
+    const result = parseBuildResult({
+      components: [{ category: 'GPU', hardware_id: 'gpu-1' }],
+      component_reasons: [
+        {
+          hardware_category: 'GPU',
+          hardware_id: 'gpu-1',
+          reason: '显卡得分贡献 12345，占预算 42%',
+          score_contribution: 12345,
+          price_fen: 299900,
+        },
+      ],
+    })
+
+    expect(result?.components[0]?.hardwareId).toBe('gpu-1')
+    expect(result?.componentReasons).toEqual([
+      {
+        hardwareCategory: 'GPU',
+        hardwareId: 'gpu-1',
+        reason: '显卡得分贡献 12345，占预算 42%',
+        scoreContribution: 12345,
+        priceFen: 299900,
+      },
+    ])
+
+    // Agent 直传 Java DTO 时键名为 camelCase，解析边界同样要认
+    const camelCase = parseBuildResult({
+      components: [
+        {
+          category: 'CPU',
+          hardwareId: 'cpu-1',
+          benchmarkType: 'CPU_MARK',
+          benchmarkScore: 28000,
+        },
+      ],
+      componentReasons: [
+        {
+          hardwareCategory: 'CPU',
+          hardwareId: 'cpu-1',
+          reason: '多核性能满足编译与多任务需求',
+          scoreContribution: 8080,
+          priceFen: 229900,
+        },
+      ],
+    })
+
+    expect(camelCase?.components[0]?.hardwareId).toBe('cpu-1')
+    expect(camelCase?.componentReasons?.[0]).toEqual({
+      hardwareCategory: 'CPU',
+      hardwareId: 'cpu-1',
+      reason: '多核性能满足编译与多任务需求',
+      scoreContribution: 8080,
+      priceFen: 229900,
+    })
+  })
+
+  it('理由字段缺失或不是数组时保持 undefined，不产生空占位', () => {
+    const legacy = parseBuildResult(projectedPayload())
+    expect(legacy?.componentReasons).toBeUndefined()
+    expect(legacy?.components[0]?.hardwareId).toBeNull()
+
+    const malformed = parseBuildResult({
+      components: [{ category: 'CPU' }],
+      component_reasons: 'bad',
+    })
+    expect(malformed?.componentReasons).toBeUndefined()
+  })
+
+  it('跳过字段缺失或类型错误的理由项，保留合法项', () => {
+    const result = parseBuildResult({
+      components: [{ category: 'GPU', hardware_id: 'gpu-1' }],
+      component_reasons: [
+        null,
+        { hardware_id: 'gpu-1' },
+        { reason: '缺少 hardwareId' },
+        { hardware_id: 'gpu-1', reason: 123 },
+        {
+          hardware_id: 'gpu-1',
+          hardware_category: 'GPU',
+          reason: '显存容量符合本地推理要求',
+          score_contribution: 'bad',
+          price_fen: 250.5,
+        },
+      ],
+    })
+
+    expect(result?.componentReasons).toHaveLength(1)
+    expect(result?.componentReasons?.[0]).toEqual({
+      hardwareCategory: 'GPU',
+      hardwareId: 'gpu-1',
+      reason: '显存容量符合本地推理要求',
+    })
   })
 
   it('未知兼容性状态降级为 UNKNOWN，空检查项也不视为通过', () => {

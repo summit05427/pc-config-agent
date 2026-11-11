@@ -6,6 +6,7 @@ import {
     appendToken,
     appendToolStep,
     attachToolResult,
+    clearAnsweredHitl,
     createRuntimeMessage,
     createToolStep,
     finalizeSteps,
@@ -99,6 +100,30 @@ describe('updateMessage', () => {
         expect(next).toHaveLength(2)
         expect(next[1]?.status).toBe('done')
         expect(messages[1]?.status).toBe('streaming')
+    })
+})
+
+describe('clearAnsweredHitl', () => {
+    it('只清理带中断的消息，并把该轮标记完成', () => {
+        const hitl = {
+            interruptId: 'int-1',
+            interactionType: 'clarify_requirements',
+            schemaVersion: '1',
+            question: '预算多少？',
+            fields: [],
+            submitLabel: '提交并继续',
+            context: {},
+        }
+        const answered = createMessage({ status: 'awaiting_input', hitl })
+        const plain = createMessage({ id: 'assistant-2', status: 'done' })
+
+        const next = clearAnsweredHitl([answered, plain])
+
+        expect(next[0]?.hitl).toBeUndefined()
+        expect(next[0]?.status).toBe('done')
+        expect(next[0]?.content).toBe(answered.content)
+        // 没有中断的消息原样返回，避免无意义的重渲染
+        expect(next[1]).toBe(plain)
     })
 })
 

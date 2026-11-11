@@ -1,7 +1,10 @@
 import type { PageResult } from '@/shared/types/http'
 
+import { parseBuildResult } from './build-result'
+import { parseHitlInterrupt } from './hitl-payload'
 import { requestAgentJson, requestAgentVoid, type AgentRequestInit } from './request'
 import type {
+  SessionMessage,
   SessionMessageOrder,
   SessionMessagesResult,
   SessionModelResult,
@@ -24,18 +27,38 @@ export const listSessions = (
     { page, size, archived: archived ? 'true' : 'false' },
   )
 
+/**
+ * 历史消息里的 `hitl` 与 `build_result` 都是服务端原始载荷，必须在接口边界解析。
+ * 解析失败说明数据不完整，直接省略对应字段，让消息按普通文本展示。
+ */
+const toSessionMessage = ({
+  hitl,
+  build_result: rawBuildResult,
+  ...message
+}: SessionMessage): SessionMessage => {
+  const parsedHitl = hitl ? parseHitlInterrupt(hitl) : null
+  const parsedBuildResult = rawBuildResult ? parseBuildResult(rawBuildResult) : undefined
+  return {
+    ...message,
+    ...(parsedHitl ? { hitl: parsedHitl } : {}),
+    ...(parsedBuildResult ? { buildResult: parsedBuildResult } : {}),
+  }
+}
+
 /** 查询指定会话的历史消息；会话尚未落库或不存在时服务端返回 404，草稿会话由调用方跳过查询 */
-export const getSessionMessages = (
+export const getSessionMessages = async (
   threadId: string,
   page = 1,
   size = 20,
   order: SessionMessageOrder = 'asc',
-): Promise<SessionMessagesResult> =>
-  requestAgentJson(
+): Promise<SessionMessagesResult> => {
+  const result = await requestAgentJson<SessionMessagesResult>(
     `/sessions/${encodeURIComponent(threadId)}/messages`,
     { method: 'GET' },
     { page, size, order },
   )
+  return { ...result, list: result.list.map(toSessionMessage) }
+}
 
 /** 重命名会话；服务端会去掉首尾空白并校验 1..80 字符 */
 export const renameSession = (threadId: string, title: string): Promise<SessionRenameResult> =>

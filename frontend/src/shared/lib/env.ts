@@ -12,7 +12,7 @@ const DEFAULT_API_V2_BASE_URL = '/api/v2'
 const API_V1_PATH_SUFFIX = '/v1'
 const DEFAULT_AGENT_BASE_URL = '/agent/api/v1'
 const DEFAULT_API_TIMEOUT = 10_000
-const DEFAULT_APP_TITLE = 'Agent'
+const DEFAULT_APP_TITLE = 'PC Build Agent'
 const DEFAULT_APP_ENV = 'development'
 
 export type AppEnv = (typeof APP_ENVS)[number]

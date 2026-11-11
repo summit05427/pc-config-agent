@@ -1,3 +1,5 @@
+import type { ChatCitation } from '@/features/sessions/api'
+
 import type { RuntimeMessage, RuntimeToolStep, ToolStepStatus } from './types'
 
 /** 工具参数与结果的预览上限，和历史消息的展示长度保持一致 */
@@ -172,6 +174,25 @@ export const attachToolResult = (
     }
 }
 
+/**
+ * 挂载检索引用。
+ *
+ * 按 `sourceId` 去重：多轮检索可能重复推送同一来源，重复条目只会让折叠区
+ * 变长而不增加信息量。没有新条目时返回原对象，避免流式期间无谓重渲染。
+ */
+export const attachCitations = (
+    message: RuntimeMessage,
+    citations: readonly ChatCitation[],
+): RuntimeMessage => {
+    const seen = new Set(message.citations?.map((citation) => citation.sourceId) ?? [])
+    const incoming = citations.filter((citation) => !seen.has(citation.sourceId))
+    if (incoming.length === 0) {
+        return message
+    }
+
+    return { ...message, citations: [...(message.citations ?? []), ...incoming] }
+}
+
 /** 中断或失败时仍在运行的步骤如实标记为已停止，不伪装成完成 */
 export const finalizeSteps = (
     message: RuntimeMessage,
@@ -200,6 +221,17 @@ export interface BuildTurnMessagesInit {
     readonly assistantId: string
     readonly now: number
 }
+
+/**
+ * 中断已作答：去掉表单并把该轮标记为完成。
+ *
+ * 表单由消息上的 `hitl` 驱动，提交后不清理会让同一 interrupt 一直可再次提交，
+ * 服务端只会返回「中断不存在」，用户却以为还能改答案。
+ */
+export const clearAnsweredHitl = (messages: readonly RuntimeMessage[]): RuntimeMessage[] =>
+    messages.map((message): RuntimeMessage =>
+        message.hitl ? { ...message, status: 'done', hitl: undefined } : message,
+    )
 
 /**
  * 生成一轮对话的起始消息列表。

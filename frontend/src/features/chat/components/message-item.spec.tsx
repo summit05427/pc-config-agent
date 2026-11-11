@@ -43,6 +43,28 @@ describe('MessageItem', () => {
     expect(screen.queryByText('助手')).toBeNull()
   })
 
+  it('HITL 提问与正文相同时只渲染一次', () => {
+    const question = '已有 8 项兼容性检查通过，但 1 项因数据缺失无法确认。是否继续查看这份方案？'
+    render(
+      <MessageItem
+        message={{
+          ...createMessage('assistant', question, 'awaiting_input'),
+          hitl: {
+            interruptId: 'int-1',
+            interactionType: 'compatibility_confirmation',
+            question,
+            fields: [],
+            submitLabel: '继续',
+            context: {},
+          },
+        }}
+        threadId="item-thread"
+      />,
+    )
+
+    expect(screen.getAllByText(question)).toHaveLength(1)
+  })
+
   it('助手消息中的 OpenUI 块可交互并透传会话与动作', async () => {
     const onContinueConversation = vi.fn()
     render(

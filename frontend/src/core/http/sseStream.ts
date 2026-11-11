@@ -7,7 +7,7 @@ export interface SseMessage {
 }
 
 /**
- * Agent 对话流允许的 7 类事件。
+ * Agent 对话流允许的 8 类事件。
  *
  * 解析器仍返回通用 `event: string`，保证未知事件被静默忽略而不是中断整个流；
  * 业务层用 `isSseEventType` 收窄后再分发。
@@ -18,6 +18,7 @@ export const SSE_EVENT_TYPES = [
   'tool_call',
   'tool_result',
   'citations',
+  'interrupt',
   'done',
   'error',
 ] as const

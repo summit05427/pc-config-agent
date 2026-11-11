@@ -14,6 +14,8 @@ export interface OpenUiBlockProps {
   readonly isMessageStreaming: boolean
   readonly onContinueConversation?: (message: string) => void
   readonly onOpenUrl?: (url: string) => void
+  /** 打开配置详情面板；仅在含 buildResult 的消息里由宿主传入 */
+  readonly onOpenBuildDetail?: () => void
 }
 
 interface OpenUiRawFallbackProps {
@@ -57,6 +59,7 @@ function OpenUiCompleteBlock({
   isMessageStreaming,
   onContinueConversation,
   onOpenUrl,
+  onOpenBuildDetail,
 }: Omit<OpenUiBlockProps, 'isComplete'>): ReactNode {
   const { initialState, handleStateUpdate } = useOpenUiState(threadId, content)
 
@@ -68,6 +71,7 @@ function OpenUiCompleteBlock({
       {...(initialState ? { initialState } : {})}
       {...(onContinueConversation ? { onContinueConversation } : {})}
       {...(onOpenUrl ? { onOpenUrl } : {})}
+      {...(onOpenBuildDetail ? { onOpenBuildDetail } : {})}
       fallback={<OpenUiRawFallback content={content} messageKey="generativeUi.renderFailed" />}
     />
   )
@@ -86,6 +90,7 @@ function OpenUiBlockComponent({
   isMessageStreaming,
   onContinueConversation,
   onOpenUrl,
+  onOpenBuildDetail,
 }: OpenUiBlockProps): ReactNode {
   if (!isComplete) {
     return isMessageStreaming ? (
@@ -102,6 +107,7 @@ function OpenUiBlockComponent({
       isMessageStreaming={isMessageStreaming}
       {...(onContinueConversation ? { onContinueConversation } : {})}
       {...(onOpenUrl ? { onOpenUrl } : {})}
+      {...(onOpenBuildDetail ? { onOpenBuildDetail } : {})}
     />
   )
 }

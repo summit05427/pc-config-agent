@@ -97,6 +97,27 @@ describe('dispatchOpenUiAction', () => {
     expect(onOpenUrl).not.toHaveBeenCalled()
     expect(onContinueConversation).not.toHaveBeenCalled()
   })
+
+  it('OpenBuildDetail 是纯前端动作：只触发详情回调，不发消息也不跳转', () => {
+    const onOpenBuildDetail = vi.fn()
+    const onOpenUrl = vi.fn()
+    const onContinueConversation = vi.fn()
+    const result = dispatchOpenUiAction(
+      createEvent({ type: 'OpenBuildDetail' }),
+      { onOpenBuildDetail, onOpenUrl, onContinueConversation },
+    )
+
+    expect(result).toBe('handled')
+    expect(onOpenBuildDetail).toHaveBeenCalledTimes(1)
+    expect(onOpenUrl).not.toHaveBeenCalled()
+    expect(onContinueConversation).not.toHaveBeenCalled()
+  })
+
+  it('宿主未提供详情回调时按忽略处理', () => {
+    const result = dispatchOpenUiAction(createEvent({ type: 'OpenBuildDetail' }), {})
+
+    expect(result).toBe('ignored')
+  })
 })
 
 describe('extractOpenUiFormSubmission', () => {

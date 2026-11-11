@@ -56,5 +56,7 @@ export interface OpenUiRendererProps {
   readonly onContinueConversation?: (message: string) => void
   /** 表单提交时优先回调；未提供时字段文本会并入 onContinueConversation 的消息 */
   readonly onSubmitForm?: (submission: OpenUiFormSubmission) => void
+  /** 打开宿主固定样式详情面板；由当前消息的 buildResult 提供数据 */
+  readonly onOpenBuildDetail?: () => void
   readonly className?: string
 }

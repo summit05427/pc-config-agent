@@ -20,6 +20,7 @@ export function OpenUiRendererRuntime({
   onOpenUrl,
   onContinueConversation,
   onSubmitForm,
+  onOpenBuildDetail,
   className,
 }: OpenUiRendererProps) {
   const handleAction = (event: ActionEvent): void => {
@@ -28,6 +29,7 @@ export function OpenUiRendererRuntime({
       ...(onOpenUrl ? { onOpenUrl } : {}),
       ...(onContinueConversation ? { onContinueConversation } : {}),
       ...(onSubmitForm ? { onSubmitForm } : {}),
+      ...(onOpenBuildDetail ? { onOpenBuildDetail } : {}),
     })
   }
 

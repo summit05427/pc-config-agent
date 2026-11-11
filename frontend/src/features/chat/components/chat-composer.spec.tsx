@@ -51,4 +51,49 @@ describe('ChatComposer', () => {
 
         expect(onStop).toHaveBeenCalledTimes(1)
     })
+
+    it('快捷选择生成的描述写入输入框但不自动发送', async () => {
+        const user = userEvent.setup()
+        const onSend = vi.fn()
+
+        render(
+            <ChatComposer
+                onSend={onSend}
+                onStop={vi.fn()}
+                quickPicker={(insertPrompt) => (
+                    <button type="button" onClick={() => insertPrompt('预算：8000 元')}>
+                        生成描述
+                    </button>
+                )}
+            />,
+        )
+
+        await user.click(screen.getByRole('button', { name: '生成描述' }))
+
+        expect(screen.getByLabelText('消息输入框')).toHaveValue('预算：8000 元')
+        expect(onSend).not.toHaveBeenCalled()
+    })
+
+    it('快捷选择追加在已有输入之后，不覆盖用户已写内容', async () => {
+        const user = userEvent.setup()
+
+        render(
+            <ChatComposer
+                onSend={vi.fn()}
+                onStop={vi.fn()}
+                quickPicker={(insertPrompt) => (
+                    <button type="button" onClick={() => insertPrompt('主要用途：游戏')}>
+                        生成描述
+                    </button>
+                )}
+            />,
+        )
+
+        await user.type(screen.getByLabelText('消息输入框'), '帮我配台电脑')
+        await user.click(screen.getByRole('button', { name: '生成描述' }))
+
+        expect(screen.getByLabelText('消息输入框')).toHaveValue(
+            '帮我配台电脑\n主要用途：游戏',
+        )
+    })
 })

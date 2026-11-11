@@ -3,6 +3,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 import { getSharedAgentRuntime } from '@/features/chat/runtime/deps'
 import type { AgentRuntime } from '@/features/chat/runtime/agent-runtime'
 import type { AgentRuntimeSnapshot } from '@/features/chat/runtime/types'
+import type { HitlInterrupt } from '@/features/sessions/api'
 
 export interface UseAgentRuntimeResult {
     readonly runtime: AgentRuntime
@@ -11,6 +12,12 @@ export interface UseAgentRuntimeResult {
     readonly stop: () => void
     readonly retry: (model?: string | null) => Promise<void>
     readonly regenerate: (content: string, model?: string | null) => Promise<void>
+    readonly resume: (
+        text: string,
+        interrupt: HitlInterrupt,
+        answer: Record<string, unknown>,
+        model?: string | null,
+    ) => Promise<void>
 }
 
 /**
@@ -49,5 +56,15 @@ export function useAgentRuntime(runtime?: AgentRuntime): UseAgentRuntimeResult {
         [activeRuntime],
     )
 
-    return { runtime: activeRuntime, snapshot, send, stop, retry, regenerate }
+    const resume = useCallback(
+        (
+            text: string,
+            interrupt: HitlInterrupt,
+            answer: Record<string, unknown>,
+            model?: string | null,
+        ) => activeRuntime.resume(text, interrupt, answer, model),
+        [activeRuntime],
+    )
+
+    return { runtime: activeRuntime, snapshot, send, stop, retry, regenerate, resume }
 }

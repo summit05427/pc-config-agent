@@ -7,52 +7,57 @@ import { Button } from '@/shared/ui/button'
 const EXAMPLE_KEYS = ['example1', 'example2', 'example3', 'example4'] as const
 
 export interface ChatEmptyStateProps {
-    /** 点击示例直接发送；未提供时示例仅作为静态引导 */
-    readonly onSelectExample?: (prompt: string) => void
+  /** 点击示例直接发送；未提供时示例仅作为静态引导 */
+  readonly onSelectExample?: (prompt: string) => void
 }
 
 /**
  * 空会话态。
  *
- * 入口收敛为单一的 PC 配置推荐，不再展示通用模板示例；
- * 输入焦点仍由底部输入框承担，示例按钮只是可选快捷入口。
+ * 用两行网格：标题块跨两行，视觉中心落在整个对话区（而不是被底部推荐块
+ * 挤到上半区）；「为你推荐」固定在第二行，紧贴输入框上方并与输入框同宽，
+ * 左缘自然对齐。窗口过矮时网格按内容撑高并由外层滚动，不会出现叠压。
  */
 export function ChatEmptyState({ onSelectExample }: ChatEmptyStateProps) {
-    const { t } = useTranslation()
+  const { t } = useTranslation()
 
-    return (
-        <div className="flex flex-1 items-center justify-center py-16">
-            <div className="max-w-lg text-center">
-                {/* BrandMark 内是块级图片，text-center 对块级元素无效，需用 flex 居中 */}
-                <div className="flex justify-center">
-                    <BrandMark />
-                </div>
-                {/* 空会话标题属于展示型文案，走衬线；说明文字仍是 UI 文案，保留无衬线 */}
-                <h2 className="mt-4 font-serif text-2xl font-normal text-foreground">
-                    {t('chat.empty.title')}
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                    {t('chat.empty.description')}
-                </p>
+  return (
+    <div className="grid flex-1 grid-rows-[1fr_auto] pt-6">
+      {/* 标题块占据第一行并在其中垂直居中，第二行留给推荐列表，任何高度都不会与列表叠压 */}
+      <div className="col-start-1 row-start-1 flex flex-col items-center justify-center pb-6">
+        <BrandMark />
+        <h2 className="mt-4 max-w-2xl text-center font-serif text-display text-foreground">
+          {t('chat.empty.title')}
+        </h2>
+        <p className="mt-3 max-w-md text-center text-sm leading-relaxed text-muted-foreground">
+          {t('chat.empty.description')}
+        </p>
+      </div>
 
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                    {EXAMPLE_KEYS.map((key) => {
-                        const prompt = t(`chat.empty.${key}`)
-                        return (
-                            <Button
-                                key={key}
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-auto max-w-full whitespace-normal text-left text-xs"
-                                onClick={() => onSelectExample?.(prompt)}
-                            >
-                                {prompt}
-                            </Button>
-                        )
-                    })}
-                </div>
-            </div>
+      <section
+        className="col-start-1 row-start-2 mx-auto w-full max-w-[var(--app-content-width)] pb-2"
+        aria-labelledby="chat-recommend-heading"
+      >
+        <h3 id="chat-recommend-heading" className="text-xs font-normal text-muted-foreground">
+          {t('chat.empty.recommendTitle')}
+        </h3>
+        <div className="mt-2.5 flex flex-col items-start gap-2">
+          {EXAMPLE_KEYS.map((key) => {
+            const prompt = t(`chat.empty.${key}`)
+            return (
+              <Button
+                key={key}
+                type="button"
+                variant="outline"
+                className="h-auto min-h-[var(--control-height-md)] max-w-full justify-start whitespace-normal px-3 py-1.5 text-left font-normal"
+                onClick={() => onSelectExample?.(prompt)}
+              >
+                {prompt}
+              </Button>
+            )
+          })}
         </div>
-    )
+      </section>
+    </div>
+  )
 }

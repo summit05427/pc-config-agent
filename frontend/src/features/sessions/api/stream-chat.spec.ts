@@ -72,6 +72,58 @@ describe('streamChat', () => {
     ])
   })
 
+  it('done 携带 message_id 时解析为 messageId，缺失时省略该字段', async () => {
+    vi.mocked(sendAgentRequest).mockResolvedValue(
+      createSseResponse(
+        [
+          'event: done\ndata: {"thread_id":"thread-1","message_id":"thread-1:3"}\n\n',
+          'event: done\ndata: {"thread_id":"thread-1"}\n\n',
+        ].join(''),
+      ),
+    )
+
+    const events = await collect(streamChat(payload))
+    expect(events[0]).toEqual({ type: 'done', threadId: 'thread-1', messageId: 'thread-1:3' })
+    expect(events[1]).toEqual({ type: 'done', threadId: 'thread-1' })
+  })
+
+  it('把 interrupt 翻译为表单结构，非法载荷按未知事件忽略', async () => {
+    vi.mocked(sendAgentRequest).mockResolvedValue(
+      createSseResponse(
+        [
+          'event: interrupt\ndata: {"interrupt_id":"int-1","interaction_type":"clarify_requirements","question":"还缺预算","input_schema":{"fields":[{"name":"budget_yuan","label":"预算","type":"number","required":true,"min":1000},{"name":"scenario","label":"用途","type":"select","required":false,"options":[{"value":"GAMING","label":"游戏"},{"value":"","label":"缺值丢弃"}]}],"submit_label":"继续"},"context":{"missing_slots":["budget_yuan"]},"schema_version":"1"}\n\n',
+          'event: interrupt\ndata: {"interrupt_id":"int-2"}\n\n',
+          'event: done\ndata: {"thread_id":"thread-1"}\n\n',
+        ].join(''),
+      ),
+    )
+
+    await expect(collect(streamChat(payload))).resolves.toEqual([
+      {
+        type: 'interrupt',
+        interrupt: {
+          interruptId: 'int-1',
+          interactionType: 'clarify_requirements',
+          question: '还缺预算',
+          fields: [
+            { name: 'budget_yuan', label: '预算', type: 'number', required: true, min: 1000 },
+            {
+              name: 'scenario',
+              label: '用途',
+              type: 'select',
+              required: false,
+              options: [{ value: 'GAMING', label: '游戏' }],
+            },
+          ],
+          submitLabel: '继续',
+          context: { missing_slots: ['budget_yuan'] },
+          schemaVersion: '1',
+        },
+      },
+      { type: 'done', threadId: 'thread-1' },
+    ])
+  })
+
   it('引用条目字段非法时跳过该条，保留合法引用', async () => {
     vi.mocked(sendAgentRequest).mockResolvedValue(
       createSseResponse(
@@ -183,6 +235,49 @@ describe('streamChat', () => {
         overallCompatibility: 'PASS',
       },
     })
+  })
+
+  it('done.build_result 透传用途、评分版本与风险等级', async () => {
+    vi.mocked(sendAgentRequest).mockResolvedValue(
+      createSseResponse(
+        [
+          'event: done\ndata: {"thread_id":"thread-1","build_result":{"build_id":"b-2","components":[{"category":"CPU","model_name":"R7 7800X3D","price_fen":229900}],"total_price_fen":229900,"budget_status":"WITHIN_BUDGET","compatibility":[{"rule":"机箱限高","status":"UNKNOWN","message":"缺少数据","risk_level":"BLOCKING"}],"reason_summary":"游戏优先","workload_profile":"GAMING","scoring_version":"pc-scoring-1.0.0"}}\n\n',
+        ].join(''),
+      ),
+    )
+
+    const events = await collect(streamChat(payload))
+    expect(events).toHaveLength(1)
+    expect(events[0]).toMatchObject({
+      type: 'done',
+      threadId: 'thread-1',
+      buildResult: {
+        workloadProfile: 'GAMING',
+        scoringVersion: 'pc-scoring-1.0.0',
+        compatibility: [{ rule: '机箱限高', status: 'UNKNOWN', message: '缺少数据', riskLevel: 'BLOCKING' }],
+      },
+    })
+  })
+
+  it('done.build_result 缺少新增字段时仍完整解析，不降级为 Markdown', async () => {
+    vi.mocked(sendAgentRequest).mockResolvedValue(
+      createSseResponse(
+        [
+          'event: done\ndata: {"thread_id":"thread-1","build_result":{"components":[{"category":"CPU","model_name":"R7"}],"compatibility":[{"rule":"CPU 插槽","status":"PASS","message":"一致"}]}}\n\n',
+        ].join(''),
+      ),
+    )
+
+    const events = await collect(streamChat(payload))
+    expect(events).toHaveLength(1)
+    const done = events[0]
+    expect(done).toMatchObject({ type: 'done', threadId: 'thread-1' })
+    if (done?.type !== 'done') {
+      throw new Error('expected done event')
+    }
+    expect(done.buildResult?.workloadProfile).toBeUndefined()
+    expect(done.buildResult?.scoringVersion).toBeUndefined()
+    expect(done.buildResult?.compatibility[0]?.riskLevel).toBeUndefined()
   })
 
   it('build_result 畸形时只保留 done，线程与后续帧不受影响', async () => {

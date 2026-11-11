@@ -2,9 +2,12 @@ import type {
   BuildBenchmark,
   BuildBudgetStatus,
   BuildCompatibilityCheck,
+  BuildCompatibilityRiskLevel,
   BuildCompatibilityStatus,
   BuildComponent,
+  BuildComponentReason,
   BuildResult,
+  BuildWorkloadProfile,
 } from './types'
 
 type UnknownRecord = Record<string, unknown>
@@ -60,6 +63,36 @@ const BUDGET_STATUSES: readonly BuildBudgetStatus[] = [
   'NO_BUDGET',
 ]
 
+/** 新老版本共存的用途取值；不在列表内的值一律忽略，避免展示错误标签 */
+const WORKLOAD_PROFILES: readonly BuildWorkloadProfile[] = [
+  'GENERAL',
+  'GAMING',
+  'VIDEO_EDITING',
+  'PROGRAMMING',
+  'RENDERING',
+  'AI_INFERENCE',
+  'CREATIVE',
+  'WORKSTATION',
+  'OFFICE',
+  'BALANCED',
+]
+
+const RISK_LEVELS: readonly BuildCompatibilityRiskLevel[] = ['BLOCKING', 'ADVISORY']
+
+/**
+ * 三个新增字段均可选：历史消息不含它们，缺失或取值非法时只丢弃该字段，
+ * 不能因此让整份 `build_result` 被判为畸形。
+ */
+const toWorkloadProfile = (value: unknown): BuildWorkloadProfile | undefined => {
+  const text = toText(value).toUpperCase()
+  return WORKLOAD_PROFILES.find((profile) => profile === text)
+}
+
+const toRiskLevel = (value: unknown): BuildCompatibilityRiskLevel | undefined => {
+  const text = toText(value).toUpperCase()
+  return RISK_LEVELS.find((level) => level === text)
+}
+
 const toBudgetStatus = (value: unknown): BuildBudgetStatus => {
   const text = toText(value).toUpperCase()
   return BUDGET_STATUSES.find((status) => status === text) ?? 'UNKNOWN'
@@ -67,7 +100,8 @@ const toBudgetStatus = (value: unknown): BuildBudgetStatus => {
 
 const isHttpUrl = (value: string): boolean => /^https?:\/\//i.test(value)
 
-const toPurchaseUrl = (value: unknown): string | null => {
+/** 只接受绝对 http(s) 地址；图片与购买链接共用同一道守卫 */
+const toHttpUrl = (value: unknown): string | null => {
   const url = toTextOrNull(value)
   return url && isHttpUrl(url) ? url : null
 }
@@ -101,10 +135,12 @@ const toComponent = (value: unknown): BuildComponent | null => {
 
   return {
     category,
+    hardwareId: toTextOrNull(read(value, 'hardware_id', 'hardwareId')),
     modelName: toText(read(value, 'model_name', 'modelName')),
     specSummary: toText(read(value, 'spec_summary', 'specSummary')),
     priceFen: toInteger(read(value, 'price_fen', 'priceFen')) ?? 0,
-    purchaseUrl: toPurchaseUrl(read(value, 'purchase_url', 'purchaseUrl')),
+    purchaseUrl: toHttpUrl(read(value, 'purchase_url', 'purchaseUrl')),
+    imageUrl: toHttpUrl(read(value, 'image_url', 'imageUrl')),
     benchmark: toBenchmark(value),
     offerVerifiedAt: toTextOrNull(read(value, 'offer_verified_at', 'verifiedAt')),
     brand: toTextOrNull(read(value, 'brand')),
@@ -114,6 +150,34 @@ const toComponent = (value: unknown): BuildComponent | null => {
     priceSource: toTextOrNull(read(value, 'price_source', 'priceSource')),
     priceType: toTextOrNull(read(value, 'price_type', 'priceType')),
     verifiedPrice: toBooleanOrNull(read(value, 'verified_price', 'verifiedPrice')),
+  }
+}
+
+/**
+ * 逐件选型理由：`hardwareId` 与 `reason` 是展示与匹配的最小必要字段，
+ * 任一缺失或类型不符就跳过该项，不能因此让整份结果被判为畸形。
+ * 得分与价格只做透传，缺失时省略，绝不补默认值。
+ */
+const toComponentReason = (value: unknown): BuildComponentReason | null => {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const hardwareId = toTextOrNull(read(value, 'hardware_id', 'hardwareId'))
+  const reason = toTextOrNull(read(value, 'reason'))
+  if (!hardwareId || !reason) {
+    return null
+  }
+
+  const scoreContribution = toInteger(read(value, 'score_contribution', 'scoreContribution'))
+  const priceFen = toInteger(read(value, 'price_fen', 'priceFen'))
+
+  return {
+    hardwareCategory: toText(read(value, 'hardware_category', 'hardwareCategory')),
+    hardwareId,
+    reason,
+    ...(scoreContribution !== null ? { scoreContribution } : {}),
+    ...(priceFen !== null ? { priceFen } : {}),
   }
 }
 
@@ -127,10 +191,15 @@ const toCheck = (value: unknown): BuildCompatibilityCheck | null => {
     return null
   }
 
+  const ruleId = toText(read(value, 'rule_id', 'ruleId'))
+  const riskLevel = toRiskLevel(read(value, 'risk_level', 'riskLevel'))
+
   return {
     rule,
     status: toCompatibilityStatus(read(value, 'status')),
     message: toText(read(value, 'message')),
+    ...(ruleId ? { ruleId } : {}),
+    ...(riskLevel ? { riskLevel } : {}),
   }
 }
 
@@ -210,6 +279,17 @@ export function parseBuildResult(value: unknown): BuildResult | null {
   const totalPriceFen =
     totalFromWire ?? components.reduce((sum, component) => sum + component.priceFen, 0)
 
+  const workloadProfile = toWorkloadProfile(read(value, 'workload_profile', 'workloadProfile'))
+  const scoringVersion = toTextOrNull(read(value, 'scoring_version', 'scoringVersion'))
+
+  // 逐件理由整体缺失时保持 undefined，历史消息的渲染结果与新增前完全一致
+  const rawReasons = read(value, 'component_reasons', 'componentReasons')
+  const componentReasons = Array.isArray(rawReasons)
+    ? rawReasons
+        .map(toComponentReason)
+        .filter((reason): reason is BuildComponentReason => reason !== null)
+    : []
+
   return {
     buildId: toTextOrNull(read(value, 'build_id', 'buildId')),
     components,
@@ -222,5 +302,8 @@ export function parseBuildResult(value: unknown): BuildResult | null {
     offerDataStatus: toTextOrNull(read(value, 'offer_data_status', 'offerDataStatus')),
     verifiedOfferCount: toInteger(read(value, 'verified_offer_count', 'verifiedOfferCount')),
     demoOfferCount: toInteger(read(value, 'demo_offer_count', 'demoOfferCount')),
+    ...(workloadProfile ? { workloadProfile } : {}),
+    ...(scoringVersion ? { scoringVersion } : {}),
+    ...(componentReasons.length > 0 ? { componentReasons } : {}),
   }
 }

@@ -1,13 +1,22 @@
 import type {
     BuildResult,
+    ChatCitation,
     ChatPreferences,
     ChatRequest,
     ChatStreamEvent,
+    HitlInterrupt,
     StreamChatOptions,
 } from '@/features/sessions/api'
 
 /** 与 Vue 基线的 agent-chat-message 保持一致的消息状态，渲染层据此展示不同终态 */
-export type ChatMessageStatus = 'pending' | 'streaming' | 'done' | 'cancelled' | 'error'
+export type ChatMessageStatus =
+    | 'pending'
+    | 'streaming'
+    | 'done'
+    | 'cancelled'
+    | 'error'
+    /** HITL：本轮已暂停，等待用户填写表单 */
+    | 'awaiting_input'
 
 /** 工具步骤的终态：完成、被用户停止、失败；running 表示仍在等待结果 */
 export type ToolStepStatus = 'running' | 'done' | 'stopped' | 'error'
@@ -24,6 +33,8 @@ export interface RuntimeToolStep {
 
 export interface RuntimeMessage {
     readonly id: string
+    /** 服务端稳定消息标识；仅助手消息可能持有，用于绑定反馈，缺失时隐藏反馈入口 */
+    readonly messageId?: string
     readonly role: 'user' | 'assistant'
     readonly content: string
     /** 思考内容：与正文分离，只存在于本次流式会话，不落库也不进入历史 */
@@ -33,9 +44,25 @@ export interface RuntimeMessage {
     readonly createdAt: number
     /** `done.build_result` 的结构化副本；仅当前轮临时消息持有，历史回放走 Markdown */
     readonly buildResult?: BuildResult
+    /** HITL 中断提示；仅等待用户回答的消息持有，提交后随新一轮替换 */
+    readonly hitl?: HitlInterrupt
+    /**
+     * RAG 检索引用。
+     *
+     * 只在本轮流式期间由 `citations` 事件下发，历史接口不返回该字段，
+     * 因此刷新页面后引用会消失，不能把它当作可持久化的回答内容。
+     */
+    readonly citations?: readonly ChatCitation[]
 }
 
-export type AgentRuntimeStatus = 'idle' | 'streaming' | 'done' | 'cancelled' | 'error'
+export type AgentRuntimeStatus =
+    | 'idle'
+    | 'streaming'
+    | 'done'
+    | 'cancelled'
+    | 'error'
+    /** 本轮已暂停，等待用户回答，不属于失败 */
+    | 'awaiting_input'
 
 /**
  * 失败状态只保留 i18n key 与服务端原始细节。

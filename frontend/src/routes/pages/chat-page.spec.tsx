@@ -143,10 +143,8 @@ describe('ChatPage', () => {
     renderPage(<ChatNewPage />)
 
     expect(await screen.findByRole('heading', { level: 1, name: '新对话' })).toBeVisible()
-    expect(await screen.findByRole('heading', { name: 'PC 配置推荐' })).toBeVisible()
-    expect(
-      screen.getByText('Agent 的输出可能不准确，请在使用前核对关键信息。'),
-    ).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '有什么我能帮你的吗？' })).toBeVisible()
+    expect(screen.getByText('Agent 的输出可能不准确，请在使用前核对关键信息。')).toBeVisible()
   })
 
   it('直接渲染会话模块给出的标题与服务端顺序消息', async () => {
@@ -250,7 +248,7 @@ describe('ChatPage', () => {
     mocks.session = { ...mocks.session, isHistoryLoadError: false }
     renderPage(<ChatSessionPage />)
 
-    expect(await screen.findByRole('heading', { name: 'PC 配置推荐' })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: '有什么我能帮你的吗？' })).toBeVisible()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 })

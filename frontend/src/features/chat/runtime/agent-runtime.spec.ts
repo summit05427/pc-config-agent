@@ -114,6 +114,42 @@ describe('AgentRuntime 流式事件', () => {
         })
     })
 
+    it('citations 事件把引用挂到当前助手消息，并按 sourceId 去重', async () => {
+        const { runtime } = createHarness(streamChat)
+        const citationFrame = (sourceId: string, score?: number): string =>
+            `event: citations\ndata: ${JSON.stringify({
+                citations: [
+                    {
+                        source_id: sourceId,
+                        title: '官方规格表',
+                        snippet: `${sourceId} 的说明`,
+                        ...(score === undefined ? {} : { score }),
+                    },
+                ],
+            })}\n\n`
+        vi.mocked(sendAgentRequest).mockResolvedValue(
+            createSseResponse([
+                citationFrame('doc-1', 0.82),
+                citationFrame('doc-1'),
+                citationFrame('doc-2'),
+                tokenFrame('回答'),
+                'event: done\ndata: {"thread_id":"thread-1"}\n\n',
+            ]),
+        )
+
+        const snapshots: ReturnType<AgentRuntime['getSnapshot']>[] = []
+        runtime.subscribe(() => snapshots.push(runtime.getSnapshot()))
+
+        await runtime.send('问题')
+
+        const withCitations = snapshots
+            .map((snapshot) => findAssistant(snapshot.messages))
+            .filter((message) => (message?.citations?.length ?? 0) > 0)
+            .at(-1)
+        expect(withCitations?.citations?.map((item) => item.sourceId)).toEqual(['doc-1', 'doc-2'])
+        expect(withCitations?.citations?.[0]?.score).toBeCloseTo(0.82)
+    })
+
     it('done 携带 build_result 时挂到当前助手消息，畸形数据不阻断完成', async () => {
         const { runtime } = createHarness(streamChat)
         vi.mocked(sendAgentRequest).mockResolvedValue(
@@ -371,6 +407,82 @@ describe('AgentRuntime 交接顺序', () => {
         expect(deps.invalidateHistory).not.toHaveBeenCalled()
         expect(deps.syncHistory).not.toHaveBeenCalled()
         expect(runtime.getSnapshot()).toMatchObject({ sessionId: 'thread-b', messages: [] })
+    })
+})
+
+describe('AgentRuntime HITL 中断与恢复', () => {
+    const interruptEvent = (): ChatStreamEvent => ({
+        type: 'interrupt',
+        interrupt: {
+            interruptId: 'int-1',
+            interactionType: 'clarify_requirements',
+            question: '还缺预算',
+            fields: [
+                { name: 'budget_yuan', label: '预算', type: 'number', required: true, min: 1000 },
+            ],
+            submitLabel: '继续',
+            context: { missing_slots: ['budget_yuan'] },
+        },
+    })
+
+    it('interrupt 作为本轮终态：进入 awaiting_input，不判失败也不交接', async () => {
+        const { runtime, deps } = createHarness(async function* () {
+            yield { type: 'token', text: '请补充预算' }
+            yield interruptEvent()
+        })
+        runtime.setSession('thread-hitl')
+
+        await runtime.send('配一台电脑')
+
+        expect(runtime.getSnapshot()).toMatchObject({
+            status: 'awaiting_input',
+            isStreaming: false,
+            canRetry: false,
+            error: null,
+        })
+        const assistant = findAssistant(runtime.getSnapshot().messages)
+        expect(assistant?.status).toBe('awaiting_input')
+        expect(assistant?.hitl?.interruptId).toBe('int-1')
+        // 中断保留临时消息等待用户回答，不能按 stream_incomplete 判失败
+        expect(runtime.getSnapshot().messages).toHaveLength(2)
+        expect(deps.invalidateHistory).not.toHaveBeenCalled()
+    })
+
+    it('resume 携带 interrupt_id 与结构化答案，回答文本进入用户气泡', async () => {
+        const streams: ChatStreamEvent[][] = [
+            [interruptEvent()],
+            [{ type: 'done', threadId: 'thread-hitl' }],
+        ]
+        let callIndex = 0
+        const stream = vi.fn(
+            async function* (
+                _payload: ChatRequest,
+                _options: StreamChatOptions,
+            ): AsyncGenerator<ChatStreamEvent> {
+                const events = streams[callIndex] ?? []
+                callIndex += 1
+                for (const event of events) {
+                    yield event
+                }
+            },
+        )
+        const { runtime } = createHarness(stream)
+        runtime.setSession('thread-hitl')
+
+        await runtime.send('配一台电脑')
+        const interrupt = findAssistant(runtime.getSnapshot().messages)?.hitl
+        if (!interrupt) {
+            throw new Error('expected interrupt payload')
+        }
+
+        await runtime.resume('预算：8000 元', interrupt, { budget_yuan: 8000 })
+
+        expect(stream.mock.calls[1]?.[0]).toMatchObject({
+            message: '预算：8000 元',
+            thread_id: 'thread-hitl',
+            resume: { interrupt_id: 'int-1', answer: { budget_yuan: 8000 } },
+        })
+        expect(runtime.getSnapshot()).toMatchObject({ status: 'idle', messages: [] })
     })
 })
 

@@ -46,7 +46,10 @@ export function mapHistoryMessages(
     const messages: RuntimeMessage[] = []
 
     history.forEach((item, index) => {
-        const id = `history:${threadId}:${index}`
+        // 优先用服务端稳定消息 ID：刷新与分页前后同一个消息始终命中同一条记录，
+        // 反馈也据此绑定；旧服务端未下发 message_id 时退回「会话 + 下标」
+        const id = item.message_id ? `message:${item.message_id}` : `history:${threadId}:${index}`
+        const messageId = item.message_id
         // 服务端写入时间优先；旧数据没有 created_at 时保持 0，界面不展示伪造时间
         const createdAt = item.created_at ? Date.parse(item.created_at) : NO_TIMESTAMP
         const timestamp = Number.isNaN(createdAt) ? NO_TIMESTAMP : createdAt
@@ -65,19 +68,27 @@ export function mapHistoryMessages(
         }
 
         if (item.role === 'assistant') {
+            // 历史里带待恢复中断：刷新后仍显示表单，并按等待输入而非已完成渲染
+            const status = item.hitl ? 'awaiting_input' : 'done'
             const message = createRuntimeMessage({
                 id,
                 role: 'assistant',
                 content: item.content,
-                status: 'done',
+                status,
                 now: timestamp,
             })
             const steps = (item.tool_calls ?? []).map((call, stepIndex) =>
                 createHistoryStep(threadId, index, stepIndex, call),
             )
-            // 同一轮刚完成时用内存缓存恢复卡片；刷新后无缓存则保持 Markdown
-            const buildResult = readBuildResult(threadId, item.content)
-            messages.push({ ...message, steps, ...(buildResult ? { buildResult } : {}) })
+            // 服务端已持久化结果时直接使用；旧数据回退到本轮内存/会话缓存
+            const buildResult = item.buildResult ?? readBuildResult(threadId, item.content)
+            messages.push({
+                ...message,
+                steps,
+                ...(messageId ? { messageId } : {}),
+                ...(buildResult ? { buildResult } : {}),
+                ...(item.hitl ? { hitl: item.hitl } : {}),
+            })
             return
         }
 

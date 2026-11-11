@@ -36,4 +36,9 @@ export const queryKeys = {
     all: ['usage'] as const,
     modelUsage: (query: object) => ['usage', 'model-usage', query] as const,
   },
+  feedback: {
+    all: ['feedback'] as const,
+    /** 会话级评价集合：提交或取消后失效该 key，重新拉取以同步高亮 */
+    thread: (threadId: string) => ['feedback', 'thread', threadId] as const,
+  },
 } as const

@@ -1,9 +1,14 @@
 import type { ActionEvent } from '@openuidev/react-lang'
 
 import type { OpenUiFormFieldValue, OpenUiFormSubmission } from '../../types'
+import { OPEN_BUILD_DETAIL_ACTION } from './build-detail'
 
-/** 只有这两个内置动作允许到达宿主应用；其余类型一律丢弃 */
-export const ALLOWED_OPENUI_ACTION_TYPES = ['open_url', 'continue_conversation'] as const
+/** 只有白名单内的动作允许到达宿主应用；其余类型一律丢弃 */
+export const ALLOWED_OPENUI_ACTION_TYPES = [
+  'open_url',
+  'continue_conversation',
+  OPEN_BUILD_DETAIL_ACTION,
+] as const
 
 export type AllowedOpenUiActionType = (typeof ALLOWED_OPENUI_ACTION_TYPES)[number]
 
@@ -116,6 +121,8 @@ export interface OpenUiActionHandlers {
   readonly onContinueConversation?: (message: string) => void
   /** 表单提交时优先回调；未提供时退化为把字段文本并入继续对话消息 */
   readonly onSubmitForm?: (submission: OpenUiFormSubmission) => void
+  /** 打开宿主固定样式详情面板；不消费动作参数，数据来自当前消息的 buildResult */
+  readonly onOpenBuildDetail?: () => void
 }
 
 const isAllowedActionType = (type: string): type is AllowedOpenUiActionType =>
@@ -144,6 +151,14 @@ export function dispatchOpenUiAction(
       return 'ignored'
     }
     handlers.onOpenUrl(url.trim())
+    return 'handled'
+  }
+
+  if (event.type === OPEN_BUILD_DETAIL_ACTION) {
+    if (!handlers.onOpenBuildDetail) {
+      return 'ignored'
+    }
+    handlers.onOpenBuildDetail()
     return 'handled'
   }
 
