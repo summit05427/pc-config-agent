@@ -124,3 +124,17 @@ export async function httpJson<T>(config: AxiosRequestConfig): Promise<T> {
   const response = await httpClient.request<T>(config)
   return response.data
 }
+
+/**
+ * 下载类请求：直接返回原始响应体。
+ *
+ * 仅用于 CSV 等附件（响应不是 `{ code, data }` 信封），因此跳过信封解包；
+ * 鉴权、401 刷新与错误归一仍复用同一组拦截器。
+ */
+export async function httpBlob(config: AxiosRequestConfig): Promise<Blob> {
+  const response = await httpClient.request<Blob>({
+    ...config,
+    responseType: 'blob',
+  })
+  return response.data
+}

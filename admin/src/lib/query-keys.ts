@@ -24,4 +24,7 @@ export const queryKeys = {
   adminConnections: {
     all: ['admin-connections'] as const,
   },
+  adminFeedback: {
+    all: ['admin-feedback'] as const,
+  },
 }

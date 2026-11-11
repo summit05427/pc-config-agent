@@ -1,4 +1,4 @@
-import { Activity, Boxes, Plug, ScrollText, Users } from 'lucide-react'
+import { Activity, Boxes, Plug, ScrollText, ThumbsUp, Users } from 'lucide-react'
 import { type SidebarData } from '../types'
 
 /** 管理端导航：只列已实现的业务页面，演示页与未接入模块一律不展示。 */
@@ -26,6 +26,11 @@ export const sidebarData: SidebarData = {
           title: '模型连接',
           url: '/model-connections',
           icon: Plug,
+        },
+        {
+          title: '用户反馈',
+          url: '/feedback',
+          icon: ThumbsUp,
         },
         {
           title: '审计日志',

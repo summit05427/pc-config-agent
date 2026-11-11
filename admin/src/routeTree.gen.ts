@@ -21,6 +21,7 @@ import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authentic
 import { Route as AuthenticatedUsageIndexRouteImport } from './routes/_authenticated/usage/index'
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedModelConnectionsIndexRouteImport } from './routes/_authenticated/model-connections/index'
+import { Route as AuthenticatedFeedbackIndexRouteImport } from './routes/_authenticated/feedback/index'
 import { Route as AuthenticatedAuditLogsIndexRouteImport } from './routes/_authenticated/audit-logs/index'
 
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -84,6 +85,12 @@ const AuthenticatedModelConnectionsIndexRoute =
     path: '/model-connections/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFeedbackIndexRoute =
+  AuthenticatedFeedbackIndexRouteImport.update({
+    id: '/feedback/',
+    path: '/feedback/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAuditLogsIndexRoute =
   AuthenticatedAuditLogsIndexRouteImport.update({
     id: '/audit-logs/',
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/500': typeof errors500Route
   '/503': typeof errors503Route
   '/audit-logs/': typeof AuthenticatedAuditLogsIndexRoute
+  '/feedback/': typeof AuthenticatedFeedbackIndexRoute
   '/model-connections/': typeof AuthenticatedModelConnectionsIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
   '/usage/': typeof AuthenticatedUsageIndexRoute
@@ -114,6 +122,7 @@ export interface FileRoutesByTo {
   '/503': typeof errors503Route
   '/': typeof AuthenticatedIndexRoute
   '/audit-logs': typeof AuthenticatedAuditLogsIndexRoute
+  '/feedback': typeof AuthenticatedFeedbackIndexRoute
   '/model-connections': typeof AuthenticatedModelConnectionsIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
   '/usage': typeof AuthenticatedUsageIndexRoute
@@ -130,6 +139,7 @@ export interface FileRoutesById {
   '/(errors)/503': typeof errors503Route
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/audit-logs/': typeof AuthenticatedAuditLogsIndexRoute
+  '/_authenticated/feedback/': typeof AuthenticatedFeedbackIndexRoute
   '/_authenticated/model-connections/': typeof AuthenticatedModelConnectionsIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
   '/_authenticated/usage/': typeof AuthenticatedUsageIndexRoute
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/500'
     | '/503'
     | '/audit-logs/'
+    | '/feedback/'
     | '/model-connections/'
     | '/models/'
     | '/usage/'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/503'
     | '/'
     | '/audit-logs'
+    | '/feedback'
     | '/model-connections'
     | '/models'
     | '/usage'
@@ -175,6 +187,7 @@ export interface FileRouteTypes {
     | '/(errors)/503'
     | '/_authenticated/'
     | '/_authenticated/audit-logs/'
+    | '/_authenticated/feedback/'
     | '/_authenticated/model-connections/'
     | '/_authenticated/models/'
     | '/_authenticated/usage/'
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedModelConnectionsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/feedback/': {
+      id: '/_authenticated/feedback/'
+      path: '/feedback'
+      fullPath: '/feedback/'
+      preLoaderRoute: typeof AuthenticatedFeedbackIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/audit-logs/': {
       id: '/_authenticated/audit-logs/'
       path: '/audit-logs'
@@ -290,6 +310,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedAuditLogsIndexRoute: typeof AuthenticatedAuditLogsIndexRoute
+  AuthenticatedFeedbackIndexRoute: typeof AuthenticatedFeedbackIndexRoute
   AuthenticatedModelConnectionsIndexRoute: typeof AuthenticatedModelConnectionsIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
   AuthenticatedUsageIndexRoute: typeof AuthenticatedUsageIndexRoute
@@ -299,6 +320,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedAuditLogsIndexRoute: AuthenticatedAuditLogsIndexRoute,
+  AuthenticatedFeedbackIndexRoute: AuthenticatedFeedbackIndexRoute,
   AuthenticatedModelConnectionsIndexRoute:
     AuthenticatedModelConnectionsIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
