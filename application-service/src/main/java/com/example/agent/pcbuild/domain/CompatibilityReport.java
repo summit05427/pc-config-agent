@@ -15,7 +15,7 @@ public record CompatibilityReport(
         List<CompatibilityCheck> checks) {
 
     /** 当前规则版本；规则语义变化时必须递增。 */
-    public static final String RULE_VERSION = "pc-compat-1.0.0";
+    public static final String RULE_VERSION = "pc-compat-2.0.0";
 
     public CompatibilityReport {
         checks = checks == null ? List.of() : List.copyOf(checks);

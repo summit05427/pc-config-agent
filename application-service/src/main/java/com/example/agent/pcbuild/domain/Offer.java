@@ -23,7 +23,7 @@ import java.util.Objects;
  * @param verifiedAt 核验日期，可为 {@code null}（演示价）
  * @param validUntil 有效期，可为 {@code null}
  * @param matchStatus 匹配状态
- * @param priceSource 价格来源，{@code OWNER_VERIFIED} 或 {@code MOCK_DEMO}
+ * @param priceSource 价格来源，{@code OWNER_VERIFIED}、{@code PLATFORM_OBSERVED} 或 {@code MOCK_DEMO}
  * @param notes      备注
  */
 public record Offer(
@@ -50,6 +50,9 @@ public record Offer(
     /** 演示价使用的匹配状态；可参与演示求解，但必须标注来源。 */
     public static final String MATCH_MOCK = "MOCK";
 
+    /** 平台观测价：来自电商检索结果，未经人工核验，可用于估算但不得表述为已核验。 */
+    public static final String MATCH_OBSERVED = "OBSERVED";
+
     /**
      * @return 是否为人工核验价
      */
@@ -60,15 +63,17 @@ public record Offer(
     /**
      * 判断报价在给定日期是否可用于求解。
      *
-     * <p>有效条件：价格为正、匹配状态为 {@code VERIFIED} 或 {@code MOCK}、
-     * 且没有过期（{@code valid_until} 为空视为长期有效）。</p>
+     * <p>有效条件：价格为正、匹配状态为 {@code VERIFIED}、{@code MOCK} 或 {@code OBSERVED}、
+     * 且没有过期（{@code valid_until} 为空视为长期有效）。是否接受观测价由调用方的
+     * {@code requireVerified} 决定，不能靠本方法兜底。</p>
      *
      * @param asOf 询价日期
      * @return 可用于求解时为 {@code true}
      */
     public boolean isUsableOn(LocalDate asOf) {
         boolean isMatched = MATCH_VERIFIED.equalsIgnoreCase(matchStatus)
-                || MATCH_MOCK.equalsIgnoreCase(matchStatus);
+                || MATCH_MOCK.equalsIgnoreCase(matchStatus)
+                || MATCH_OBSERVED.equalsIgnoreCase(matchStatus);
         boolean isNotExpired = validUntil == null
                 || (asOf != null && !validUntil.isBefore(asOf));
         return isMatched && priceFen > 0 && isNotExpired && Objects.nonNull(hardwareId);

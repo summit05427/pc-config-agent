@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.agent.pcbuild.application.BuildSolveService;
 import com.example.agent.pcbuild.application.SolveExecutionResult;
+import com.example.agent.pcbuild.application.port.BuildSnapshotRepository;
 import com.example.agent.pcbuild.domain.BuildRequirements;
 import com.example.agent.pcbuild.domain.BuildScenario;
+import com.example.agent.pcbuild.domain.BuildSolverVersion;
+import com.example.agent.pcbuild.domain.BuildSnapshot;
+import com.example.agent.pcbuild.domain.Preference;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
 import com.example.agent.shared.error.BusinessException;
 import java.util.UUID;
@@ -41,6 +45,9 @@ class BuildSnapshotPersistenceTests {
     @Autowired
     private BuildSolveService buildSolveService;
 
+    @Autowired
+    private BuildSnapshotRepository buildSnapshotRepository;
+
     @Test
     void solvedBuild_shouldBeReadableByOwnerWithAllComponents() {
         UUID userId = UUID.randomUUID();
@@ -54,10 +61,49 @@ class BuildSnapshotPersistenceTests {
         assertThat(response.components()).hasSize(8);
         assertThat(response.totalPriceFen()).isEqualTo(execution.build().totalPriceFen());
         assertThat(response.verifiedOfferCount() + response.demoOfferCount()).isEqualTo(8);
-        assertThat(response.compatibilityReport().checks()).hasSize(8);
+        // 九条兼容性规则（原八条 + 内存条数）。
+        assertThat(response.compatibilityReport().checks()).hasSize(9);
+        assertThat(response.compatibilityRuleVersion()).isEqualTo("pc-compat-2.0.0");
+        // 版本号随实现升级，断言直接引用常量，避免每次升级都要改测试。
+        assertThat(response.solverVersion()).isEqualTo(BuildSolverVersion.SOLVER_VERSION);
+        assertThat(response.scoringVersion()).isEqualTo("pc-scoring-1.0.0");
+        assertThat(response.requirements().workloadProfile()).isNotNull();
         assertThat(response.offerDataStatus()).isEqualTo("MIXED_DEMO");
-        assertThat(response.solverVersion()).isEqualTo(execution.build().solverVersion());
         assertThat(response.createdAt()).isNotNull();
+        // 快照读取时按组件与跑分重建逐件理由，历史方案不因读取路径丢失解释。
+        assertThat(response.componentReasons()).hasSize(8);
+        assertThat(response.reasonSummary()).isNotBlank();
+    }
+
+    @Test
+    void requirementsSnapshot_shouldCarryProfileRenderModeAndScoringVersion() {
+        UUID userId = UUID.randomUUID();
+        SolveExecutionResult execution = buildSolveService.solve(userId, requirements());
+        assertThat(execution.isSolved()).isTrue();
+
+        BuildSnapshot snapshot = buildSnapshotRepository
+                .findByIdAndUserId(execution.build().buildId(), userId)
+                .orElseThrow();
+        assertThat(snapshot.requirementsSnapshot())
+                .contains("\"workloadProfile\"")
+                .contains("\"renderMode\"")
+                .contains("\"scoringVersion\"");
+    }
+
+    @Test
+    void requirementsSnapshot_shouldCarryPreference() {
+        UUID userId = UUID.randomUUID();
+        BuildRequirements valueRequirements = new BuildRequirements(
+                2_000_000L, BuildScenario.GAMING, null, null, false,
+                null, null, null, Preference.VALUE);
+        SolveExecutionResult execution = buildSolveService.solve(userId, valueRequirements);
+        assertThat(execution.isSolved()).isTrue();
+
+        BuildSnapshot snapshot = buildSnapshotRepository
+                .findByIdAndUserId(execution.build().buildId(), userId)
+                .orElseThrow();
+        // 快照按带空格的 JSON 序列化，断言空格后的值而非紧凑格式。
+        assertThat(snapshot.requirementsSnapshot()).contains("\"preference\": \"VALUE\"");
     }
 
     @Test

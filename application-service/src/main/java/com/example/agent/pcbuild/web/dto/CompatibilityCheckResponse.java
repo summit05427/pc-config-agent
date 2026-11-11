@@ -13,6 +13,7 @@ public record CompatibilityCheckResponse(
         String ruleId,
         String ruleName,
         CompatibilityStatus status,
+        String riskLevel,
         String message,
         List<String> hardwareIds) {
 
@@ -25,6 +26,7 @@ public record CompatibilityCheckResponse(
                 check.ruleId(),
                 check.ruleName(),
                 check.status(),
+                check.riskLevel() == null ? null : check.riskLevel().name(),
                 check.message(),
                 check.hardwareIds());
     }

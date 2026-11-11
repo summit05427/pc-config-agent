@@ -25,6 +25,8 @@ public record CatalogFixture(
 
     /**
      * 单条硬件。
+     *
+     * @param source 采集来源节点，图片与参考价都挂在这里
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Entry(
@@ -33,9 +35,21 @@ public record CatalogFixture(
             @JsonProperty("brand") String brand,
             @JsonProperty("model_name") String modelName,
             @JsonProperty("display_name") String displayName,
+            @JsonProperty("source") Source source,
             @JsonProperty("specifications") HardwareSpecifications specifications,
             @JsonProperty("data_quality_status") String dataQualityStatus,
             @JsonProperty("lifecycle_status") String lifecycleStatus,
             @JsonProperty("recommendation_status") String recommendationStatus) {
+    }
+
+    /**
+     * 采集来源节点。
+     *
+     * <p>只有部分条目带图片，缺失是正常状态，不能编造占位图。</p>
+     *
+     * @param imageUrl 商品图地址，可能为空
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Source(@JsonProperty("image_url") String imageUrl) {
     }
 }

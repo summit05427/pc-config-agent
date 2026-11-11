@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.agent.feedback.infrastructure.MessageFeedbackMapper">
+
+    <resultMap id="messageFeedbackRowMap" type="com.example.agent.feedback.infrastructure.MessageFeedbackRow">
+        <result column="message_id" property="messageId"/>
+        <result column="rating" property="rating"/>
+        <result column="reason_code" property="reasonCode"/>
+    </resultMap>
+
+    <resultMap id="adminFeedbackRowMap" type="com.example.agent.feedback.infrastructure.AdminFeedbackRow">
+        <result column="user_id" property="userId"/>
+        <result column="username" property="username"/>
+        <result column="thread_id" property="threadId"/>
+        <result column="message_id" property="messageId"/>
+        <result column="rating" property="rating"/>
+        <result column="reason_code" property="reasonCode"/>
+        <result column="comment" property="comment"/>
+        <result column="created_at" property="createdAt"/>
+    </resultMap>
+
+    <resultMap id="ratingCountRowMap" type="com.example.agent.feedback.infrastructure.FeedbackRatingCountRow">
+        <result column="up_count" property="upCount"/>
+        <result column="down_count" property="downCount"/>
+    </resultMap>
+
+    <resultMap id="reasonCountRowMap" type="com.example.agent.feedback.infrastructure.FeedbackReasonCountRow">
+        <result column="reason_code" property="reasonCode"/>
+        <result column="total" property="total"/>
+    </resultMap>
+
+    <!--
+        重复提交按 upsert 覆盖：前端允许用户改评价，唯一键 (user_id, message_id) 保证
+        同一消息只留一条记录，管理端统计不会因为反复点击而重复计数。
+    -->
+    <insert id="upsert">
+        INSERT INTO message_feedback (user_id, thread_id, message_id, rating, reason_code, comment, created_at, updated_at)
+        VALUES (
+            #{userId}::uuid,
+            #{threadId},
+            #{messageId},
+            #{rating},
+            #{reasonCode,jdbcType=VARCHAR},
+            #{comment,jdbcType=VARCHAR},
+            now(),
+            now()
+        )
+        ON CONFLICT (user_id, message_id) DO UPDATE
+        SET thread_id = EXCLUDED.thread_id,
+            rating = EXCLUDED.rating,
+            reason_code = EXCLUDED.reason_code,
+            comment = EXCLUDED.comment,
+            updated_at = now()
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM message_feedback
+        WHERE user_id = #{userId}::uuid AND message_id = #{messageId}
+    </delete>
+
+    <select id="findByThread" resultMap="messageFeedbackRowMap">
+        SELECT message_id, rating, reason_code
+        FROM message_feedback
+        WHERE user_id = #{userId}::uuid AND thread_id = #{threadId}
+        ORDER BY created_at ASC, id ASC
+    </select>
+
+    <!-- 管理端筛选条件：空值不参与拼接，调用方统一以 WHERE 1 = 1 起头 -->
+    <sql id="adminFeedbackFilters">
+        <if test="filter.rating != null">
+            AND f.rating = #{filter.rating}
+        </if>
+        <if test="filter.reasonCode != null">
+            AND f.reason_code = #{filter.reasonCode}
+        </if>
+        <if test="filter.userId != null">
+            AND f.user_id = #{filter.userId}::uuid
+        </if>
+        <if test="filter.threadId != null">
+            AND f.thread_id = #{filter.threadId}
+        </if>
+        <if test="filter.fromInclusive != null">
+            AND f.created_at &gt;= #{filter.fromInclusive}
+        </if>
+        <if test="filter.toExclusive != null">
+            AND f.created_at &lt; #{filter.toExclusive}
+        </if>
+    </sql>
+
+    <select id="countPage" resultType="long">
+        SELECT count(*)
+        FROM message_feedback f
+        WHERE 1 = 1
+        <include refid="adminFeedbackFilters"/>
+    </select>
+
+    <!-- 登录名优先展示昵称；用户已删除时 LEFT JOIN 得到 NULL，不丢反馈行 -->
+    <select id="selectPage" resultMap="adminFeedbackRowMap">
+        SELECT f.user_id::text AS user_id,
+               COALESCE(NULLIF(us.display_name, ''), us.username) AS username,
+               f.thread_id, f.message_id, f.rating, f.reason_code, f.comment, f.created_at
+        FROM message_feedback f
+        LEFT JOIN users us ON us.public_id = f.user_id
+        WHERE 1 = 1
+        <include refid="adminFeedbackFilters"/>
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT #{size} OFFSET #{offset}
+    </select>
+
+    <select id="countByRating" resultMap="ratingCountRowMap">
+        SELECT count(*) FILTER (WHERE f.rating = 'UP') AS up_count,
+               count(*) FILTER (WHERE f.rating = 'DOWN') AS down_count
+        FROM message_feedback f
+        WHERE 1 = 1
+        <include refid="adminFeedbackFilters"/>
+    </select>
+
+    <!-- 只统计踩的原因：点赞的 reason_code 为空，不进入原因分布 -->
+    <select id="countByReason" resultMap="reasonCountRowMap">
+        SELECT f.reason_code, count(*) AS total
+        FROM message_feedback f
+        WHERE f.rating = 'DOWN' AND f.reason_code IS NOT NULL
+        <include refid="adminFeedbackFilters"/>
+        GROUP BY f.reason_code
+        ORDER BY total DESC, f.reason_code ASC
+    </select>
+
+    <select id="selectForExport" resultMap="adminFeedbackRowMap">
+        SELECT f.user_id::text AS user_id,
+               COALESCE(NULLIF(us.display_name, ''), us.username) AS username,
+               f.thread_id, f.message_id, f.rating, f.reason_code, f.comment, f.created_at
+        FROM message_feedback f
+        LEFT JOIN users us ON us.public_id = f.user_id
+        WHERE 1 = 1
+        <include refid="adminFeedbackFilters"/>
+        ORDER BY f.created_at DESC, f.id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

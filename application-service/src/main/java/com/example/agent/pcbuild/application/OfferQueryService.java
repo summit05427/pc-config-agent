@@ -93,7 +93,7 @@ public class OfferQueryService {
     }
 
     /**
-     * @return 演示报价条数
+     * @return 非人工核验报价条数，包含演示价与平台观测价
      */
     public long mockCount() {
         return repository.findAll().stream().filter(offer -> !offer.isVerifiedPrice()).count();

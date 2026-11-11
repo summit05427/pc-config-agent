@@ -9,7 +9,7 @@ package com.example.agent.pcbuild.domain;
 public final class BuildSolverVersion {
 
     /** 当前求解器版本。 */
-    public static final String SOLVER_VERSION = "pc-solver-1.0.0";
+    public static final String SOLVER_VERSION = "pc-solver-2.1.0";
 
     private BuildSolverVersion() {
     }

@@ -14,7 +14,8 @@ public enum BuildScenario {
     PROGRAMMING(80, 20),
     WORKSTATION(60, 40),
     OFFICE(85, 15),
-    BALANCED(50, 50);
+    BALANCED(50, 50),
+    AI_INFERENCE(40, 60);
 
     private final int cpuWeight;
     private final int gpuWeight;
@@ -53,6 +54,7 @@ public enum BuildScenario {
             case "WORKSTATION" -> WORKSTATION;
             case "OFFICE" -> OFFICE;
             case "BALANCED" -> BALANCED;
+            case "AI_INFERENCE" -> AI_INFERENCE;
             default -> null;
         };
     }

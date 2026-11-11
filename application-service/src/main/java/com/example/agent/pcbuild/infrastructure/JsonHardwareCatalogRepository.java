@@ -77,6 +77,7 @@ public class JsonHardwareCatalogRepository implements HardwareCatalogRepository 
                 entry.brand(),
                 entry.modelName(),
                 entry.displayName(),
+                entry.source() == null ? null : entry.source().imageUrl(),
                 specifications,
                 entry.dataQualityStatus(),
                 entry.lifecycleStatus(),

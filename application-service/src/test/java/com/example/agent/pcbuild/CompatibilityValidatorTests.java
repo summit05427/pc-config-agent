@@ -11,6 +11,7 @@ import com.example.agent.pcbuild.domain.Hardware;
 import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.domain.HardwareSelection;
 import com.example.agent.pcbuild.domain.HardwareSpecifications;
+import com.example.agent.pcbuild.domain.RiskLevel;
 import com.example.agent.pcbuild.infrastructure.JsonHardwareCatalogRepository;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -33,8 +34,8 @@ class CompatibilityValidatorTests {
     void baseline_shouldPassAllRulesExceptUnknownCoolerHeight() {
         CompatibilityReport report = validator.validate(baseline());
 
-        assertThat(report.ruleVersion()).isEqualTo(CompatibilityReport.RULE_VERSION);
-        assertThat(report.checks()).hasSize(8);
+        assertThat(report.ruleVersion()).isEqualTo("pc-compat-2.0.0");
+        assertThat(report.checks()).hasSize(9);
         assertThat(report.hasFailure()).isFalse();
         assertThat(status(report, CompatibilityRule.CPU_SOCKET_MOTHERBOARD))
                 .isEqualTo(CompatibilityStatus.PASS);
@@ -46,14 +47,57 @@ class CompatibilityValidatorTests {
                 .isEqualTo(CompatibilityStatus.PASS);
         assertThat(status(report, CompatibilityRule.COOLER_CPU_SOCKET))
                 .isEqualTo(CompatibilityStatus.PASS);
-        // 机箱未提供 max_cooler_height_mm，必须 UNKNOWN。
+        // 机箱未提供 max_cooler_height_mm：按产品策略默认通过，不再阻断推荐。
         assertThat(status(report, CompatibilityRule.COOLER_CASE_HEIGHT))
-                .isEqualTo(CompatibilityStatus.UNKNOWN);
+                .isEqualTo(CompatibilityStatus.PASS);
         assertThat(status(report, CompatibilityRule.GPU_PSU_POWER))
                 .isEqualTo(CompatibilityStatus.PASS);
         assertThat(status(report, CompatibilityRule.STORAGE_MOTHERBOARD_M2))
                 .isEqualTo(CompatibilityStatus.PASS);
-        assertThat(report.overallStatus()).isEqualTo(CompatibilityStatus.UNKNOWN);
+        assertThat(status(report, CompatibilityRule.MEMORY_MODULE_COUNT))
+                .isEqualTo(CompatibilityStatus.PASS);
+        assertThat(report.overallStatus()).isEqualTo(CompatibilityStatus.PASS);
+    }
+
+    @Test
+    void everyRule_shouldBeBlockingRiskLevel() {
+        CompatibilityReport report = validator.validate(baseline());
+
+        assertThat(report.checks()).allSatisfy(check ->
+                assertThat(check.riskLevel()).isEqualTo(RiskLevel.BLOCKING));
+    }
+
+    @Test
+    void memoryModuleCountGreaterThanSlots_shouldFail() {
+        Hardware sixModules = synthetic(
+                "memory-test-six-modules", HardwareCategory.MEMORY,
+                "{\"memory_type\":\"DDR5\",\"capacity_gb\":96,\"module_count\":6,\"module_size_gb\":16}");
+        HardwareSelection selection = baseline().with(HardwareCategory.MEMORY, sixModules);
+
+        CompatibilityCheck check = validator.check(CompatibilityRule.MEMORY_MODULE_COUNT, selection);
+
+        assertThat(check.status()).isEqualTo(CompatibilityStatus.FAIL);
+        assertThat(check.message()).contains("6").contains("4");
+    }
+
+    @Test
+    void missingMemorySlots_shouldBeUnknownForModuleCount() {
+        Hardware motherboard = synthetic(
+                "mb-test-no-memory-slots", HardwareCategory.MOTHERBOARD,
+                "{\"socket\":\"AM5\",\"form_factor\":\"ATX\",\"memory_type\":\"DDR5\",\"m2_slot_count\":1}");
+        HardwareSelection selection = baseline().with(HardwareCategory.MOTHERBOARD, motherboard);
+
+        CompatibilityCheck check = validator.check(CompatibilityRule.MEMORY_MODULE_COUNT, selection);
+
+        assertThat(check.status()).isEqualTo(CompatibilityStatus.UNKNOWN);
+        assertThat(check.message()).contains("插槽");
+    }
+
+    @Test
+    void redundantMemoryModuleCount_shouldPass() {
+        CompatibilityCheck check = validator.check(CompatibilityRule.MEMORY_MODULE_COUNT, baseline());
+
+        assertThat(check.status()).isEqualTo(CompatibilityStatus.PASS);
     }
 
     @Test
@@ -124,10 +168,10 @@ class CompatibilityValidatorTests {
     }
 
     @Test
-    void missingCoolerHeight_shouldBeUnknown_notPass() {
-        // 真实 fixture：机箱限高为 null。
+    void missingCoolerHeight_shouldDefaultToPass() {
+        // 真实 fixture：机箱限高为 null，按产品策略默认放行。
         assertThat(validator.check(CompatibilityRule.COOLER_CASE_HEIGHT, baseline()).status())
-                .isEqualTo(CompatibilityStatus.UNKNOWN);
+                .isEqualTo(CompatibilityStatus.PASS);
     }
 
     @Test
@@ -189,7 +233,7 @@ class CompatibilityValidatorTests {
     void emptySelection_shouldReturnUnknownForEveryRule() {
         CompatibilityReport report = validator.validate(HardwareSelection.empty());
 
-        assertThat(report.checks()).hasSize(8);
+        assertThat(report.checks()).hasSize(9);
         assertThat(report.checks()).allSatisfy(check ->
                 assertThat(check.status()).isEqualTo(CompatibilityStatus.UNKNOWN));
         assertThat(report.overallStatus()).isEqualTo(CompatibilityStatus.UNKNOWN);
@@ -209,7 +253,8 @@ class CompatibilityValidatorTests {
                 CompatibilityRule.COOLER_CPU_SOCKET.ruleId(),
                 CompatibilityRule.COOLER_CASE_HEIGHT.ruleId(),
                 CompatibilityRule.GPU_PSU_POWER.ruleId(),
-                CompatibilityRule.STORAGE_MOTHERBOARD_M2.ruleId());
+                CompatibilityRule.STORAGE_MOTHERBOARD_M2.ruleId(),
+                CompatibilityRule.MEMORY_MODULE_COUNT.ruleId());
     }
 
     private CompatibilityStatus status(CompatibilityReport report, CompatibilityRule rule) {
@@ -241,7 +286,7 @@ class CompatibilityValidatorTests {
         HardwareSpecifications specifications = OBJECT_MAPPER.readValue(
                 specificationsJson, HardwareSpecifications.class);
         return new Hardware(
-                hardwareId, category, "test", "test", null, specifications,
+                hardwareId, category, "test", "test", null, null, specifications,
                 "PARTIAL", "CURRENT", "ELIGIBLE");
     }
 }

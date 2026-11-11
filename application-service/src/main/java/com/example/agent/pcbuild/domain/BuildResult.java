@@ -21,6 +21,8 @@ import java.util.UUID;
  * @param catalogVersion           硬件目录版本
  * @param offerDataStatus          报价数据状态
  * @param createdAt                创建时间
+ * @param componentRationales      逐类硬件确定性理由
+ * @param reasonSummary            面向用户的推荐摘要
  */
 public record BuildResult(
         UUID buildId,
@@ -35,10 +37,16 @@ public record BuildResult(
         String compatibilityRuleVersion,
         String catalogVersion,
         String offerDataStatus,
-        Instant createdAt) {
+        Instant createdAt,
+        List<ComponentRationale> componentRationales,
+        String reasonSummary) {
 
     public BuildResult {
         components = components == null ? List.of() : List.copyOf(components);
+        componentRationales = componentRationales == null
+                ? List.of()
+                : List.copyOf(componentRationales);
+        reasonSummary = reasonSummary == null ? "" : reasonSummary;
     }
 
     /**
@@ -70,13 +78,18 @@ public record BuildResult(
      */
     public static BuildResult fromDraft(UUID userId, UUID buildId, BuildDraft draft, Instant createdAt) {
         List<BuildComponent> components = new ArrayList<>();
+        List<BuildExplanations.ComponentInput> inputs = new ArrayList<>();
         for (HardwareCategory category : HardwareCategory.REQUIRED_CATEGORIES) {
             Hardware hardware = draft.selection().get(category);
-            components.add(new BuildComponent(
+            Offer offer = draft.offers().get(category);
+            Benchmark benchmark = draft.benchmarks().get(category);
+            components.add(new BuildComponent(hardware, offer, benchmark, hardware.specSummary()));
+            inputs.add(new BuildExplanations.ComponentInput(
+                    category,
+                    hardware.hardwareId(),
                     hardware,
-                    draft.offers().get(category),
-                    draft.benchmarks().get(category),
-                    hardware.specSummary()));
+                    benchmark,
+                    offer == null ? 0L : offer.priceFen()));
         }
         BudgetStatus budgetStatus = draft.requirements().hasBudget()
                 ? BudgetStatus.WITHIN_BUDGET
@@ -94,6 +107,9 @@ public record BuildResult(
                 CompatibilityReport.RULE_VERSION,
                 draft.catalogVersion(),
                 draft.offerDataStatus(),
-                createdAt);
+                createdAt,
+                BuildExplanations.componentRationales(
+                        draft.requirements(), inputs, draft.totalPriceFen()),
+                BuildExplanations.reasonSummary(draft.requirements()));
     }
 }

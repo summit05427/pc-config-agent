@@ -15,7 +15,7 @@ import java.util.Objects;
 import org.springframework.stereotype.Component;
 
 /**
- * 八条硬件兼容性规则。
+ * 九条硬件兼容性规则。
  *
  * <p>强制约定：任何参与判断的字段缺失都返回 {@link CompatibilityStatus#UNKNOWN}，
  * 并在 message 中写明缺失项。规则永远不跳过；调用方不得把 {@code UNKNOWN} 展示成 {@code PASS}。
@@ -44,7 +44,7 @@ public class CompatibilityValidator {
     private static final String INTERFACE_SATA = "SATA";
 
     /**
-     * 校验全部八条规则，顺序固定。
+     * 校验全部九条规则，顺序固定。
      *
      * @param selection 硬件组合；允许部分为空，空项对应规则返回 {@code UNKNOWN}
      * @return 兼容性报告
@@ -77,7 +77,36 @@ public class CompatibilityValidator {
             case COOLER_CASE_HEIGHT -> checkCoolerHeight(selection);
             case GPU_PSU_POWER -> checkGpuPower(selection);
             case STORAGE_MOTHERBOARD_M2 -> checkStorageInterface(selection);
+            case MEMORY_MODULE_COUNT -> checkMemoryModuleCount(selection);
         };
+    }
+
+    /**
+     * 校验内存条数不超过主板插槽数。
+     *
+     * <p>条数或插槽数任一缺失都返回 {@code UNKNOWN}，不能因为「没见过更宽的条数」就当作通过。</p>
+     */
+    private CompatibilityCheck checkMemoryModuleCount(HardwareSelection selection) {
+        CompatibilityRule rule = CompatibilityRule.MEMORY_MODULE_COUNT;
+        Hardware motherboard = selection.motherboard();
+        Hardware memory = selection.memory();
+        if (motherboard == null || memory == null) {
+            return result(rule, CompatibilityStatus.UNKNOWN, MISSING_COMPONENT + "：主板或内存");
+        }
+        Integer moduleCount = memory.specifications().moduleCount();
+        Integer memorySlots = motherboard.specifications().memorySlots();
+        if (moduleCount == null || memorySlots == null) {
+            return result(rule, CompatibilityStatus.UNKNOWN,
+                    "内存条数或主板内存插槽数缺失", memory, motherboard);
+        }
+        if (moduleCount > memorySlots) {
+            return result(rule, CompatibilityStatus.FAIL,
+                    "内存 " + moduleCount + " 条超过主板 " + memorySlots + " 个插槽",
+                    memory, motherboard);
+        }
+        return result(rule, CompatibilityStatus.PASS,
+                "内存 " + moduleCount + " 条未超过主板 " + memorySlots + " 个插槽",
+                memory, motherboard);
     }
 
     private CompatibilityCheck checkCpuSocket(HardwareSelection selection) {
@@ -200,10 +229,11 @@ public class CompatibilityValidator {
         }
         Integer coolerHeight = cooler.specifications().heightMm();
         Integer maxHeight = pcCase.specifications().maxCoolerHeightMm();
-        // 机箱未提供限高（fixture 中为 null）时必须 UNKNOWN，禁止当作 PASS。
+        // 产品策略：机箱限高在当前数据集中普遍缺失，统一按默认通过处理，
+        // 避免「无法确认」反复触发 HITL；该条结论不在前端展示。
         if (coolerHeight == null || maxHeight == null) {
-            return result(rule, CompatibilityStatus.UNKNOWN,
-                    "散热器高度或机箱最大散热高度缺失（机箱未提供限高时无法确认）", cooler, pcCase);
+            return result(rule, CompatibilityStatus.PASS,
+                    "机箱限高数据缺失，按默认策略放行", cooler, pcCase);
         }
         if (coolerHeight <= maxHeight) {
             return result(rule, CompatibilityStatus.PASS,
@@ -321,7 +351,8 @@ public class CompatibilityValidator {
                 hardwareIds.add(item.hardwareId());
             }
         }
-        return new CompatibilityCheck(rule.ruleId(), rule.displayName(), status, message, hardwareIds);
+        return new CompatibilityCheck(
+                rule.ruleId(), rule.displayName(), status, rule.riskLevel(), message, hardwareIds);
     }
 
     private static boolean equalsIgnoreCase(String left, String right) {

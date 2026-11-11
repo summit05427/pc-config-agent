@@ -11,6 +11,7 @@ import java.util.StringJoiner;
  * @param brand                品牌
  * @param modelName            型号名
  * @param displayName          展示名，可为 {@code null}
+ * @param imageUrl             商品图地址，来自 catalog，可为 {@code null}
  * @param specifications       归一化规格
  * @param dataQualityStatus    数据质量状态，{@code PARTIAL} 表示存在未核验字段
  * @param lifecycleStatus      生命周期状态
@@ -22,6 +23,7 @@ public record Hardware(
         String brand,
         String modelName,
         String displayName,
+        String imageUrl,
         HardwareSpecifications specifications,
         String dataQualityStatus,
         String lifecycleStatus,

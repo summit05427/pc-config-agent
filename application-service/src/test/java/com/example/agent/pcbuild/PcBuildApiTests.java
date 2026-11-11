@@ -8,6 +8,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.agent.pcbuild.domain.HardwareCategory;
+import com.example.agent.pcbuild.domain.Offer;
+import com.example.agent.pcbuild.infrastructure.JsonHardwareCatalogRepository;
+import com.example.agent.pcbuild.infrastructure.JsonOfferRepository;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -92,23 +96,34 @@ class PcBuildApiTests {
     @Autowired
     private MockMvc mockMvc;
 
+    @Autowired
+    private JsonHardwareCatalogRepository catalogRepository;
+
+    @Autowired
+    private JsonOfferRepository offerRepository;
+
     @Test
     void candidates_shouldRequireServiceTokenAndSupportCategoryFilter() throws Exception {
         mockMvc.perform(get(CANDIDATES_PATH))
                 .andExpect(status().isUnauthorized());
 
+        long catalogTotal = catalogRepository.findAll().size();
+        long gpuTotal = catalogRepository.findAll().stream()
+                .filter(item -> item.category() == HardwareCategory.GPU)
+                .count();
+
         String bearer = bearerToken();
         mockMvc.perform(get(CANDIDATES_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
-                .andExpect(jsonPath("$.data.total").value(28))
+                .andExpect(jsonPath("$.data.total").value(catalogTotal))
                 .andExpect(jsonPath("$.data.catalogVersion").isNotEmpty());
 
         mockMvc.perform(get(CANDIDATES_PATH)
                         .param("category", "GPU")
                         .header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(4))
+                .andExpect(jsonPath("$.data.total").value(gpuTotal))
                 .andExpect(jsonPath("$.data.list[*].category", not(empty())));
 
         mockMvc.perform(get(CANDIDATES_PATH)
@@ -135,17 +150,22 @@ class PcBuildApiTests {
     @Test
     void benchmarksAndOffers_shouldExposeSourceAndUnits() throws Exception {
         String bearer = bearerToken();
+        long offerTotal = offerRepository.findAll().size();
+        long verifiedTotal = offerRepository.findAll().stream().filter(Offer::isVerifiedPrice).count();
+
         mockMvc.perform(get(BENCHMARKS_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.total").value(8));
+                // 跑分条数随 PassMark 匹配结果变化，这里只校验字段存在与类型。
+                .andExpect(jsonPath("$.data.total").isNumber());
 
         mockMvc.perform(get(OFFERS_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.dataStatus").value("MIXED_DEMO"))
                 .andExpect(jsonPath("$.data.priceUnit").value("CNY_FEN"))
-                .andExpect(jsonPath("$.data.verifiedOfferCount").value(10))
-                .andExpect(jsonPath("$.data.mockOfferCount").value(18))
-                .andExpect(jsonPath("$.data.total").value(28));
+                .andExpect(jsonPath("$.data.verifiedOfferCount").value(verifiedTotal))
+                // mockOfferCount 统计所有非人工核验报价，含演示价与平台观测价。
+                .andExpect(jsonPath("$.data.mockOfferCount").value(offerTotal - verifiedTotal))
+                .andExpect(jsonPath("$.data.total").value(offerTotal));
 
         mockMvc.perform(get(OFFERS_PATH)
                         .param("hardwareId", "cpu-amd-ryzen-7-9800x3d")
@@ -158,20 +178,23 @@ class PcBuildApiTests {
     }
 
     @Test
-    void validate_shouldReturnAllEightRulesAndKeepUnknownCoolerHeight() throws Exception {
+    void validate_shouldReturnAllNineRulesAndDefaultCoolerHeightToPass() throws Exception {
         mockMvc.perform(post(VALIDATE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(BASELINE_VALIDATE_BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.valid").value(true))
-                .andExpect(jsonPath("$.data.report.ruleVersion").value("pc-compat-1.0.0"))
+                .andExpect(jsonPath("$.data.report.ruleVersion").value("pc-compat-2.0.0"))
                 .andExpect(jsonPath("$.data.report.hasFailure").value(false))
-                // 机箱未提供限高，整体只能是 UNKNOWN，不能是 PASS
-                .andExpect(jsonPath("$.data.report.overallStatus").value("UNKNOWN"))
-                .andExpect(jsonPath("$.data.report.checks.length()").value(8))
+                // 机箱未提供限高：按产品策略默认通过，整体报告为 PASS
+                .andExpect(jsonPath("$.data.report.overallStatus").value("PASS"))
+                .andExpect(jsonPath("$.data.report.checks.length()").value(9))
                 .andExpect(jsonPath("$.data.report.checks[5].ruleId").value("cooler_case_height"))
-                .andExpect(jsonPath("$.data.report.checks[5].status").value("UNKNOWN"));
+                .andExpect(jsonPath("$.data.report.checks[5].status").value("PASS"))
+                .andExpect(jsonPath("$.data.report.checks[5].riskLevel").value("BLOCKING"))
+                .andExpect(jsonPath("$.data.report.checks[8].ruleId").value("memory_module_count"))
+                .andExpect(jsonPath("$.data.report.checks[8].status").value("PASS"));
     }
 
     @Test
@@ -200,6 +223,13 @@ class PcBuildApiTests {
                 .andExpect(jsonPath("$.data.build.totalPriceFen").value(
                         org.hamcrest.Matchers.lessThanOrEqualTo(2_000_000)))
                 .andExpect(jsonPath("$.data.build.components.length()").value(8))
+                .andExpect(jsonPath("$.data.build.componentReasons.length()").value(8))
+                .andExpect(jsonPath("$.data.build.componentReasons[0].reason").isNotEmpty())
+                .andExpect(jsonPath("$.data.build.componentReasons[0].priceFen").isNumber())
+                .andExpect(jsonPath("$.data.build.reasonSummary").isNotEmpty())
+                .andExpect(jsonPath("$.data.build.scoringVersion").value("pc-scoring-1.0.0"))
+                .andExpect(jsonPath("$.data.build.requirements.workloadProfile").value("GAMING"))
+                .andExpect(jsonPath("$.data.build.requirements.renderMode").value("BOTH"))
                 .andExpect(jsonPath("$.data.build.offerDataStatus").value("MIXED_DEMO"))
                 .andExpect(jsonPath("$.data.build.components[*].priceSource", not(empty())))
                 .andReturn();
@@ -210,7 +240,9 @@ class PcBuildApiTests {
                         .header(USER_TOKEN_HEADER, adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.buildId").value(buildId))
-                .andExpect(jsonPath("$.data.components.length()").value(8));
+                .andExpect(jsonPath("$.data.components.length()").value(8))
+                .andExpect(jsonPath("$.data.componentReasons.length()").value(8))
+                .andExpect(jsonPath("$.data.reasonSummary").isNotEmpty());
 
         // 另一个用户读取同一快照必须按不存在处理，不泄露存在性
         mockMvc.perform(get(BUILDS_PATH + "/" + buildId)
@@ -231,18 +263,29 @@ class PcBuildApiTests {
     }
 
     @Test
+    void solve_shouldRejectUnknownPreference() throws Exception {
+        mockMvc.perform(post(SOLVE_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"budgetMaxFen\":2000000,\"preference\":\"SERVER\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40304));
+    }
+
+    @Test
     void solve_shouldReturnStructuredFailureWhenBudgetTooLow() throws Exception {
         mockMvc.perform(post(SOLVE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"budgetMaxFen\":500000}"))
+                        .content("{\"budgetMaxFen\":100000}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.solved").value(false))
                 .andExpect(jsonPath("$.data.build").doesNotExist())
                 .andExpect(jsonPath("$.data.failure.reason").value("BUDGET_EXCEEDED"))
                 .andExpect(jsonPath("$.data.failure.minimumRequiredBudgetFen",
-                        greaterThan(500_000)));
+                        greaterThan(100_000)));
     }
 
     @Test

@@ -36,19 +36,16 @@ class PcFixtureRepositoryTests {
     void catalog_shouldExposeAllCategoriesAndStableIds() {
         List<Hardware> hardware = catalog.findAll();
 
-        assertThat(hardware).hasSize(28);
+        // 目录随采集持续扩充，因此只校验结构与类别覆盖，不锁定具体条数。
+        assertThat(hardware).isNotEmpty();
+        assertThat(hardware).allSatisfy(item -> assertThat(item.hardwareId()).isNotBlank());
+        assertThat(hardware).extracting(Hardware::hardwareId).doesNotHaveDuplicates();
         Map<HardwareCategory, Long> counts = hardware.stream()
                 .collect(Collectors.groupingBy(Hardware::category, Collectors.counting()));
-        assertThat(counts.get(HardwareCategory.CPU)).isEqualTo(4);
-        assertThat(counts.get(HardwareCategory.GPU)).isEqualTo(4);
-        assertThat(counts.get(HardwareCategory.MOTHERBOARD)).isEqualTo(4);
-        assertThat(counts.get(HardwareCategory.MEMORY)).isEqualTo(4);
-        assertThat(counts.get(HardwareCategory.STORAGE)).isEqualTo(3);
-        assertThat(counts.get(HardwareCategory.COOLER)).isEqualTo(3);
-        assertThat(counts.get(HardwareCategory.CASE)).isEqualTo(3);
-        assertThat(counts.get(HardwareCategory.PSU)).isEqualTo(3);
+        assertThat(counts.keySet()).containsExactlyInAnyOrder(HardwareCategory.values());
+        assertThat(counts.values()).allSatisfy(count -> assertThat(count).isPositive());
+        assertThat(counts.values().stream().mapToLong(Long::longValue).sum()).isEqualTo(hardware.size());
         assertThat(catalog.catalogVersion()).isNotBlank();
-        assertThat(hardware).allSatisfy(item -> assertThat(item.hardwareId()).isNotBlank());
     }
 
     @Test
@@ -59,16 +56,33 @@ class PcFixtureRepositoryTests {
     }
 
     @Test
+    void catalog_shouldReadImageUrlFromSourceNode() {
+        // 图片挂在 source.image_url 下，只有采集到图片的条目才有值
+        assertThat(catalog.findById("cpu-amd-ryzen-5-9600x"))
+                .get()
+                .extracting(Hardware::imageUrl)
+                .asString()
+                .startsWith("https://");
+
+        // 未采集图片的条目必须保持 null，不能用占位图冒充
+        assertThat(catalog.findById("cpu-intel-core-i5-14400"))
+                .get()
+                .extracting(Hardware::imageUrl)
+                .isNull();
+    }
+
+    @Test
     void catalog_findByIdShouldReturnEmptyForUnknown() {
         assertThat(catalog.findById("cpu-amd-ryzen-7-9800x3d")).isPresent();
         assertThat(catalog.findById("not-exists")).isEmpty();
     }
 
     @Test
-    void benchmarks_shouldMapEightCpuAndGpuEntries() {
+    void benchmarks_shouldMapCpuAndGpuEntries() {
         List<Benchmark> entries = benchmarks.findAll();
 
-        assertThat(entries).hasSize(8);
+        // 跑分条数随 PassMark 匹配结果变化，不再固定条数，只校验字段完整性与关键型号覆盖。
+        assertThat(entries).isNotEmpty();
         assertThat(entries).allSatisfy(entry -> {
             assertThat(entry.hardwareId()).isNotBlank();
             assertThat(entry.benchmarkType()).isNotBlank();
@@ -83,12 +97,14 @@ class PcFixtureRepositoryTests {
     void offers_shouldKeepVerifiedAndMockSourcesDistinct() {
         List<Offer> entries = offers.findAll();
 
-        assertThat(entries).hasSize(28);
+        // 报价数量随采集变化，只校验来源区分与统计口径一致。
+        assertThat(entries).isNotEmpty();
         assertThat(offers.dataStatus()).isEqualTo("MIXED_DEMO");
         assertThat(offers.priceUnit()).isEqualTo("CNY_FEN");
         assertThat(entries).allSatisfy(offer -> assertThat(offer.priceFen()).isPositive());
-        assertThat(entries.stream().filter(Offer::isVerifiedPrice)).hasSize(10);
-        assertThat(entries.stream().filter(offer -> !offer.isVerifiedPrice())).hasSize(18);
+        long verifiedCount = entries.stream().filter(Offer::isVerifiedPrice).count();
+        assertThat(verifiedCount).isPositive();
+        assertThat(entries.size() - verifiedCount).isPositive();
         // 演示价必须仍可被识别，不能被当成核验价。
         assertThat(entries).filteredOn(offer -> "MOCK_DEMO".equals(offer.priceSource()))
                 .allSatisfy(offer -> assertThat(offer.isVerifiedPrice()).isFalse());

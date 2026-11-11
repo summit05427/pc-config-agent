@@ -21,11 +21,14 @@ public record BuildResultResponse(
         CompatibilityReportResponse compatibilityReport,
         String solverVersion,
         String compatibilityRuleVersion,
+        String scoringVersion,
         String catalogVersion,
         String offerDataStatus,
         long verifiedOfferCount,
         long demoOfferCount,
-        Instant createdAt) {
+        Instant createdAt,
+        List<ComponentReasonResponse> componentReasons,
+        String reasonSummary) {
 
     /**
      * @param result 领域结果
@@ -42,10 +45,13 @@ public record BuildResultResponse(
                 CompatibilityReportResponse.from(result.compatibilityReport()),
                 result.solverVersion(),
                 result.compatibilityRuleVersion(),
+                result.requirements().scoringVersion(),
                 result.catalogVersion(),
                 result.offerDataStatus(),
                 result.verifiedOfferCount(),
                 result.demoOfferCount(),
-                result.createdAt());
+                result.createdAt(),
+                result.componentRationales().stream().map(ComponentReasonResponse::from).toList(),
+                result.reasonSummary());
     }
 }

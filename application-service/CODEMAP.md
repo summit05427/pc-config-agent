@@ -9,13 +9,14 @@
 | 鉴权与授权装配 | src/main/java/com/example/agent/shared/config/SecurityConfig.java |
 | 统一响应与异常处理 | src/main/java/com/example/agent/shared/api/ApiResponse.java、shared/web/GlobalExceptionHandler.java |
 | 数据库迁移 | src/main/resources/db/migration |
-| MyBatis 映射 | src/main/resources/mapper/identity、mapper/model |
+| MyBatis 映射 | src/main/resources/mapper/identity、mapper/model、mapper/feedback |
 
 ## 目录职责
 | 目录 | 放什么 | 不放什么 |
 | --- | --- | --- |
 | identity/{domain,application,infrastructure,web} | 用户、登录、刷新会话、偏好、密码、审计 | 模型目录与用量业务 |
 | model/{domain,application,infrastructure,web,config} | 模型目录、Provider 连接、凭证、用量、额度、内部接口 | 身份认证与用户档案 |
+| feedback/{domain,application,infrastructure,web} | 消息级赞/踩反馈、管理端查询与 CSV 导出 | 会话消息本身（正文由 Agent 持久化） |
 | shared/api、shared/error | 统一响应、分页、错误码与业务异常 | 业务流程 |
 | shared/config | 安全、CORS、OpenAPI、MyBatis、生产配置守卫 | 控制器与领域规则 |
 | shared/security | JWT 编解码、TokenUse 过滤、来源校验 | 用户业务数据 |
@@ -29,7 +30,7 @@
 | 新增一个 API 端点 | <模块>/web/XxxController.java、<模块>/web/dto/*.java、<模块>/application/XxxService.java，按需改 shared/config/SecurityConfig.java |
 | 新增或修改数据库表 | src/main/resources/db/migration/V<n>__xxx.sql、<模块>/infrastructure/XxxMapper.java、resources/mapper/<模块>/XxxMapper.xml |
 | 新增查询条件或分页 | <模块>/web/dto/XxxQuery.java、<模块>/application/XxxService.java、对应 Mapper XML |
-| 新增业务错误码 | identity/domain/IdentityErrorCode.java 或 model/domain/ModelErrorCode.java、shared/error/BusinessException.java |
+| 新增业务错误码 | identity/domain/IdentityErrorCode.java、model/domain/ModelErrorCode.java 或 feedback/domain/FeedbackErrorCode.java、shared/error/BusinessException.java |
 | 修改 Token 签发与校验 | identity/infrastructure/JwtTokenService.java、shared/security/JwtKeyLoader.java、TokenUseFilter.java |
 | 新增 Agent 内部接口 | model/web/*InternalController.java、model/application/ServiceTokenService.java、UserTokenValidator.java |
 | 修改配置项 | src/main/resources/application*.yaml、仓库根 .env.example |
