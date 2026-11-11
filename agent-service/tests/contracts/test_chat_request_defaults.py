@@ -17,6 +17,7 @@ def test_chat_request_without_optional_fields_is_valid() -> None:
     assert payload.preferences is None
     assert payload.agent_id is None
     assert payload.reasoning is None
+    assert payload.resume is None
     # 字段集合变化属于契约变更，必须显式更新基线
     assert set(payload.model_dump()) == {
         "message",
@@ -26,6 +27,7 @@ def test_chat_request_without_optional_fields_is_valid() -> None:
         "agent_id",
         "regenerate",
         "reasoning",
+        "resume",
     }
 
 

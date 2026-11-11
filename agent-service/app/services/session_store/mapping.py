@@ -46,10 +46,16 @@ def to_record(message: Any) -> dict[str, Any]:
 def to_payload(record: dict[str, Any]) -> dict[str, Any]:
     """去掉存储内部字段，组装成接口响应项。"""
     payload: dict[str, Any] = {"role": record["role"], "content": record["content"]}
+    # 稳定消息标识：反馈按它绑定，刷新/翻页后必须命中同一条评价
+    message_id = record.get("message_id")
+    if message_id:
+        payload["message_id"] = message_id
     if record.get("tool_calls"):
         payload["tool_calls"] = record["tool_calls"]
     if record.get("name"):
         payload["name"] = record["name"]
+    if record.get("build_result"):
+        payload["build_result"] = record["build_result"]
     created_at = record.get("created_at")
     if created_at is not None:
         # Postgres 返回 datetime，内存适配器也存 datetime；统一输出 ISO 8601

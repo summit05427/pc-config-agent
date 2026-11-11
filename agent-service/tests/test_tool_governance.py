@@ -1,5 +1,7 @@
 """工具输出治理测试：截断、脱敏、单轮调用上限与开关。"""
 
+import json
+
 import pytest
 from langchain_core.tools import tool
 
@@ -32,6 +34,16 @@ async def contacts() -> str:
     )
 
 
+@tool
+async def big_structured_payload() -> dict:
+    """返回超大的结构化结果，用于验证结构感知裁剪。"""
+    return {
+        "catalogVersion": "v-test",
+        "total": 500,
+        "list": [{"hardwareId": f"hw-{index}", "spec": "规格" * 60} for index in range(500)],
+    }
+
+
 def _settings(**agent_overrides: object) -> Settings:
     """构造不读取 .env 的配置对象；auth 由 conftest 注入。"""
     return Settings(_env_file=None, agent=agent_overrides)
@@ -47,6 +59,28 @@ async def test_huge_output_is_truncated_with_notice() -> None:
     assert len(result) < 100_000
     assert "[结果已截断，原长度 100000 字符]" in result
     assert count_tokens(result) <= 2000
+
+
+async def test_structured_output_is_shrunk_but_stays_valid_json() -> None:
+    """结构化结果超预算时必须裁剪列表项，保持合法 JSON 与顶层计数字段。"""
+    wrapped = govern_tool(
+        ToolSpec(
+            tool=big_structured_payload,
+            timeout_seconds=5,
+            max_retries=0,
+            max_output_tokens=500,
+        )
+    )
+
+    result = await wrapped.ainvoke({})
+
+    payload = json.loads(result)
+    assert payload["_truncated"] is True
+    # 顶层计数字段不能因为裁剪而失真，否则调用方会误判候选数量
+    assert payload["total"] == 500
+    assert payload["catalogVersion"] == "v-test"
+    assert 0 < len(payload["list"]) < 500
+    assert count_tokens(result) <= 500
 
 
 async def test_sensitive_fields_are_masked_by_default() -> None:

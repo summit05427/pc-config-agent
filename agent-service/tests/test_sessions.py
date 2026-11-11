@@ -7,6 +7,7 @@
 import asyncio
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -403,6 +404,71 @@ def test_session_messages_support_desc_order(token_factory: Callable[..., str]) 
     assert [item["content"] for item in body["list"]] == ["m4", "m3"]
     assert body["total"] == 5
     assert body["order"] == "desc"
+
+
+def test_session_messages_attach_pending_hitl(
+    monkeypatch: Any, token_factory: Callable[..., str]
+) -> None:
+    """刷新历史时把待恢复中断挂到最后一条助手消息，供前端重建表单。"""
+    _seed_messages(
+        "user-1",
+        "demo",
+        [HumanMessage("帮我配台电脑"), AIMessage("请补充预算和用途")],
+    )
+
+    interrupt = SimpleNamespace(
+        value={
+            "interaction_type": "clarify_requirements",
+            "question": "请补充预算和用途",
+            "input_schema": {"fields": [], "submit_label": "继续"},
+            "context": {"missing_slots": ["budget_yuan"]},
+            "schema_version": "1",
+        },
+        id="int-9",
+    )
+
+    class FakeGraph:
+        async def aget_state(self, config: dict[str, Any]) -> Any:
+            assert config == {"configurable": {"thread_id": "user-1:demo"}}
+            return SimpleNamespace(
+                interrupts=(interrupt,),
+                created_at=datetime.now(UTC).isoformat(),
+            )
+
+    monkeypatch.setattr(
+        sessions_module,
+        "get_settings",
+        lambda: SimpleNamespace(
+            hitl=SimpleNamespace(enabled=True, interrupt_ttl_seconds=1800)
+        ),
+    )
+    monkeypatch.setattr(sessions_module, "get_agent", lambda: FakeGraph())
+
+    response = client.get(
+        "/api/v1/sessions/demo/messages",
+        headers={"Authorization": f"Bearer {token_factory()}"},
+    )
+
+    assert response.status_code == 200
+    items = response.json()["list"]
+    assert items[0].get("hitl") is None
+    assert items[1]["hitl"] == {
+        **interrupt.value,
+        "interrupt_id": "int-9",
+    }
+
+
+def test_session_messages_skip_hitl_when_disabled(token_factory: Callable[..., str]) -> None:
+    """HITL 关闭时不读 checkpoint，历史结构与接入前一致。"""
+    _seed_messages("user-1", "demo", [HumanMessage("配电脑"), AIMessage("请补充预算")])
+
+    response = client.get(
+        "/api/v1/sessions/demo/messages",
+        headers={"Authorization": f"Bearer {token_factory()}"},
+    )
+
+    assert response.status_code == 200
+    assert all("hitl" not in item for item in response.json()["list"])
 
 
 def test_session_messages_return_404_when_empty(

@@ -30,7 +30,8 @@
       ]
     },
     "done": {
-      "thread_id": "demo-thread"
+      "thread_id": "demo-thread",
+      "message_id": "demo-thread:1"
     },
     "error": {
       "code": "agent_error",

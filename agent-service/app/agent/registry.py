@@ -17,6 +17,7 @@
 """
 
 import asyncio
+import copy
 import importlib
 import importlib.util
 import inspect
@@ -62,6 +63,10 @@ _SECRET_TOKEN_PATTERN = re.compile(r"sk-[A-Za-z0-9_-]{8,}")
 # 保留 Bearer 前缀，便于模型理解这是凭据而非普通文本
 _BEARER_TOKEN_PATTERN = re.compile(r"(?i)(Bearer\s+)[A-Za-z0-9._~+/=-]{8,}")
 TRUNCATION_NOTICE = "\n[结果已截断，原长度 {chars} 字符]"
+# 结构化结果被裁剪时追加的标记字段，调用方可据此判断数据不完整
+STRUCTURED_TRUNCATION_KEY = "_truncated"
+# 字符数到 token 的保守换算，仅用于估算裁剪比例，避免对大 payload 反复分词
+_CHARS_PER_TOKEN_ESTIMATE = 3
 
 
 class ToolExecutionError(RuntimeError):
@@ -157,35 +162,101 @@ def _resolve_max_calls(spec: ToolSpec) -> int:
     return limit
 
 
+def _serialize_structured(payload: Any) -> str:
+    """结构化结果统一序列化口径，保证裁剪前后格式一致。"""
+    return json.dumps(payload, ensure_ascii=False, default=str)
+
+
+def _shrink_structured_payload(node: Any, ratio: float) -> bool:
+    """按比例裁剪结构中的列表项与超长字符串；返回是否发生变化。
+
+    只做「减少元素」不做「截断字节」，保证裁剪后仍是合法 JSON。
+    """
+    changed = False
+    if isinstance(node, dict):
+        for key, value in list(node.items()):
+            if isinstance(value, list) and value:
+                keep = max(1, int(len(value) * ratio))
+                if keep < len(value):
+                    value = value[:keep]
+                    node[key] = value
+                    changed = True
+                for item in value:
+                    changed = _shrink_structured_payload(item, ratio) or changed
+            elif isinstance(value, dict):
+                changed = _shrink_structured_payload(value, ratio) or changed
+            elif isinstance(value, str) and len(value) > 256:
+                cut = max(64, int(len(value) * ratio))
+                if cut < len(value):
+                    node[key] = value[:cut]
+                    changed = True
+    elif isinstance(node, list):
+        for item in node:
+            changed = _shrink_structured_payload(item, ratio) or changed
+    return changed
+
+
+def _govern_structured_output(payload: Any, budget: int, original_chars: int) -> str:
+    """把结构化结果裁剪到 token 预算内，始终返回合法 JSON。
+
+    面向模型的纯文本可以按前缀截断，但结构化结果被截断后会变成非法 JSON，
+    让代码消费方误判为上游故障；这里改为裁剪列表项，保留顶层计数字段。
+    """
+    shrunk = copy.deepcopy(payload)
+    if isinstance(shrunk, dict):
+        shrunk[STRUCTURED_TRUNCATION_KEY] = True
+    # 先用字符数粗估比例，避免对超大 payload 反复分词
+    ratio = min(1.0, max(0.01, budget * _CHARS_PER_TOKEN_ESTIMATE / max(1, original_chars)))
+    text = _serialize_structured(shrunk)
+    for _ in range(6):
+        if count_tokens(text) <= budget:
+            return text
+        if not _shrink_structured_payload(shrunk, ratio):
+            break
+        text = _serialize_structured(shrunk)
+        # 首轮之后改为对半收缩，逐步逼近预算
+        ratio = 0.5
+    # 结构已无可裁剪项时宁可略微超预算，也不返回非法 JSON
+    return text
+
+
 def _govern_output(spec: ToolSpec, result: Any) -> str:
-    """治理工具输出：统一转文本 → 脱敏 → 按 token 预算截断 → 记录大小指标。
+    """治理工具输出：统一转文本 → 脱敏 → 按 token 预算裁剪 → 记录大小指标。
 
     返回给模型的内容必须是字符串；非字符串结果用 JSON 序列化，保证截断逻辑统一。
+    结构化结果采用「裁剪列表项」而非「截断字节」，避免半截 JSON。
     """
     settings = get_settings().agent
+    is_structured = isinstance(result, (dict, list))
     raw_text = (
         result
         if isinstance(result, str)
-        else json.dumps(result, ensure_ascii=False, default=str)
+        else _serialize_structured(result)
     )
     original_chars = len(raw_text)
-    text = redact_sensitive_text(raw_text) if settings.tool_redact_output else raw_text
 
     budget = (
         spec.max_output_tokens
         if spec.max_output_tokens is not None
         else settings.tool_max_output_tokens
     )
-    if count_tokens(text) <= budget:
-        final_text = text
+    if count_tokens(raw_text) <= budget:
+        final_text = raw_text
         is_truncated = False
+    elif is_structured:
+        final_text = _govern_structured_output(result, budget, original_chars)
+        is_truncated = True
     else:
         notice = TRUNCATION_NOTICE.format(chars=original_chars)
         # 预算要扣掉提示文本，否则截断后的内容仍会略微超出上限
         content_budget = max(1, budget - count_tokens(notice))
-        prefix, _ = truncate_to_token_budget(text, content_budget)
+        prefix, _ = truncate_to_token_budget(raw_text, content_budget)
         final_text = f"{prefix}{notice}"
         is_truncated = True
+
+    # 脱敏放在裁剪之后，保证裁剪出来的片段同样不会把敏感信息带给模型
+    if settings.tool_redact_output:
+        final_text = redact_sensitive_text(final_text)
 
     estimated_tokens = count_tokens(final_text)
     TOOL_OUTPUT_TOKENS.labels(tool=spec.tool.name).observe(estimated_tokens)
@@ -195,6 +266,7 @@ def _govern_output(spec: ToolSpec, result: Any) -> str:
         chars=len(final_text),
         estimated_tokens=estimated_tokens,
         truncated=is_truncated,
+        structured=is_structured,
     )
     return final_text
 

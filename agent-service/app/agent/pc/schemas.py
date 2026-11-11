@@ -14,12 +14,39 @@ MAX_STORAGE_GB = 8_192
 
 
 class BuildScenario(StrEnum):
-    """与 Java `BuildScenario` 枚举保持一致。"""
+    """与 Java `BuildScenario` 枚举保持一致。
 
+    前六个是当前主推用途；后四个为历史值，仍可兜底输出。
+    """
+
+    GENERAL = "GENERAL"
     GAMING = "GAMING"
+    VIDEO_EDITING = "VIDEO_EDITING"
+    PROGRAMMING = "PROGRAMMING"
+    RENDERING = "RENDERING"
+    AI_INFERENCE = "AI_INFERENCE"
     CREATIVE = "CREATIVE"
+    WORKSTATION = "WORKSTATION"
     OFFICE = "OFFICE"
     BALANCED = "BALANCED"
+
+
+class Preference(StrEnum):
+    """选型偏好；`None` 表示用户未表达倾向，不能默认成性能优先。
+
+    `VALUE` 仅在预算存在时生效，由 Java 按性价比排序；`PERFORMANCE` 按性能总分排序。
+    """
+
+    PERFORMANCE = "PERFORMANCE"
+    VALUE = "VALUE"
+
+
+class RenderMode(StrEnum):
+    """渲染负载的执行单元；`None` 表示用户尚未说明，不允许自行猜测。"""
+
+    CPU = "CPU"
+    GPU = "GPU"
+    BOTH = "BOTH"
 
 
 class HardwareCategory(StrEnum):
@@ -50,6 +77,8 @@ class PCRequirements(BaseModel):
     budget_max_fen: int | None = Field(default=None, ge=0, le=MAX_BUDGET_FEN)
     scenario: BuildScenario = BuildScenario.BALANCED
     scenario_explicit: bool = False
+    preference: Preference | None = None
+    render_mode: RenderMode | None = None
     min_memory_gb: int | None = Field(default=None, ge=1, le=MAX_MEMORY_GB)
     min_storage_gb: int | None = Field(default=None, ge=1, le=MAX_STORAGE_GB)
     require_verified_offers: bool = False
@@ -67,6 +96,8 @@ class PCRequirements(BaseModel):
         return {
             "budgetMaxFen": self.budget_max_fen,
             "scenario": self.scenario.value,
+            "preference": self.preference.value if self.preference else None,
+            "renderMode": self.render_mode.value if self.render_mode else None,
             "minMemoryGb": self.min_memory_gb,
             "minStorageGb": self.min_storage_gb,
             "requireVerifiedOffers": verified,

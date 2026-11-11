@@ -35,6 +35,16 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
+def pytest_asyncio_loop_factories(
+    config: pytest.Config, item: pytest.Item
+) -> dict[str, Callable[[], asyncio.AbstractEventLoop]]:
+    """pytest-asyncio 1.x 的官方入口：Windows 强制 Selector，避免 psycopg 异步驱动失败。"""
+    del config, item
+    if sys.platform == "win32":
+        return {"selector": asyncio.SelectorEventLoop}
+    return {"default": asyncio.new_event_loop}
+
+
 def _generate_key_pair() -> tuple[str, str]:
     """运行时生成 RSA 密钥对，返回 (PKCS#8 私钥 PEM, PKIX 公钥 PEM)。"""
     private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -81,6 +91,11 @@ os.environ["MODEL_RUNTIME__ENABLED"] = "false"
 os.environ["CORS_ORIGINS"] = '["http://localhost:5173"]'
 # MCP 默认关闭：避免本地 .env 开启后测试触发真实网络连接
 os.environ["MCP__ENABLED"] = "false"
+# 限流按用户计数，而集成测试共用一个 Redis 与同一批测试用户：
+# 沿用默认 20 次/分钟会让后跑的用例被前面的请求挤成 429，形成顺序相关的假失败。
+# 这里放大配额，只保留中间件调用路径；限流语义由 tests/test_rate_limit.py
+# 与 tests/test_chat_input_guard.py 的专用用例覆盖。
+os.environ["RATE_LIMIT__CHAT_PER_MINUTE"] = "600"
 
 
 def _sign_access_token(

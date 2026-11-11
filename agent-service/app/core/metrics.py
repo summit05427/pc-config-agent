@@ -1,13 +1,15 @@
 """Prometheus 指标定义与 HTTP 采集中间件。
 
-只覆盖「延迟、错误、成本」三条主线，共 13 个指标族：
+只覆盖「延迟、错误、成本」三条主线，共 15 个指标族：
 
 1. HTTP 请求数、HTTP 耗时
 2. SSE 活跃流、首 token 延迟、超时、客户端断开
 3. 工具调用结果、工具重试
-4. LLM token 用量
-5. 用量 outbox 待投递、死信、降级计数
-6. 会话删除墓碑按状态的数量
+4. 图节点耗时（按节点与成败）
+5. LLM token 用量
+6. 用量 outbox 待投递、死信、降级计数
+7. 会话删除墓碑按状态的数量
+8. 输出事实校验命中（按规则）
 
 两条硬约束：
 - 禁止把 user_id / thread_id 作为标签，否则时间序列基数会失控；
@@ -63,6 +65,27 @@ TOOL_CALLS_TOTAL = Counter(
     "agent_tool_calls_total",
     "工具调用最终结果",
     ("tool", "status"),
+)
+NODE_DURATION = Histogram(
+    "agent_node_duration_seconds",
+    "图节点执行耗时（秒）",
+    ("node", "status"),
+    buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120),
+)
+OUTPUT_GUARD_VIOLATIONS = Counter(
+    "agent_output_guard_violations_total",
+    "输出事实校验命中次数",
+    ("rule",),
+)
+INPUT_GUARD_VIOLATIONS = Counter(
+    "agent_input_guard_violations_total",
+    "输入护栏拒绝次数",
+    ("rule",),
+)
+RATE_LIMIT_REJECTIONS = Counter(
+    "agent_rate_limit_rejections_total",
+    "限流拒绝次数",
+    ("scope",),
 )
 TOOL_RETRIES_TOTAL = Counter(
     "agent_tool_retries_total",

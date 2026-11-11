@@ -20,7 +20,15 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
+from app.agent.pc.hitl import build_compatibility_question
 from app.agent.pc.llm import extract_json_object, invoke_model_text
+from app.agent.pc.openui_renderer import render_build_openui
+from app.agent.pc.output_guard import (
+    check_build_output,
+    record_violations,
+    render_guard_notice,
+    sanitize_reason,
+)
 from app.agent.pc.renderer import (
     CATEGORY_LABELS,
     as_int,
@@ -37,6 +45,8 @@ from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildScenario,
     PCRequirements,
+    Preference,
+    RenderMode,
     RequirementExtraction,
 )
 from app.agent.pc.state import PCConfigState
@@ -61,15 +71,33 @@ logger = structlog.get_logger(__name__)
 # 兜底解析：模型不可用时仍要能从「8000 元、打游戏」得到可用需求
 _YUAN_PATTERN = re.compile(r"(\d+)\s*(?:元|块|人民币)")
 _WAN_PATTERN = re.compile(r"(\d+)(?:\.(\d+))?\s*(?:万|w|W)")
+# 新用途值优先命中；旧值只在前述规则都未命中时兜底
 _SCENARIO_KEYWORDS: tuple[tuple[BuildScenario, tuple[str, ...]], ...] = (
+    (BuildScenario.RENDERING, ("渲染",)),
+    (BuildScenario.AI_INFERENCE, ("本地推理", "ai 推理", "ai推理", "大模型", "深度学习")),
+    (BuildScenario.VIDEO_EDITING, ("剪辑", "调色", "视频编辑", "视频后期")),
+    (
+        BuildScenario.PROGRAMMING,
+        ("编程", "写代码", "开发", "编译", "容器", "docker", "虚拟机"),
+    ),
     (BuildScenario.GAMING, ("游戏", "打游戏", "电竞", "3A", "网游")),
-    (BuildScenario.CREATIVE, ("剪辑", "渲染", "创作", "设计", "建模", "视频")),
+    (BuildScenario.GENERAL, ("综合", "日常使用")),
+    (BuildScenario.CREATIVE, ("创作", "设计", "建模")),
     (BuildScenario.OFFICE, ("办公", "文档", "上网", "网课", "轻办公")),
 )
+# 只在渲染场景下生效：出现哪些词就说明用户指定了哪个执行单元
+_RENDER_MODE_CPU_KEYWORDS = ("cpu", "处理器")
+_RENDER_MODE_GPU_KEYWORDS = ("gpu", "显卡")
+RENDER_MODE_CLARIFICATION = "渲染主要用 CPU 还是 GPU？两者配置方向差异较大。"
 _VERIFIED_KEYWORDS = ("人工核验", "已核验", "只要自营", "仅要自营")
-# 推荐说明只允许描述取舍，不允许出现数字、型号、价格和购买渠道
-_REASON_FORBIDDEN = ("http", "www", "京东", "淘宝", "天猫", "¥", "元", "￥")
-_REASON_MAX_CHARS = 300
+# 选型偏好只认用户原话中的明确措辞；按性能优先在前，避免「性能优先但预算有限」被判成性价比
+_PREFERENCE_KEYWORDS: tuple[tuple[Preference, tuple[str, ...]], ...] = (
+    (
+        Preference.PERFORMANCE,
+        ("性能优先", "性能第一", "要最好的", "预算不是问题", "不差钱", "顶配"),
+    ),
+    (Preference.VALUE, ("性价比", "便宜点", "够用就行", "别太贵", "省钱")),
+)
 
 
 def _last_human_text(state: PCConfigState) -> str:
@@ -93,6 +121,49 @@ def _fen_from_yuan_text(whole: str, fraction: str | None = None, *, wan: bool = 
     return int(whole) * 100 + int(digits)
 
 
+def _detect_render_mode(text: str) -> RenderMode | None:
+    """从明确提及的执行单元推断渲染方式；没提就返回 None，不按场景猜。"""
+    lowered = text.lower()
+    uses_cpu = any(keyword in lowered for keyword in _RENDER_MODE_CPU_KEYWORDS)
+    uses_gpu = any(keyword in lowered for keyword in _RENDER_MODE_GPU_KEYWORDS)
+    if uses_cpu and uses_gpu:
+        return RenderMode.BOTH
+    if uses_cpu:
+        return RenderMode.CPU
+    if uses_gpu:
+        return RenderMode.GPU
+    return None
+
+
+def _apply_render_mode(requirements: PCRequirements, text: str) -> PCRequirements:
+    """只有渲染场景保留 `render_mode`；其他场景清空，避免把机型偏好误当渲染方式。"""
+    render_mode = (
+        _detect_render_mode(text)
+        if requirements.scenario is BuildScenario.RENDERING
+        else None
+    )
+    if requirements.render_mode is render_mode:
+        return requirements
+    return requirements.model_copy(update={"render_mode": render_mode})
+
+
+def _detect_preference(text: str) -> Preference | None:
+    """从用户原话识别选型偏好；没有明确措辞就返回 None，不按场景或预算猜。"""
+    lowered = text.lower()
+    for preference, keywords in _PREFERENCE_KEYWORDS:
+        if any(keyword in lowered for keyword in keywords):
+            return preference
+    return None
+
+
+def _apply_preference(requirements: PCRequirements, text: str) -> PCRequirements:
+    """以用户原话为唯一依据；模型可能臆测偏好，这里统一覆盖为确定性识别结果。"""
+    preference = _detect_preference(text)
+    if requirements.preference is preference:
+        return requirements
+    return requirements.model_copy(update={"preference": preference})
+
+
 def fallback_requirements(text: str) -> PCRequirements:
     """确定性兜底解析；覆盖预算、用途与「只接受核验价」三类关键信号。"""
     budget_fen: int | None = None
@@ -108,7 +179,7 @@ def fallback_requirements(text: str) -> PCRequirements:
     scenario = BuildScenario.BALANCED
     scenario_explicit = False
     for candidate, keywords in _SCENARIO_KEYWORDS:
-        if any(keyword in text for keyword in keywords):
+        if any(keyword in text.lower() for keyword in keywords):
             scenario = candidate
             scenario_explicit = True
             break
@@ -128,7 +199,7 @@ def fallback_requirements(text: str) -> PCRequirements:
             "（游戏、创作或办公），我再给出具体配置。"
         )
 
-    return PCRequirements(
+    requirements = PCRequirements(
         budget_max_fen=budget_fen,
         scenario=scenario,
         scenario_explicit=scenario_explicit,
@@ -137,6 +208,7 @@ def fallback_requirements(text: str) -> PCRequirements:
         clarification_question=question,
         missing_fields=missing,
     )
+    return _apply_preference(_apply_render_mode(requirements, text), text)
 
 
 async def requirement_parser(
@@ -162,6 +234,9 @@ async def requirement_parser(
         purpose="requirement_parser",
     )
     requirements = _parse_requirements(text) or fallback_requirements(user_text)
+    # 模型可能臆测渲染方式与偏好，最终以用户原文中的明确措辞为准
+    requirements = _apply_render_mode(requirements, user_text)
+    requirements = _apply_preference(requirements, user_text)
     return {"requirements": requirements.model_dump(), "workflow_status": "parsed"}
 
 
@@ -174,6 +249,18 @@ def _parse_requirements(text: str | None) -> PCRequirements | None:
     except ValueError:
         logger.warning("pc.requirements_invalid", reason="schema_validation_failed")
         return None
+
+
+def _with_hitl_question(update: dict[str, Any], question: str) -> dict[str, Any]:
+    """HITL 开启时把提问写成 AI 消息，保证中断后历史里能看到问题本身。
+
+    门控节点中断时不会提交自己的状态更新，问题必须由门控之前的确定性节点写入。
+    """
+    if not get_settings().hitl.enabled:
+        return update
+    messages = list(update.get("messages") or [])
+    messages.append(AIMessage(content=question))
+    return {**update, "messages": messages}
 
 
 async def requirement_validator(state: PCConfigState) -> dict[str, Any]:
@@ -190,32 +277,68 @@ async def requirement_validator(state: PCConfigState) -> dict[str, Any]:
             "workflow_status": STATUS_INVALID,
         }
 
+    # 渲染场景必须先确认执行单元；预算也缺时只追问这一次，不拆成多轮
+    if (
+        requirements.scenario is BuildScenario.RENDERING
+        and requirements.render_mode is None
+        and requirements.budget_max_fen is None
+    ):
+        missing_fields = list(requirements.missing_fields)
+        if "render_mode" not in missing_fields:
+            missing_fields.append("render_mode")
+        clarification = requirements.model_copy(
+            update={
+                "needs_clarification": True,
+                "clarification_question": RENDER_MODE_CLARIFICATION,
+                "missing_fields": missing_fields,
+            }
+        )
+        return _with_hitl_question(
+            {
+                "validation_result": {
+                    "status": "clarification",
+                    "message": RENDER_MODE_CLARIFICATION,
+                    "missing_fields": missing_fields,
+                },
+                "requirements": clarification.model_dump(),
+                "workflow_status": STATUS_CLARIFICATION,
+            },
+            RENDER_MODE_CLARIFICATION,
+        )
+
     if requirements.needs_clarification or (
         requirements.budget_max_fen is None and not requirements.scenario_explicit
     ):
         message = requirements.clarification_question or (
             "请告诉我预算范围和主要用途（游戏、创作或办公），我再给出具体配置。"
         )
-        return {
-            "validation_result": {
-                "status": "clarification",
-                "message": message,
-                "missing_fields": requirements.missing_fields,
+        return _with_hitl_question(
+            {
+                "validation_result": {
+                    "status": "clarification",
+                    "message": message,
+                    "missing_fields": requirements.missing_fields,
+                },
+                "requirements": requirements.model_dump(),
+                "workflow_status": STATUS_CLARIFICATION,
             },
-            "requirements": requirements.model_dump(),
-            "workflow_status": STATUS_CLARIFICATION,
-        }
+            message,
+        )
 
     if requirements.budget_max_fen is not None and requirements.budget_max_fen <= 0:
-        return {
-            "validation_result": {
-                "status": "clarification",
-                "message": "预算必须大于 0，请给出一个明确的预算范围。",
-                "missing_fields": ["budget_max_fen"],
+        budget_message = "预算必须大于 0，请给出一个明确的预算范围。"
+        return _with_hitl_question(
+            {
+                "validation_result": {
+                    "status": "clarification",
+                    "message": budget_message,
+                    "missing_fields": ["budget_max_fen"],
+                },
+                "requirements": requirements.model_dump(),
+                "workflow_status": STATUS_CLARIFICATION,
             },
-            "requirements": requirements.model_dump(),
-            "workflow_status": STATUS_CLARIFICATION,
-        }
+            budget_message,
+        )
 
     return {
         "validation_result": {"status": "ok", "message": None, "missing_fields": []},
@@ -420,6 +543,8 @@ async def build_solver(state: PCConfigState) -> dict[str, Any]:
     args = {
         "budget_max_fen": requirements.budget_max_fen,
         "scenario": requirements.scenario.value,
+        "preference": requirements.preference.value if requirements.preference else None,
+        "render_mode": requirements.render_mode.value if requirements.render_mode else None,
         "min_memory_gb": requirements.min_memory_gb,
         "min_storage_gb": requirements.min_storage_gb,
         "require_verified_offers": require_verified,
@@ -500,11 +625,15 @@ async def build_validator(state: PCConfigState) -> dict[str, Any]:
             ],
         }
         events.append(_tool_end("validate_pc_build", error or "校验失败"))
-        return {
-            "workflow_status": STATUS_SUCCESS,
-            "tool_events": events,
-            "compatibility_report": unknown,
-        }
+        unknown_state = {**state, "compatibility_report": unknown}
+        return _with_hitl_question(
+            {
+                "workflow_status": STATUS_SUCCESS,
+                "tool_events": events,
+                "compatibility_report": unknown,
+            },
+            build_compatibility_question(unknown_state),
+        )
 
     report = as_mapping(data.get("report"))
     overall = overall_compatibility(report)
@@ -525,11 +654,18 @@ async def build_validator(state: PCConfigState) -> dict[str, Any]:
             "compatibility_report": report,
         }
 
-    return {
+    success = {
         "workflow_status": STATUS_SUCCESS,
         "tool_events": events,
         "compatibility_report": report,
     }
+    if overall == "UNKNOWN":
+        # 兼容性未验证：HITL 开启时先写入提问消息，恢复后不会重复生成
+        return _with_hitl_question(
+            success,
+            build_compatibility_question({**state, "compatibility_report": report}),
+        )
+    return success
 
 
 def _hardware_ids(build: dict[str, Any]) -> dict[str, str] | None:
@@ -557,25 +693,21 @@ def _reason_context(state: PCConfigState) -> str:
     )
 
 
-def _safe_reason(text: str | None, build: dict[str, Any]) -> str | None:
-    """模型文案只允许谈取舍；出现数字、型号、价格或渠道一律丢弃。"""
-    if not text:
-        return None
-    reason = " ".join(text.split()).strip()
-    if not reason or len(reason) > _REASON_MAX_CHARS:
-        return None
-    if any(char.isdigit() for char in reason):
-        return None
-    if any(keyword in reason for keyword in _REASON_FORBIDDEN):
-        return None
-    lowered = reason.lower()
-    for component in as_list(build.get("components")):
-        item = as_mapping(component)
-        for field in ("modelName", "brand"):
-            value = as_text(item.get(field))
-            if value and value.lower() in lowered:
-                return None
-    return reason
+def _preference_reason(state: PCConfigState) -> str:
+    """偏好说明必须与 Java 的实际排序一致：`VALUE` 只有预算存在时才生效。"""
+    requirements = as_mapping(state.get("requirements"))
+    preference = as_text(requirements.get("preference"))
+    budget = as_mapping(as_mapping(state.get("build_result")).get("requirements")).get(
+        "budgetMaxFen"
+    )
+    has_budget = isinstance(budget, int) and not isinstance(budget, bool) and budget > 0
+    if preference == Preference.VALUE.value:
+        if has_budget:
+            return "选型按性价比优先，在预算内更看重单位价格能换到的性能。"
+        return "你表达了性价比倾向，但没有给出预算，本次按默认性能排序选型。"
+    if preference == Preference.PERFORMANCE.value:
+        return "选型按性能总分优先，在预算内优先取得更高性能。"
+    return "你没有指定性价比或性能倾向，方案按默认排序给出。"
 
 
 def _deterministic_reason(state: PCConfigState) -> str:
@@ -585,11 +717,15 @@ def _deterministic_reason(state: PCConfigState) -> str:
     overall = overall_compatibility(as_mapping(state.get("compatibility_report")))
     reasons = {
         "GAMING": "在预算内优先保证图形性能与散热余量，适合主流游戏场景。",
+        "VIDEO_EDITING": "在预算内平衡多核性能、内存容量与存储读写，适合剪辑与视频后期。",
+        "PROGRAMMING": "在预算内侧重多核性能与内存容量，适合编译、容器与开发环境。",
+        "RENDERING": "在预算内优先保证多核吞吐与稳定供电，适合离线渲染任务。",
+        "AI_INFERENCE": "在预算内优先保证显存容量与内存带宽，适合本地模型推理。",
         "CREATIVE": "在预算内平衡多核性能、内存容量与存储速度，适合剪辑和渲染。",
         "OFFICE": "以稳定、静音和日常响应为重点，性能足以覆盖办公与网课。",
         "BALANCED": "在预算内追求性能与价格的平衡，覆盖日常使用与轻度娱乐。",
     }
-    reason = reasons.get(scenario, reasons["BALANCED"])
+    reason = reasons.get(scenario, reasons["BALANCED"]) + _preference_reason(state)
     if overall == "UNKNOWN":
         reason += "机箱散热高度等少数规格尚未验证，装机前请再次确认。"
     if as_int(build.get("demoOfferCount")) > 0:
@@ -623,13 +759,31 @@ async def response_generator(
         generator_prompt=generator_prompt,
     )
     reason = reason or _deterministic_reason(state)
-    markdown = render_build_markdown(build, reason)
+    body = _render_success(build, reason)
+    violations = check_build_output(
+        build=build,
+        compatibility_report=as_mapping(state.get("compatibility_report")),
+        reason=reason,
+        markdown=body,
+    )
+    if violations:
+        # 命中即丢弃模型文案并改用确定性说明；数据类问题追加用户可见提示，不静默掩盖
+        record_violations(violations, agent_id=agent_id)
+        reason = _deterministic_reason(state)
+        body = _render_success(build, reason) + render_guard_notice(violations)
     return {
-        "messages": [AIMessage(content=markdown)],
+        "messages": [AIMessage(content=body)],
         "build_result": build,
         "reason_summary": reason,
         "workflow_status": STATUS_SUCCESS,
     }
+
+
+def _render_success(build: dict[str, Any], reason: str) -> str:
+    """开关打开时输出 OpenUI 清单与详情按钮，否则保持 Markdown 表格兜底。"""
+    if get_settings().openui.enabled:
+        return render_build_openui(build, reason)
+    return render_build_markdown(build, reason)
 
 
 async def _generate_reason(
@@ -653,7 +807,7 @@ async def _generate_reason(
         agent_id=agent_id,
         purpose="response_generator",
     )
-    return _safe_reason(text, as_mapping(state.get("build_result")))
+    return sanitize_reason(text, as_mapping(state.get("build_result")))
 
 
 def build_result_payload(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -663,4 +817,10 @@ def build_result_payload(state: dict[str, Any]) -> dict[str, Any] | None:
     build = as_mapping(state.get("build_result"))
     if not build:
         return None
-    return build_frontend_payload(build, as_text(state.get("reason_summary")))
+    # Java 缺少 workloadProfile 时回退到本地解析出的用途，不用默认值冒充
+    local_scenario = as_text(as_mapping(state.get("requirements")).get("scenario"))
+    return build_frontend_payload(
+        build,
+        as_text(state.get("reason_summary")),
+        fallback_scenario=local_scenario,
+    )

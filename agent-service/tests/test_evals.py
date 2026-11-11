@@ -2,8 +2,12 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
 
 import pytest
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import Command, Interrupt
 
 from app.agent.profiles import resolve_profile
 from evals.__main__ import main
@@ -17,6 +21,16 @@ from evals.report import (
 )
 from evals.runners import fake_model as fake_model_module
 from evals.runners.fake_model import run_case
+from evals.runners.real_model import (
+    _check_interrupt,
+    _check_missing_slots,
+    _check_price_consistency,
+    _check_workflow_status,
+    _hitl_checks,
+    _ordered_subsequence,
+    _resume_if_interrupted,
+    _value_matches,
+)
 from evals.schema import CaseLoadError, EvalCase, load_cases
 
 EVALS_CASES_DIRECTORY = Path(__file__).resolve().parents[1] / "evals" / "cases"
@@ -32,13 +46,16 @@ def _write_case_file(directory: Path, file_name: str, content: str) -> Path:
 def test_example_cases_are_loadable() -> None:
     """仓库自带的 PC 用例必须可直接运行。"""
     cases = load_cases(EVALS_CASES_DIRECTORY)
+    case_ids = [case.id for case in cases]
 
-    assert [case.id for case in cases] == [
+    # 只约束示例用例必须存在；新增场景文件不应让本断言失效
+    for expected_id in (
         "pc_gaming_budget",
         "pc_missing_budget",
         "pc_verified_only",
         "pc_injection",
-    ]
+    ):
+        assert expected_id in case_ids
     assert cases[0].expect.tool_called == "solve_pc_build"
 
 
@@ -145,15 +162,13 @@ def test_main_fake_mode_outputs_json_report(capsys: pytest.CaptureFixture[str]) 
 
     assert exit_code == 0
     assert payload["mode"] == "fake"
-    assert payload["summary"]["total"] == 4
+    expected_total = len(load_cases(EVALS_CASES_DIRECTORY))
+    assert payload["summary"]["total"] == expected_total
     assert payload["summary"]["failed"] == 0
-    # 带内容断言的用例在假模型模式下记为未校验；只有 pc_verified_only 仅校验工具绑定
-    assert [case["status"] for case in payload["cases"]] == [
-        "skipped",
-        "skipped",
-        "passed",
-        "skipped",
-    ]
+    # 带状态/内容断言的用例在假模型模式下记为未校验；只有 pc_verified_only 仅校验工具绑定
+    status_by_id = {case["case_id"]: case["status"] for case in payload["cases"]}
+    assert status_by_id["pc_verified_only"] == "passed"
+    assert status_by_id["pc_gaming_budget"] == "skipped"
 
 
 def test_main_fake_mode_renders_text_report(capsys: pytest.CaptureFixture[str]) -> None:
@@ -162,7 +177,7 @@ def test_main_fake_mode_renders_text_report(capsys: pytest.CaptureFixture[str]) 
 
     assert exit_code == 0
     assert "评测模式：假模型" in output
-    assert "用例 4 条" in output
+    assert f"用例 {len(load_cases(EVALS_CASES_DIRECTORY))} 条" in output
     assert "[通过] pc_verified_only" in output
 
 
@@ -214,3 +229,222 @@ def test_report_failure_details_and_pass_rate() -> None:
     assert "失败明细：" in text
     assert "bad_case → must_contain: 缺少片段：报销标准" in text
     assert "tokens 10/5" in text
+
+
+def test_schema_rejects_invalid_structured_field_path(tmp_path: Path) -> None:
+    """结构化断言只接受点路径，避免在 YAML 里写表达式或下标。"""
+    _write_case_file(
+        tmp_path,
+        "bad-path.yaml",
+        "- id: bad_path\n  input: 你好\n  expect:\n"
+        "    structured_fields:\n      'a[0]': 1\n",
+    )
+
+    with pytest.raises(CaseLoadError, match="点路径"):
+        load_cases(tmp_path)
+
+
+def test_fake_mode_checks_tool_sequence_binding() -> None:
+    """tool_sequence 指向未注册工具时，假模型模式应直接失败而不是跳过。"""
+    case = EvalCase(
+        id="seq_unknown_tool",
+        agent_id="pc-config",
+        input="预算 8000 元，主要打游戏",
+        expect={"tool_sequence": ["not_a_registered_tool"]},
+    )
+
+    result = run_case(case)
+
+    assert result.status == STATUS_FAILED
+    assert any("未注册" in check.detail for check in result.checks)
+
+
+def test_fake_mode_skips_state_assertions() -> None:
+    """状态类断言在假模型模式必须标记未校验，不能算通过。"""
+    case = EvalCase(
+        id="state_only",
+        agent_id="pc-config",
+        input="预算 8000 元，主要打游戏",
+        expect={"workflow_status": "success"},
+    )
+
+    result = run_case(case)
+
+    assert result.status == STATUS_SKIPPED
+    assert result.checks[-1].name == "workflow_status"
+
+
+def test_case_accepts_hitl_resume_and_interrupt_type() -> None:
+    case = EvalCase(
+        id="hitl_resume",
+        agent_id="pc-config",
+        input="帮我配台电脑",
+        resume={
+            "message": "预算 8000 元，打游戏",
+            "answer": {"budget_yuan": 8000, "scenario": "GAMING"},
+        },
+        expect={"interrupt_type": "clarify_requirements", "workflow_status": "success"},
+    )
+
+    assert case.resume is not None
+    assert case.resume.answer["budget_yuan"] == 8000
+
+
+def test_case_rejects_empty_resume(tmp_path: Path) -> None:
+    _write_case_file(
+        tmp_path,
+        "cases.yaml",
+        '- id: empty_resume\n  input: "帮我配台电脑"\n  resume: {}\n'
+        "  expect:\n    workflow_status: clarification\n",
+    )
+
+    with pytest.raises(CaseLoadError, match="resume 至少需要"):
+        load_cases(tmp_path)
+
+
+def test_fake_mode_skips_hitl_assertions() -> None:
+    """HITL 暂停与恢复依赖真实图状态，假模型模式不能算通过。"""
+    case = EvalCase(
+        id="hitl_only",
+        agent_id="pc-config",
+        input="帮我配台电脑",
+        resume={"answer": {"budget_yuan": 8000}},
+        expect={"interrupt_type": "clarify_requirements"},
+    )
+
+    result = run_case(case)
+
+    assert result.status == STATUS_SKIPPED
+    assert {check.name for check in result.checks} >= {"interrupt_type", "resume"}
+
+
+def test_check_interrupt_compares_public_interaction_type() -> None:
+    interrupt = Interrupt(value={"interaction_type": "clarify_requirements"})
+    assert _check_interrupt("clarify_requirements", interrupt).status == STATUS_PASSED
+    assert _check_interrupt("confirm_compatibility", interrupt).status == STATUS_FAILED
+    assert _check_interrupt("clarify_requirements", None).status == STATUS_FAILED
+
+
+def test_hitl_checks_require_resume_to_converge() -> None:
+    case = EvalCase(
+        id="hitl_checks",
+        input="帮我配台电脑",
+        resume={"answer": {"budget_yuan": 8000}},
+        expect={"interrupt_type": "clarify_requirements"},
+    )
+    interrupt = Interrupt(value={"interaction_type": "clarify_requirements"})
+
+    unresolved = _hitl_checks(case, interrupt, is_resolved=False)
+    assert {check.name: check.status for check in unresolved} == {
+        "interrupt_type": STATUS_PASSED,
+        "resume": STATUS_FAILED,
+    }
+
+    resolved = _hitl_checks(case, interrupt, is_resolved=True)
+    assert all(check.status == STATUS_PASSED for check in resolved)
+
+
+async def test_resume_if_interrupted_submits_answer_and_reports_convergence() -> None:
+    """真实模型模式的恢复只发生一次，且把 message / answer 原样交给门控节点。"""
+
+    class _StubGraph:
+        def __init__(self) -> None:
+            self.commands: list[Command] = []
+
+        async def aget_state(self, _config: object) -> Any:
+            interrupts = () if self.commands else (Interrupt(value={}),)
+            return SimpleNamespace(interrupts=interrupts)
+
+        async def ainvoke(self, payload: Command, config: object = None) -> dict[str, Any]:
+            self.commands.append(payload)
+            return {"workflow_status": "success"}
+
+    case = EvalCase(
+        id="hitl_resume_flow",
+        input="帮我配台电脑",
+        resume={"message": "预算 8000 元", "answer": {"budget_yuan": 8000}},
+        expect={"interrupt_type": "clarify_requirements"},
+    )
+    graph = _StubGraph()
+
+    result, interrupt, is_resolved = await _resume_if_interrupted(
+        cast("CompiledStateGraph", graph), {}, case, {}
+    )
+
+    assert result["workflow_status"] == "success"
+    assert interrupt is not None
+    assert is_resolved
+    assert graph.commands[0].resume == {
+        "message": "预算 8000 元",
+        "answer": {"budget_yuan": 8000},
+    }
+
+
+def test_ordered_subsequence_allows_intermediate_tools() -> None:
+    assert _ordered_subsequence(["solve_pc_build", "validate_pc_build"], [
+        "search_hardware_candidates",
+        "solve_pc_build",
+        "validate_pc_build",
+    ])
+    assert not _ordered_subsequence(
+        ["validate_pc_build", "solve_pc_build"],
+        ["solve_pc_build", "validate_pc_build"],
+    )
+
+
+def test_value_matches_is_type_strict() -> None:
+    """布尔与数字不能互认，否则 True 会被当成 1 通过断言。"""
+    assert _value_matches(True, True)
+    assert not _value_matches(True, 1)
+    assert _value_matches(8000, 8000.0)
+    assert _value_matches("ok", "ok")
+    assert not _value_matches("8000", 8000)
+
+
+def test_workflow_status_accepts_any_of() -> None:
+    state = {"workflow_status": "no_solution"}
+    check = _check_workflow_status(["no_solution", "compatibility_failed"], state)
+    assert check.status == STATUS_PASSED
+    assert _check_workflow_status(["success"], state).status == STATUS_FAILED
+
+
+def test_missing_slots_checks_union_of_requirements_and_validation() -> None:
+    state = {
+        "requirements": {"missing_fields": ["budget_max_fen"]},
+        "validation_result": {"missing_fields": ["scenario"]},
+    }
+    check = _check_missing_slots(["budget_max_fen", "scenario"], state)
+    assert check.status == STATUS_PASSED
+    assert _check_missing_slots(["render_mode"], state).status == STATUS_FAILED
+
+
+def test_price_consistency_detects_mismatch_and_over_budget() -> None:
+    build = {
+        "components": [{"priceFen": 100}, {"priceFen": 200}],
+        "totalPriceFen": 300,
+        "budgetMaxFen": 500,
+    }
+    assert _check_price_consistency({"build_result": build}).status == STATUS_PASSED
+
+    assert (
+        _check_price_consistency({"build_result": {**build, "totalPriceFen": 400}}).status
+        == STATUS_FAILED
+    )
+    assert (
+        _check_price_consistency(
+            {"build_result": {**build, "totalPriceFen": 300, "budgetMaxFen": 250}}
+        ).status
+        == STATUS_FAILED
+    )
+    assert _check_price_consistency({}).status == STATUS_FAILED
+
+
+def test_price_consistency_rejects_missing_component_price() -> None:
+    build = {
+        "components": [{"priceFen": 100}, {"modelName": "缺失价格"}],
+        "totalPriceFen": 100,
+    }
+    check = _check_price_consistency({"build_result": build})
+
+    assert check.status == STATUS_FAILED
+    assert "非法" in check.detail

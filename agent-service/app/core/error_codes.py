@@ -37,6 +37,13 @@ CODE_MODEL_RUNTIME_DISABLED = "model_runtime_disabled"
 CODE_REQUEST_TIMEOUT = "request_timeout"
 CODE_AGENT_ERROR = "agent_error"
 
+# --- 人机协同（HITL） ---
+CODE_HITL_UNAVAILABLE = "hitl_unavailable"
+CODE_INTERRUPT_NOT_FOUND = "interrupt_not_found"
+CODE_INTERRUPT_EXPIRED = "interrupt_expired"
+CODE_INTERRUPT_MISMATCH = "interrupt_mismatch"
+CODE_HITL_RESUME_INVALID = "hitl_resume_invalid"
+
 # --- 模型与凭证 ---
 CODE_CREDENTIAL_UNAVAILABLE = "credential_unavailable"
 CODE_LLM_NOT_CONFIGURED = "llm_not_configured"
@@ -48,6 +55,10 @@ CODE_METRICS_FORBIDDEN = "metrics_forbidden"
 
 # --- 基础设施 ---
 CODE_REDIS_UNAVAILABLE = "redis_unavailable"
+
+# --- 输入护栏与限流 ---
+CODE_INPUT_REJECTED = "input_rejected"
+CODE_RATE_LIMITED = "rate_limited"
 
 # --- 控制面透传（Java 定义，Agent 原样返回） ---
 CODE_QUOTA_EXCEEDED = "quota_exceeded"
@@ -79,12 +90,19 @@ ERROR_CODES: dict[str, str] = {
     CODE_MODEL_RUNTIME_DISABLED: "模型运行时未启用",
     CODE_REQUEST_TIMEOUT: "整轮流式响应超时（流内）",
     CODE_AGENT_ERROR: "图执行异常（流内）",
+    CODE_HITL_UNAVAILABLE: "HITL 未启用或存储后端不支持中断",
+    CODE_INTERRUPT_NOT_FOUND: "当前会话没有待恢复的中断",
+    CODE_INTERRUPT_EXPIRED: "待恢复的中断已过期",
+    CODE_INTERRUPT_MISMATCH: "恢复请求与待处理的中断不匹配",
+    CODE_HITL_RESUME_INVALID: "中断恢复内容无效",
     CODE_CREDENTIAL_UNAVAILABLE: "BYOK 凭证未就绪",
     CODE_LLM_NOT_CONFIGURED: "LLM 未配置密钥",
     CODE_LLM_PROVIDER_UNSUPPORTED: "Provider 无法映射到网关",
     CODE_METRICS_DISABLED: "指标端点未启用",
     CODE_METRICS_FORBIDDEN: "指标访问被拒绝",
     CODE_REDIS_UNAVAILABLE: "Redis 不可用",
+    CODE_INPUT_REJECTED: "输入被护栏拒绝",
+    CODE_RATE_LIMITED: "请求过于频繁",
     CODE_QUOTA_EXCEEDED: "今日请求额度用尽（控制面透传）",
     CODE_MODEL_NOT_AVAILABLE: "模型不存在或用户不可用（控制面透传）",
     CODE_CAPABILITY_UNSUPPORTED: "模型不支持所需能力（控制面透传）",

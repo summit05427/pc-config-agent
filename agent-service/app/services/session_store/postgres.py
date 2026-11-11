@@ -51,6 +51,11 @@ ADD_ARCHIVED_COLUMN_SQL = """
 ALTER TABLE session_meta ADD COLUMN IF NOT EXISTS is_archived BOOLEAN NOT NULL DEFAULT FALSE
 """
 
+# 结构化配置结果挂在助手消息上；历史接口返回它，详情面板才能跨刷新使用
+ADD_BUILD_RESULT_COLUMN_SQL = """
+ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS build_result JSONB
+"""
+
 CREATE_MESSAGES_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS session_messages (
     user_id    TEXT        NOT NULL,
@@ -114,20 +119,25 @@ RETURNING updated_at
 """
 
 INSERT_MESSAGES_SQL = """
-INSERT INTO session_messages (user_id, thread_id, seq, role, content, tool_calls, name)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
+INSERT INTO session_messages (
+    user_id, thread_id, seq, role, content, tool_calls, name, build_result
+)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (user_id, thread_id, seq) DO NOTHING
 """
 
 # 重新生成：覆盖同序号消息内容；只有内容变化时才刷新 created_at
 UPSERT_MESSAGES_SQL = """
-INSERT INTO session_messages (user_id, thread_id, seq, role, content, tool_calls, name)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
+INSERT INTO session_messages (
+    user_id, thread_id, seq, role, content, tool_calls, name, build_result
+)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (user_id, thread_id, seq) DO UPDATE
 SET role = EXCLUDED.role,
     content = EXCLUDED.content,
     tool_calls = EXCLUDED.tool_calls,
     name = EXCLUDED.name,
+    build_result = EXCLUDED.build_result,
     created_at = CASE
         WHEN session_messages.content IS DISTINCT FROM EXCLUDED.content THEN now()
         ELSE session_messages.created_at
@@ -139,7 +149,7 @@ SELECT COUNT(*) FROM session_messages WHERE user_id = %s AND thread_id = %s
 """
 
 SELECT_WINDOW_ASC_SQL = """
-SELECT role, content, tool_calls, name, created_at
+SELECT seq, role, content, tool_calls, name, created_at, build_result
 FROM session_messages
 WHERE user_id = %s AND thread_id = %s
 ORDER BY seq
@@ -147,7 +157,7 @@ LIMIT %s OFFSET %s
 """
 
 SELECT_WINDOW_DESC_SQL = """
-SELECT role, content, tool_calls, name, created_at
+SELECT seq, role, content, tool_calls, name, created_at, build_result
 FROM session_messages
 WHERE user_id = %s AND thread_id = %s
 ORDER BY seq DESC
@@ -195,6 +205,7 @@ class PostgresSessionStore:
                 ADD_MODEL_KEY_COLUMN_SQL,
                 ADD_PINNED_COLUMN_SQL,
                 ADD_ARCHIVED_COLUMN_SQL,
+                ADD_BUILD_RESULT_COLUMN_SQL,
                 CREATE_META_ORDER_INDEX_SQL,
                 CREATE_MESSAGES_TABLE_SQL,
                 CREATE_MESSAGES_INDEX_SQL,
@@ -209,8 +220,14 @@ class PostgresSessionStore:
         messages: list[Any],
         title: str | None,
         replace_existing: bool = False,
+        build_result: dict[str, Any] | None = None,
     ) -> None:
         records = [(seq, to_record(message)) for seq, message in enumerate(messages)]
+        # 结果只属于本轮最后一条助手消息，避免历史里每条助手消息都带同一份配置
+        last_assistant_seq = next(
+            (seq for seq, record in reversed(records) if record["role"] == "assistant"),
+            None,
+        )
         params = [
             (
                 user_id,
@@ -220,6 +237,9 @@ class PostgresSessionStore:
                 record["content"],
                 Jsonb(record["tool_calls"]) if record["tool_calls"] is not None else None,
                 record["name"],
+                Jsonb(build_result)
+                if build_result is not None and seq == last_assistant_seq
+                else None,
             )
             for seq, record in records
         ]
@@ -331,13 +351,16 @@ class PostgresSessionStore:
 
         records = [
             {
+                # seq 是会话内稳定序号，与 thread_id 拼成 message_id 供反馈绑定
+                "message_id": f"{thread_id}:{seq}",
                 "role": role,
                 "content": content,
                 "tool_calls": tool_calls,
                 "name": name,
                 "created_at": created_at,
+                "build_result": build_result,
             }
-            for role, content, tool_calls, name, created_at in rows
+            for seq, role, content, tool_calls, name, created_at, build_result in rows
         ]
         return [to_payload(record) for record in records], total
 

@@ -17,7 +17,13 @@ from app.agent import pc as pc_package  # noqa: F401  确保包可导入
 from app.agent.pc import nodes as nodes_module
 from app.agent.pc.graph import PC_GRAPH_NODES, build_pc_graph
 from app.agent.pc.nodes import build_result_payload
-from app.agent.pc.schemas import REQUIRED_CATEGORIES
+from app.agent.pc.schemas import (
+    REQUIRED_CATEGORIES,
+    BuildScenario,
+    PCRequirements,
+    Preference,
+    RenderMode,
+)
 from app.agent.profiles import resolve_profile
 from app.agent.registry import ToolExecutionError
 from app.core.exceptions import AppError
@@ -64,37 +70,50 @@ def _component(category: str, price_fen: int, source: str = "MOCK_DEMO") -> dict
     }
 
 
-def _build(status: str = "UNKNOWN") -> dict[str, Any]:
+def _build(
+    status: str = "UNKNOWN",
+    *,
+    workload_profile: str | None = None,
+    risk_level: str | None = None,
+    scoring_version: str | None = None,
+) -> dict[str, Any]:
     components = [
         _component(category.value, 100_000 + index * 10_000)
         for index, category in enumerate(REQUIRED_CATEGORIES)
     ]
-    return {
+    requirements: dict[str, Any] = {
+        "budgetMaxFen": 1_000_000,
+        "scenario": "GAMING",
+        "minMemoryGb": 32,
+        "minStorageGb": 1_000,
+        "requireVerifiedOffers": False,
+    }
+    if workload_profile is not None:
+        requirements["workloadProfile"] = workload_profile
+    check: dict[str, Any] = {
+        "ruleId": "case_clearance",
+        "ruleName": "机箱散热高度",
+        "status": status,
+        "message": "缺少机箱最大散热高度数据",
+    }
+    if risk_level is not None:
+        check["riskLevel"] = risk_level
+    build: dict[str, Any] = {
         "buildId": "build-1",
-        "requirements": {
-            "budgetMaxFen": 1_000_000,
-            "scenario": "GAMING",
-            "minMemoryGb": 32,
-            "minStorageGb": 1_000,
-            "requireVerifiedOffers": False,
-        },
+        "requirements": requirements,
         "components": components,
         "totalPriceFen": sum(item["priceFen"] for item in components),
         "budgetStatus": "WITHIN_BUDGET",
         "compatibilityReport": {
             "overallStatus": status,
-            "checks": [
-                {
-                    "ruleId": "case_clearance",
-                    "ruleName": "机箱散热高度",
-                    "status": status,
-                    "message": "缺少机箱最大散热高度数据",
-                }
-            ],
+            "checks": [check],
         },
         "verifiedOfferCount": 0,
         "demoOfferCount": 8,
     }
+    if scoring_version is not None:
+        build["scoringVersion"] = scoring_version
+    return build
 
 
 def _candidate_payload(category: str) -> dict[str, Any]:
@@ -142,6 +161,7 @@ def _install_tools(
     empty_category: str | None = None,
     solve_payload: dict[str, Any] | None = None,
     validate_payloads: list[dict[str, Any] | BaseException] | None = None,
+    solve_args: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
     """装配五类工具替身，返回可观测的调用计数。"""
     counters = {"solve": 0, "validate": 0}
@@ -184,6 +204,8 @@ def _install_tools(
 
         async def ainvoke(self, args: dict[str, Any]) -> str:
             counters["solve"] += 1
+            if solve_args is not None:
+                solve_args.append(dict(args))
             payload = solve_payload or {"solved": True, "build": _build(), "failure": None}
             return json.dumps(payload, ensure_ascii=False)
 
@@ -224,9 +246,10 @@ async def _invoke(agent: Any, text: str, thread_id: str = "pc-thread") -> dict[s
     )
 
 
-def test_graph_has_exactly_six_nodes() -> None:
+def test_graph_contains_pipeline_and_hitl_gates() -> None:
     graph = _graph().get_graph()
     assert set(PC_GRAPH_NODES) <= set(graph.nodes)
+    assert {"clarification_gate", "compatibility_gate"} <= set(graph.nodes)
     assert "tools" not in graph.nodes
 
 
@@ -378,6 +401,207 @@ async def test_fallback_parser_when_model_is_none(monkeypatch: pytest.MonkeyPatc
     assert result["requirements"]["budget_max_fen"] == 800_000
     assert result["requirements"]["scenario"] == "GAMING"
     assert result["workflow_status"] == "success"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("预算 20000 元，用 CPU 渲染", RenderMode.CPU),
+        ("预算 20000 元，用 GPU 渲染", RenderMode.GPU),
+        ("预算 20000 元，CPU 和 GPU 都要，主要渲染", RenderMode.BOTH),
+        ("预算 20000 元，只要渲染快一点", None),
+    ],
+)
+def test_fallback_rendering_records_render_mode_only_when_explicit(
+    text: str, expected: RenderMode | None
+) -> None:
+    requirements = nodes_module.fallback_requirements(text)
+
+    assert requirements.scenario is BuildScenario.RENDERING
+    assert requirements.render_mode is expected
+
+
+async def test_rendering_without_render_mode_asks_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    counters = _install_tools(monkeypatch)
+
+    result = await _invoke(_graph(None), "我想配台做渲染的机器", "render-clarify")
+
+    assert result["workflow_status"] == "clarification"
+    assert "CPU 还是 GPU" in result["messages"][-1].content
+    assert result["requirements"]["render_mode"] is None
+    assert "render_mode" in result["requirements"]["missing_fields"]
+    assert counters["solve"] == 0
+
+
+async def test_rendering_render_mode_is_forwarded_to_solve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    solve_args: list[dict[str, Any]] = []
+    _install_tools(monkeypatch, solve_args=solve_args)
+    model = ScriptedModel(
+        [
+            json.dumps(
+                {
+                    "budget_max_fen": 2_000_000,
+                    "scenario": "RENDERING",
+                    "scenario_explicit": True,
+                }
+            ),
+            "这套配置侧重 CPU 渲染需要的多核吞吐。",
+        ]
+    )
+
+    result = await _invoke(_graph(model), "预算两万，主要用 CPU 渲染", "render-cpu")
+
+    requirements = PCRequirements.model_validate(result["requirements"])
+    assert requirements.render_mode is RenderMode.CPU
+    assert requirements.to_solve_request()["renderMode"] == "CPU"
+    assert solve_args and solve_args[0]["render_mode"] == "CPU"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("8000 元，打游戏，性价比优先", Preference.VALUE),
+        ("10000 元，打游戏，性能优先", Preference.PERFORMANCE),
+        ("8000 元，打游戏", None),
+    ],
+)
+async def test_preference_is_forwarded_to_solve(
+    monkeypatch: pytest.MonkeyPatch,
+    text: str,
+    expected: Preference | None,
+) -> None:
+    solve_args: list[dict[str, Any]] = []
+    _install_tools(monkeypatch, solve_args=solve_args)
+
+    result = await _invoke(_graph(None), text, f"preference-{expected}")
+
+    requirements = PCRequirements.model_validate(result["requirements"])
+    assert requirements.preference is expected
+    assert solve_args and solve_args[0]["preference"] == (
+        expected.value if expected else None
+    )
+
+
+def test_build_result_payload_projects_java_workload_and_risk() -> None:
+    build = _build(
+        workload_profile="AI_INFERENCE",
+        risk_level="ADVISORY",
+        scoring_version="scoring-2026-11",
+    )
+
+    payload = build_result_payload(
+        {
+            "workflow_status": "success",
+            "build_result": build,
+            "requirements": {"scenario": "AI_INFERENCE"},
+            "reason_summary": None,
+        }
+    )
+
+    assert payload is not None
+    assert payload["workload_profile"] == "AI_INFERENCE"
+    assert payload["scoring_version"] == "scoring-2026-11"
+    assert payload["compatibility"][0]["risk_level"] == "ADVISORY"
+
+
+def test_build_result_payload_falls_back_without_fabricating_java_fields() -> None:
+    build = _build()
+
+    payload = build_result_payload(
+        {
+            "workflow_status": "success",
+            "build_result": build,
+            "requirements": {"scenario": "RENDERING"},
+            "reason_summary": None,
+        }
+    )
+
+    assert payload is not None
+    # Java 未返回 workloadProfile 时用本地场景兜底
+    assert payload["workload_profile"] == "RENDERING"
+    # 缺失字段必须省略，不能补默认值冒充 Java 结论
+    assert "scoring_version" not in payload
+    assert "component_reasons" not in payload
+    assert "risk_level" not in payload["compatibility"][0]
+
+
+def test_build_result_payload_passes_through_component_reasons() -> None:
+    build = _build()
+    component_reasons = {
+        "CPU": "多核性能满足编译与多任务需求",
+        "GPU": "显存容量符合本地推理要求",
+    }
+    build["componentReasons"] = component_reasons
+
+    payload = build_result_payload(
+        {
+            "workflow_status": "success",
+            "build_result": build,
+            "requirements": {"scenario": "PROGRAMMING"},
+            "reason_summary": None,
+        }
+    )
+
+    assert payload is not None
+    # Java 生成的理由原样透传，Agent 不改写也不补写
+    assert payload["component_reasons"] == component_reasons
+
+
+@pytest.mark.parametrize(
+    ("scenario", "needle"),
+    [
+        ("RENDERING", "多核吞吐"),
+        ("AI_INFERENCE", "显存"),
+        ("VIDEO_EDITING", "剪辑"),
+    ],
+)
+def test_deterministic_reason_covers_new_workload_profiles(
+    scenario: str, needle: str
+) -> None:
+    build = _build()
+    build["requirements"]["scenario"] = scenario
+
+    reason = nodes_module._deterministic_reason(
+        {"build_result": build, "requirements": {"scenario": scenario}}
+    )
+
+    assert needle in reason
+
+
+def test_deterministic_reason_distinguishes_preference() -> None:
+    build = _build()
+
+    def reason_of(preference: Preference | None) -> str:
+        requirements: dict[str, Any] = {"scenario": "GAMING"}
+        if preference is not None:
+            requirements["preference"] = preference
+        return nodes_module._deterministic_reason(
+            {"build_result": build, "requirements": requirements}
+        )
+
+    assert "按性价比优先" in reason_of(Preference.VALUE)
+    assert "按性能总分优先" in reason_of(Preference.PERFORMANCE)
+    neutral = reason_of(None)
+    assert "按性价比优先" not in neutral
+    assert "按性能总分优先" not in neutral
+    assert "没有指定" in neutral
+
+
+def test_value_preference_without_budget_uses_neutral_wording() -> None:
+    build = _build()
+    build["requirements"]["budgetMaxFen"] = None
+
+    reason = nodes_module._deterministic_reason(
+        {"build_result": build, "requirements": {"preference": Preference.VALUE}}
+    )
+
+    # 没有预算时 Java 不会按性价比排序，兜底说明不得声称做了该优化
+    assert "按性价比优先" not in reason
+    assert "按默认性能排序" in reason
 
 
 async def test_runtime_is_not_persisted(monkeypatch: pytest.MonkeyPatch) -> None:

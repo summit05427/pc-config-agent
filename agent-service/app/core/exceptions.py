@@ -17,8 +17,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import get_settings
 from app.core.error_codes import (
     CODE_APP_ERROR,
+    CODE_HITL_RESUME_INVALID,
+    CODE_INPUT_REJECTED,
     CODE_INTERNAL_ERROR,
     CODE_LOCK_NOT_ACQUIRED,
+    CODE_RATE_LIMITED,
     CODE_REDIS_UNAVAILABLE,
     CODE_VALIDATION_ERROR,
     build_http_error_code,
@@ -41,6 +44,7 @@ class AppError(Exception):
         code: str = CODE_APP_ERROR,
         status_code: int = 400,
         extra: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.message = message
@@ -48,6 +52,8 @@ class AppError(Exception):
         self.status_code = status_code
         # 附加的业务负载（如额度超限的 quota 字段）；只在已知业务错误上使用
         self.extra = extra
+        # 需要让客户端按协议读取的响应头，例如限流的 Retry-After
+        self.headers = headers
 
 
 class LockAcquisitionError(AppError):
@@ -70,6 +76,47 @@ class RedisUnavailableError(AppError):
 
     def __init__(self, message: str = "缓存服务暂不可用，请稍后重试") -> None:
         super().__init__(message, code=CODE_REDIS_UNAVAILABLE, status_code=503)
+
+
+class HitlResumeInvalidError(AppError):
+    """中断恢复内容无法被门控节点接受。
+
+    属于客户端输入问题（如空回答、未知选项），用 422 而不是 500；
+    流已建立时由传输层转成带明确错误码的 SSE error 事件。
+    """
+
+    def __init__(self, message: str = "恢复内容无效，请补充预算或用途后重试") -> None:
+        super().__init__(message, code=CODE_HITL_RESUME_INVALID, status_code=422)
+
+
+class InputRejectedError(AppError):
+    """输入护栏命中。
+
+    用 422 而不是 400：请求语法合法，是被业务规则拒绝；前端据此提示用户改写输入，
+    不应当自动重试。
+    """
+
+    def __init__(self, message: str = "输入包含不被支持的内容，请调整后重试") -> None:
+        super().__init__(message, code=CODE_INPUT_REJECTED, status_code=422)
+
+
+class RateLimitExceededError(AppError):
+    """对话接口超过配额。
+
+    429 并带 `Retry-After`：调用方据此退避，而不是盲目重试继续放大成本。
+    """
+
+    def __init__(
+        self,
+        retry_after_seconds: int,
+        message: str = "请求过于频繁，请稍后重试",
+    ) -> None:
+        super().__init__(
+            message,
+            code=CODE_RATE_LIMITED,
+            status_code=429,
+            headers={"Retry-After": str(max(retry_after_seconds, 1))},
+        )
 
 
 def _request_id() -> str:
@@ -102,6 +149,7 @@ async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
         content=_error_payload(exc.code, exc.message, extra=exc.extra),
+        headers=exc.headers,
     )
 
 

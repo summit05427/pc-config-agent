@@ -1,8 +1,9 @@
 """假模型模式：零 API 费用，校验用例与 Agent 配置是否对得上。
 
-能验证：Profile 是否存在、`tool_called` 指向的工具是否已注册且被该 Profile 绑定、
-PC 图能否按该 Profile 编译、六个节点是否齐全。
-不能验证：模型是否真的按用例回答——内容断言一律记为 `skipped`，需要 `--real`。
+能验证：Profile 是否存在、`tool_called` / `tool_sequence` 指向的工具是否已注册且被该
+Profile 绑定、PC 图能否按该 Profile 编译、八个节点是否齐全。
+不能验证：模型是否真的按用例回答、最终图状态与价格一致性、HITL 是否按预期暂停与恢复——
+这类断言一律记为 `skipped`，需要 `--real`。
 """
 
 from dataclasses import dataclass
@@ -32,8 +33,8 @@ from evals.report import (
 )
 from evals.schema import EvalCase
 
-# 内容断言在假模型模式下没有回答可供比对，如实标记为未校验
-_CONTENT_SKIP_REASON = "假模型不产生回答，内容断言需用 --real 校验"
+# 内容与状态断言在假模型模式下没有回答与图状态可供比对，如实标记为未校验
+_CONTENT_SKIP_REASON = "假模型不产生回答与图状态，此类断言需用 --real 校验"
 
 
 class _StructuralModel:
@@ -122,7 +123,7 @@ def _check_tool(tool_name: str, prepared: _PreparedProfile) -> CheckResult:
 
 
 def _check_graph(prepared: _PreparedProfile) -> CheckResult:
-    """六个节点缺一不可，避免悄悄退回多图或残缺图。"""
+    """八个节点缺一不可，避免悄悄退回多图或残缺图。"""
     missing = [node for node in PC_GRAPH_NODES if node not in prepared.graph_nodes]
     if missing:
         return CheckResult(
@@ -133,13 +134,42 @@ def _check_graph(prepared: _PreparedProfile) -> CheckResult:
     return CheckResult("graph", STATUS_PASSED, f"节点：{', '.join(PC_GRAPH_NODES)}")
 
 
+def _check_tool_sequence(
+    expected: list[str], prepared: _PreparedProfile
+) -> CheckResult:
+    """顺序断言在假模型模式只能校验「已注册且已绑定」，实际调用顺序需要 --real。"""
+    registered = {spec.tool.name for spec in list_tool_specs()}
+    problems = []
+    for name in expected:
+        if name not in registered:
+            problems.append(f"{name} 未注册")
+        elif name not in prepared.tool_names:
+            problems.append(f"{name} 未绑定")
+    if problems:
+        return CheckResult("tool_sequence", STATUS_FAILED, "；".join(problems))
+    return CheckResult("tool_sequence", STATUS_PASSED, " → ".join(expected))
+
+
 def _skipped_content_checks(case: EvalCase) -> list[CheckResult]:
-    checks = []
-    if case.expect.must_contain:
-        checks.append(CheckResult("must_contain", STATUS_SKIPPED, _CONTENT_SKIP_REASON))
-    if case.expect.must_not_contain:
-        checks.append(CheckResult("must_not_contain", STATUS_SKIPPED, _CONTENT_SKIP_REASON))
-    return checks
+    """内容与状态断言都需要真实回答或图状态，假模型模式一律如实标记未校验。"""
+    expect = case.expect
+    required_assertions = (
+        ("must_contain", bool(expect.must_contain)),
+        ("must_not_contain", bool(expect.must_not_contain)),
+        ("workflow_status", expect.workflow_status is not None),
+        ("missing_slots", bool(expect.missing_slots)),
+        ("structured_fields", bool(expect.structured_fields)),
+        ("price_consistency", expect.price_consistency),
+        ("interrupt_type", expect.interrupt_type is not None),
+        ("resume", case.resume is not None),
+        ("max_latency_ms", expect.max_latency_ms is not None),
+        ("max_tokens", expect.max_tokens is not None),
+    )
+    return [
+        CheckResult(name, STATUS_SKIPPED, _CONTENT_SKIP_REASON)
+        for name, present in required_assertions
+        if present
+    ]
 
 
 def run_case(case: EvalCase) -> CaseResult:
@@ -173,6 +203,8 @@ def run_case(case: EvalCase) -> CaseResult:
     ]
     if case.expect.tool_called is not None:
         checks.append(_check_tool(case.expect.tool_called, prepared))
+    if case.expect.tool_sequence:
+        checks.append(_check_tool_sequence(list(case.expect.tool_sequence), prepared))
     checks.extend(_skipped_content_checks(case))
 
     return CaseResult(

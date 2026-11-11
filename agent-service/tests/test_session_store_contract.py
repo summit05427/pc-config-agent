@@ -69,6 +69,8 @@ async def test_record_turn_persists_catalog_and_messages(store: Any) -> None:
     items, message_total = await store.read_messages(user_id, "t-1", page=1, size=20)
     assert message_total == 2
     assert [item["role"] for item in items] == ["user", "assistant"]
+    # 稳定消息标识：反馈按它绑定，两个适配器必须给出同一规则
+    assert [item["message_id"] for item in items] == ["t-1:0", "t-1:1"]
 
 
 async def test_title_is_written_once(store: Any) -> None:
@@ -102,6 +104,8 @@ async def test_message_window_and_desc_order(store: Any) -> None:
     items, total = await store.read_messages(user_id, "t-1", page=2, size=2)
     assert total == 5
     assert [item["content"] for item in items] == ["m2", "m3"]
+    # 翻到第 2 页后 ID 仍指向全局序号，不能退化成窗口内下标
+    assert [item["message_id"] for item in items] == ["t-1:2", "t-1:3"]
 
     latest, _ = await store.read_messages(user_id, "t-1", page=1, size=2, order="desc")
     assert [item["content"] for item in latest] == ["m4", "m3"]

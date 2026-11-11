@@ -26,10 +26,18 @@ from pydantic import BaseModel, Field, SecretStr
 from redis.exceptions import RedisError
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
+from app.agent.pc.hitl import is_interrupt_expired
 from app.agent.preferences import ChatPreferences
 from app.agent.profiles import ProfileNotFoundError, resolve_profile
 from app.api.v1.sse import SSE_SEPARATOR, StreamEncoder
 from app.core.config import get_settings
+from app.core.error_codes import (
+    CODE_HITL_UNAVAILABLE,
+    CODE_INTERRUPT_EXPIRED,
+    CODE_INTERRUPT_MISMATCH,
+    CODE_INTERRUPT_NOT_FOUND,
+    CODE_VALIDATION_ERROR,
+)
 from app.core.exceptions import AppError, RedisUnavailableError
 from app.core.redis import is_redis_enabled
 from app.core.security import (
@@ -46,14 +54,34 @@ from app.services.idempotency import (
     idempotency_key,
     idempotency_read,
 )
+from app.services.input_guard import enforce_input_guard
 from app.services.lock import LockHandle, acquire_thread_lock
 from app.services.model_resolver import ResolvedRuntime
 from app.services.model_runtime import prepare_agent
+from app.services.rate_limit import enforce_chat_rate_limit
 from app.services.session_deletion import cancel_pending_deletion
 from app.services.turn import TurnOutcome, TurnRequest, run_turn
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 logger = structlog.get_logger(__name__)
+
+
+class ChatResume(BaseModel):
+    """恢复一次 HITL 中断所需的字段。
+
+    用户可读的回答文本仍放在 `message`，这里只补结构化答案与中断标识；
+    两者分开是为了让历史消息可读，同时让门控节点拿到可校验的字段。
+    """
+
+    interrupt_id: str = Field(
+        min_length=1,
+        max_length=128,
+        description="待恢复的中断 id，来自 SSE interrupt 事件",
+    )
+    answer: dict[str, Any] = Field(
+        default_factory=dict,
+        description="按 interrupt 事件中 input_schema 填写的结构化答案",
+    )
 
 
 class ChatRequest(BaseModel):
@@ -93,6 +121,11 @@ class ChatRequest(BaseModel):
     reasoning: bool | None = Field(
         default=None,
         description="是否要求模型开启思考；模型不支持时返回 422 capability_unsupported",
+    )
+    # 恢复一次已暂停的 HITL 回合；与 regenerate 互斥
+    resume: ChatResume | None = Field(
+        default=None,
+        description="恢复一次已暂停的 HITL 回合；省略表示发起新回合",
     )
 
 
@@ -148,6 +181,64 @@ async def _finalize_idempotency(
         logger.warning("chat.idempotency_finalize_failed", error_type=type(exc).__name__)
 
 
+_RESUME_INTERRUPT_INDEX = 0
+
+
+async def _validate_resume(
+    graph: Any,
+    checkpoint_thread_id: str,
+    resume: ChatResume | None,
+) -> None:
+    """流建立前校验恢复请求：所有失败都以裸 JSON 返回，避免进入流后无法改状态码。
+
+    跨用户/跨 thread 由命名空间后的 thread_id 与 checkpoint 读取天然隔离；
+    这里再校验中断是否存在、id 是否匹配、是否过期。
+    """
+    if resume is None:
+        return
+    settings = get_settings()
+    if not settings.hitl.enabled or settings.storage.backend != "postgres":
+        raise AppError(
+            "当前环境未启用 HITL，无法恢复中断",
+            code=CODE_HITL_UNAVAILABLE,
+            status_code=409,
+        )
+    try:
+        snapshot = await graph.aget_state(
+            {"configurable": {"thread_id": checkpoint_thread_id}}
+        )
+    except Exception as exc:
+        logger.warning("chat.resume_state_failed", error_type=type(exc).__name__)
+        raise AppError(
+            "无法读取会话状态，请重试",
+            code=CODE_INTERRUPT_NOT_FOUND,
+            status_code=409,
+        ) from exc
+
+    interrupts = getattr(snapshot, "interrupts", ()) or ()
+    if not interrupts:
+        raise AppError(
+            "当前会话没有待恢复的提问，请重新发起对话",
+            code=CODE_INTERRUPT_NOT_FOUND,
+            status_code=409,
+        )
+    pending = interrupts[_RESUME_INTERRUPT_INDEX]
+    if str(getattr(pending, "id", "")) != resume.interrupt_id:
+        raise AppError(
+            "恢复请求与待处理的问题不匹配，请刷新后重试",
+            code=CODE_INTERRUPT_MISMATCH,
+            status_code=409,
+        )
+    if is_interrupt_expired(
+        getattr(snapshot, "created_at", None), settings.hitl.interrupt_ttl_seconds
+    ):
+        raise AppError(
+            "这次提问已过期，请重新发起对话",
+            code=CODE_INTERRUPT_EXPIRED,
+            status_code=409,
+        )
+
+
 def _build_turn_request(
     payload: ChatRequest,
     user: CurrentUser,
@@ -157,6 +248,10 @@ def _build_turn_request(
     user_token: str | None = None,
 ) -> TurnRequest:
     """把 HTTP 请求翻译成回合输入；两套 thread_id 各归其位。"""
+    resume = None
+    if payload.resume is not None:
+        # 只把用户可读文本与结构化答案交给门控；interrupt_id 仅用于流前校验
+        resume = {"message": payload.message, "answer": payload.resume.answer}
     return TurnRequest(
         user_id=user.user_id,
         user_roles=tuple(user.roles),
@@ -169,6 +264,7 @@ def _build_turn_request(
         runtime=runtime,
         user_token=user_token,
         regenerate=payload.regenerate,
+        resume=resume,
     )
 
 
@@ -204,6 +300,10 @@ async def _event_stream(
     except asyncio.CancelledError:
         encoder.record_disconnect(thread_id)
         raise
+    except AppError as exc:
+        # 流内业务错误（如恢复内容无效）保留明确错误码，前端据此给出针对性提示
+        logger.warning("chat.stream_app_error", code=exc.code, thread_id=thread_id)
+        yield encoder.encode("error", {"code": exc.code, "message": exc.message})
     except Exception:
         yield encoder.encode_failure(thread_id)
     finally:
@@ -231,6 +331,14 @@ async def stream_chat(
     thread_id = namespaced_thread_id(current_user, payload.thread_id)
     idempotency_record_key = _chat_idempotency_key(current_user, request_key)
 
+    # 恢复与重新生成语义冲突：恢复要续跑暂停的图，重新生成要重跑上一轮
+    if payload.resume is not None and payload.regenerate:
+        raise AppError(
+            "恢复请求不能同时要求重新生成",
+            code=CODE_VALIDATION_ERROR,
+            status_code=422,
+        )
+
     # 未知 agent_id 在建立流之前返回 404，避免占用幂等记录与线程锁
     try:
         profile = resolve_profile(payload.agent_id)
@@ -240,6 +348,10 @@ async def stream_chat(
             code="agent_not_found",
             status_code=404,
         ) from None
+
+    # 输入护栏先于幂等与锁：纯计算、成本最低，且被拒绝的请求不占用配额与锁
+    enforce_input_guard(payload.message)
+    await enforce_chat_rate_limit(current_user.user_id)
 
     # 先做幂等抢占，再做耗时的锁等待，重复请求可以快速失败
     await _claim_idempotency(idempotency_record_key)
@@ -269,6 +381,8 @@ async def stream_chat(
             if prepared.user_token is not None
             else None
         )
+        # 恢复请求必须在流建立前校验：中断不存在/不匹配/过期都要返回裸 JSON
+        await _validate_resume(graph, thread_id, payload.resume)
     except Exception:
         # 响应尚未开始，必须回滚已占用的资源，否则请求会白等一个锁周期
         if lock_handle is not None:

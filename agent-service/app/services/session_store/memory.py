@@ -41,6 +41,7 @@ class InMemorySessionStore:
         messages: list[Any],
         title: str | None,
         replace_existing: bool = False,
+        build_result: dict[str, Any] | None = None,
     ) -> None:
         now = self._clock()
         record = self._records.get((user_id, thread_id))
@@ -52,9 +53,17 @@ class InMemorySessionStore:
         record.updated_at = now
         if record.title is None and title is not None:
             record.title = title
-        for seq, message in enumerate(messages):
-            payload = to_record(message)
+        payloads = [to_record(message) for message in messages]
+        # 结果只挂在本轮最后一条助手消息上，与 Postgres 适配器保持一致
+        last_assistant_seq = next(
+            (seq for seq, payload in reversed(list(enumerate(payloads)))
+             if payload["role"] == "assistant"),
+            None,
+        )
+        for seq, payload in enumerate(payloads):
             payload["created_at"] = now
+            if build_result is not None and seq == last_assistant_seq:
+                payload["build_result"] = build_result
             if replace_existing:
                 record.messages[seq] = payload
             else:
@@ -146,8 +155,11 @@ class InMemorySessionStore:
             return [], 0
 
         ordered = sorted(record.messages.items(), reverse=order == "desc")
-        window = [item for _, item in ordered[(page - 1) * size : (page - 1) * size + size]]
-        return [to_payload(item) for item in window], len(ordered)
+        window = ordered[(page - 1) * size : (page - 1) * size + size]
+        # 与 Postgres 适配器保持同一 message_id 规则，测试后端不能出现两套身份
+        return [
+            to_payload({**item, "message_id": f"{thread_id}:{seq}"}) for seq, item in window
+        ], len(ordered)
 
     async def get_model_key(self, user_id: str, thread_id: str) -> str | None:
         record = self._records.get((user_id, thread_id))

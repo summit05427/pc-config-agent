@@ -16,6 +16,9 @@ from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
 from app.agent.checkpointer import delete_thread_checkpoint
+from app.agent.graph import get_agent
+from app.agent.pc.hitl import interrupt_payload, is_interrupt_expired
+from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.security import (
     CurrentUser,
@@ -97,6 +100,68 @@ def _validate_pagination(page: int, size: int) -> None:
 def _to_iso(timestamp: datetime) -> str:
     """统一为 UTC ISO-8601，与其他服务的时间格式保持一致。"""
     return timestamp.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _newest_assistant_index(
+    items: list[dict[str, Any]], order: Literal["asc", "desc"]
+) -> int | None:
+    """最新一条助手消息在返回窗口中的下标；desc 时窗口首条即最新。"""
+    if order == "desc":
+        return next(
+            (index for index, item in enumerate(items) if item.get("role") == "assistant"),
+            None,
+        )
+    for index in range(len(items) - 1, -1, -1):
+        if items[index].get("role") == "assistant":
+            return index
+    return None
+
+
+async def _attach_pending_hitl(
+    items: list[dict[str, Any]],
+    total: int,
+    page: int,
+    size: int,
+    order: Literal["asc", "desc"],
+    checkpoint_thread_id: str,
+) -> None:
+    """把待恢复的 HITL 中断附加到最新一条助手消息。
+
+    中断只存在于 checkpointer、不落 `session_messages`；刷新页面后前端靠这个字段
+    重建表单。只附加「未过期」且窗口确实包含最新消息的中断，避免旧分页出现幽灵表单。
+    历史读取不能因旁路状态失败而报错，因此异常只记录日志。
+    """
+    settings = get_settings()
+    if not settings.hitl.enabled or not items:
+        return
+    if order == "desc" and page != 1:
+        return
+    if order == "asc" and (page - 1) * size + len(items) < total:
+        return
+
+    index = _newest_assistant_index(items, order)
+    if index is None:
+        return
+
+    try:
+        snapshot = await get_agent().aget_state(
+            {"configurable": {"thread_id": checkpoint_thread_id}}
+        )
+    except Exception as exc:
+        logger.warning("sessions.hitl_state_read_failed", error_type=type(exc).__name__)
+        return
+
+    interrupts = list(getattr(snapshot, "interrupts", ()) or ())
+    if not interrupts:
+        return
+    if is_interrupt_expired(
+        getattr(snapshot, "created_at", None),
+        settings.hitl.interrupt_ttl_seconds,
+    ):
+        return
+    payload = interrupt_payload(interrupts[0])
+    if payload is not None:
+        items[index] = {**items[index], "hitl": payload}
 
 
 async def _delete_checkpoint_now(thread_id: str) -> None:
@@ -288,6 +353,15 @@ async def get_session_messages(
     )
     if total == 0:
         raise AppError("会话不存在或尚无消息", code="session_not_found", status_code=404)
+
+    await _attach_pending_hitl(
+        items,
+        total,
+        page,
+        size,
+        order,
+        namespaced_thread_id(current_user, thread_id),
+    )
 
     return {
         "thread_id": thread_id,

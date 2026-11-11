@@ -95,14 +95,18 @@ async def get_verified_offers(
 async def solve_pc_build(
     budget_max_fen: int | None = None,
     scenario: str = "BALANCED",
+    preference: str | None = None,
+    render_mode: str | None = None,
     min_memory_gb: int | None = None,
     min_storage_gb: int | None = None,
     require_verified_offers: bool = False,
 ) -> dict[str, object]:
-    """求解配置；预算单位为整数分。"""
+    """求解配置；预算单位为整数分，`preference` 为空时由 Java 按性能总分排序。"""
     request: dict[str, object] = {
         "budgetMaxFen": budget_max_fen,
         "scenario": scenario,
+        "preference": preference,
+        "renderMode": render_mode,
         "minMemoryGb": min_memory_gb,
         "minStorageGb": min_storage_gb,
         "requireVerifiedOffers": require_verified_offers,

@@ -388,6 +388,47 @@ class RagSettings(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
 
 
+class HitlSettings(BaseModel):
+    """人机协同（HITL）配置，对应环境变量前缀 HITL__。
+
+    中断会把图状态停留在 checkpointer 中等待用户回答，恢复依赖持久化会话。
+    默认关闭以保证既有澄清/构建流程零回归；显式开启时必须是 postgres 后端，
+    memory 后端跨进程不共享中断，静默降级会让用户拿到无法恢复的对话。
+    """
+
+    enabled: bool = False
+    # 中断有效期：超过后恢复请求按「中断已过期」拒绝，避免长期悬挂的中断被误恢复
+    interrupt_ttl_seconds: int = Field(default=1800, gt=0, le=86400)
+
+
+class GuardSettings(BaseModel):
+    """输入侧护栏，对应环境变量前缀 GUARD__。
+
+    与输出护栏互补：这里拦截进入模型之前的可疑内容。命中即拒绝，
+    因此特征只保留高置信度模式；紧急情况下可用 enabled=false 整体关闭。
+    """
+
+    enabled: bool = True
+    # 与 ChatRequest 的长度上限对齐；调小可进一步收紧，调大不会突破请求模型校验
+    max_input_chars: int = Field(default=4000, ge=1, le=20000)
+    # 关闭后只保留长度/字符类校验，放行疑似提示词注入的输入（用于灰度对比）
+    block_on_injection: bool = True
+
+
+class RateLimitSettings(BaseModel):
+    """对话接口限流，对应环境变量前缀 RATE_LIMIT__。
+
+    按登录用户做 Redis 固定窗口计数：流式对话单轮成本高，限流是成本控制的第一道闸。
+    Redis 不可用时默认放行（fail-open），与幂等降级策略一致；生产若要严格限流可置为 false。
+    """
+
+    enabled: bool = True
+    # 0 表示关闭计数（保留配置位，便于不改代码临时停用）
+    chat_per_minute: int = Field(default=20, ge=0, le=600)
+    window_seconds: int = Field(default=60, ge=10, le=3600)
+    fail_open: bool = True
+
+
 class Settings(BaseSettings):
     """全局配置根对象。
 
@@ -423,6 +464,23 @@ class Settings(BaseSettings):
     metrics: MetricsSettings = Field(default_factory=MetricsSettings)
     mcp: MCPSettings = Field(default_factory=MCPSettings)
     rag: RagSettings = Field(default_factory=RagSettings)
+    hitl: HitlSettings = Field(default_factory=HitlSettings)
+    guard: GuardSettings = Field(default_factory=GuardSettings)
+    rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
+
+    @model_validator(mode="after")
+    def validate_hitl_storage(self) -> "Settings":
+        """启用 HITL 时必须是 postgres 后端。
+
+        memory 后端无法跨进程保存中断，继续运行只会让用户拿到无法恢复的对话；
+        这里直接拒绝启动，而不是在中断发生时静默降级。
+        """
+        if self.hitl.enabled and self.storage.backend != "postgres":
+            raise ValueError(
+                "HITL__ENABLED=true 时 STORAGE__BACKEND 必须为 postgres；"
+                "memory 后端不保存中断，无法恢复"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":

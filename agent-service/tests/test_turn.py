@@ -146,11 +146,13 @@ class _FakeStore:
         messages: Any,
         title: str | None,
         replace_existing: bool = False,
+        build_result: Any = None,
     ) -> None:
         if self._error is not None:
             raise self._error
         self.calls.append((user_id, thread_id, title))
         self.replace_existing = replace_existing
+        self.build_result = build_result
 
 
 def _request(graph: Any, **overrides: Any) -> TurnRequest:
@@ -210,6 +212,8 @@ async def test_done_event_carries_build_result(
     done = events[-1]
     assert done.type == "done"
     assert done.data["thread_id"] == "t1"
+    # 与历史接口同一规则：线程 + 消息在整轮消息列表中的下标
+    assert done.data["message_id"] == "t1:0"
     assert done.data["build_result"]["build_id"] == "build-1"
     assert done.data["build_result"]["total_price_fen"] == 800_000
     assert done.data["build_result"]["reason_summary"] == "这套配置偏向游戏性能。"

@@ -128,6 +128,17 @@
             "title": "Regenerate",
             "type": "boolean"
           },
+          "resume": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChatResume"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "恢复一次已暂停的 HITL 回合；省略表示发起新回合"
+          },
           "thread_id": {
             "description": "会话标识",
             "maxLength": 64,
@@ -141,6 +152,29 @@
           "thread_id"
         ],
         "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatResume": {
+        "description": "恢复一次 HITL 中断所需的字段。\n\n用户可读的回答文本仍放在 `message`，这里只补结构化答案与中断标识；\n两者分开是为了让历史消息可读，同时让门控节点拿到可校验的字段。",
+        "properties": {
+          "answer": {
+            "additionalProperties": true,
+            "description": "按 interrupt 事件中 input_schema 填写的结构化答案",
+            "title": "Answer",
+            "type": "object"
+          },
+          "interrupt_id": {
+            "description": "待恢复的中断 id，来自 SSE interrupt 事件",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Interrupt Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "interrupt_id"
+        ],
+        "title": "ChatResume",
         "type": "object"
       },
       "DevTokenRequest": {

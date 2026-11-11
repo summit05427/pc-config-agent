@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 import structlog
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+from langgraph.types import Command
 
 from app.agent.hooks import (
     HookBlockedError,
@@ -27,6 +28,7 @@ from app.agent.hooks import (
     run_hooks,
     should_buffer_model_output,
 )
+from app.agent.pc.hitl import interrupt_payload
 from app.agent.pc.nodes import build_result_payload
 from app.agent.preferences import ChatPreferences, build_preference_prompt
 from app.agent.tool_context import ToolTurn
@@ -40,7 +42,9 @@ logger = structlog.get_logger(__name__)
 # 自动标题取首条用户消息的前 N 个字符；标题列上限 80，留出余量给手动重命名
 AUTO_TITLE_LENGTH = 40
 
-TurnEventType = Literal["token", "reasoning", "tool_call", "tool_result", "citations", "done"]
+TurnEventType = Literal[
+    "token", "reasoning", "tool_call", "tool_result", "citations", "interrupt", "done"
+]
 
 
 @dataclass(frozen=True)
@@ -72,6 +76,8 @@ class TurnRequest:
     user_token: str | None = None
     # 重新生成：删除最后一条 AI 回答后重跑模型，而不是追加一轮新对话
     regenerate: bool = False
+    # 中断恢复：非空时以 `Command(resume=...)` 继续上次暂停的图，而不是新输入
+    resume: dict[str, Any] | None = None
 
 
 @dataclass
@@ -80,9 +86,13 @@ class TurnOutcome:
 
     `completed` 在模型生成结束时就置位，而不是等 `done` 发出：
     客户端在落库阶段断开不应把本轮判为失败。
+
+    `interrupted` 表示本轮以 HITL 暂停结束：这是正常状态，不是失败，
+    但不应再下发 `done`，否则前端会把「等待用户回答」当成已完成。
     """
 
     completed: bool = False
+    interrupted: bool = False
 
 
 async def run_turn(request: TurnRequest, outcome: TurnOutcome) -> AsyncIterator[TurnEvent]:
@@ -135,14 +145,23 @@ async def _turn_events(request: TurnRequest, outcome: TurnOutcome) -> AsyncItera
             )
     turn_prompt = _compose_turn_prompt(preference_prompt, build_retrieval_prompt(citations))
 
-    async for event in _agent_events(request, turn_prompt, use_history):
+    async for event in _agent_events(request, turn_prompt, use_history, outcome):
         yield event
 
     # 生成已结束：此后即使客户端在落库阶段断开，本轮也应记为完成
     outcome.completed = True
     # 先落库再发 done：前端收到 done 后立即查询历史即可看到本轮消息
     final_values = await _persist_turn(request)
+    # HITL 暂停：问题消息已落库，不再发 done，前端据此进入等待回答状态
+    if outcome.interrupted:
+        return
     done_payload: dict[str, Any] = {"thread_id": request.client_thread_id}
+    # 稳定消息标识：与历史接口的 message_id 一致，反馈按它绑定
+    message_id = _last_assistant_message_id(
+        request.client_thread_id, list(final_values.get("messages") or [])
+    )
+    if message_id is not None:
+        done_payload["message_id"] = message_id
     # 可选卡片数据：失败路径不返回，前端按缺省处理
     build_result = build_result_payload(final_values)
     if build_result is not None:
@@ -154,6 +173,7 @@ async def _agent_events(
     request: TurnRequest,
     turn_prompt: str | None,
     use_history: bool,
+    outcome: TurnOutcome,
 ) -> AsyncIterator[TurnEvent]:
     """把图的 messages / updates 流翻译成回合事件。
 
@@ -162,19 +182,26 @@ async def _agent_events(
 
     运行时放在 `configurable` 而不是 AgentState：task 元数据不应被 checkpointer
     持久化，也不应出现在历史消息接口里。
+
+    恢复回合的输入是 `Command(resume=...)`：图会从断点继续，而不是重新解析一轮。
     """
     # 存在阻断型 after_model 钩子时先缓冲文本：钩子未通过前不能把内容推给客户端
     buffer_output = should_buffer_model_output()
     pending_events: list[TurnEvent] = []
     # 已流出的正文：节点返回的最终 AI 消息与流式分片内容相同时不得重复下发
     streamed_text: list[str] = []
-    turn_messages = await _turn_input_messages(request)
-    async for mode, chunk in request.graph.astream(
-        {
+    graph_input: Any
+    if request.resume is not None:
+        graph_input = Command(resume=request.resume)
+    else:
+        turn_messages = await _turn_input_messages(request)
+        graph_input = {
             "messages": turn_messages,
             "preference_prompt": turn_prompt,
             "use_history": use_history,
-        },
+        }
+    async for mode, chunk in request.graph.astream(
+        graph_input,
         _agent_config(request),
         # 必须是 list：LangGraph 只把 list 识别为多模式，tuple 会被当成单一模式
         # mypy 无法从 list 字面量推断 Literal 序列，属于上游重载标注问题
@@ -182,10 +209,24 @@ async def _agent_events(
     ):
         if mode == "messages":
             events = _chunk_events(chunk, buffer_output, pending_events, streamed_text)
+        elif isinstance(chunk, dict) and "__interrupt__" in chunk:
+            outcome.interrupted = True
+            events = _interrupt_events(chunk["__interrupt__"])
         else:
             events = _update_events(chunk, pending_events, "".join(streamed_text))
         for event in events:
             yield event
+
+
+def _interrupt_events(raw: Any) -> list[TurnEvent]:
+    """把 LangGraph 的 Interrupt 翻译成 SSE 事件；只放行门控声明的公开字段。"""
+    items = raw if isinstance(raw, (list, tuple)) else (raw,)
+    events: list[TurnEvent] = []
+    for item in items:
+        payload = interrupt_payload(item)
+        if payload is not None:
+            events.append(TurnEvent("interrupt", payload))
+    return events
 
 
 async def _turn_input_messages(request: TurnRequest) -> list[Any]:
@@ -342,19 +383,36 @@ async def _persist_turn(request: TurnRequest) -> dict[str, Any]:
         )
         values = snapshot.values or {}
         messages = values.get("messages") or []
+        build_result = values.get("build_result")
         # 消息与活跃时间由 store 在同一事务里写入：列表与标题不再依赖 Redis 索引
         await get_session_store().record_turn(
             request.user_id,
             request.client_thread_id,
             messages,
             _derive_title(messages),
-            replace_existing=request.regenerate,
+            # 恢复回合会改写首条用户消息（并入补充信息），必须整轮覆盖；
+            # 重新生成同样以新回答替换旧回答
+            replace_existing=request.regenerate or request.resume is not None,
+            # 结构化结果随消息落库，刷新后详情面板不再依赖前端内存缓存
+            build_result=build_result if isinstance(build_result, dict) else None,
         )
         return values if isinstance(values, dict) else {}
     except Exception as exc:
         # 周期性失败会反复出现，只记录类型，不打印堆栈
         logger.warning("turn.message_persist_failed", error_type=type(exc).__name__)
         return {}
+
+
+def _last_assistant_message_id(thread_id: str, messages: list[Any]) -> str | None:
+    """最新一条助手消息的稳定标识 `{thread_id}:{seq}`。
+
+    `seq` 是 `record_turn` 对整份消息列表的枚举下标，历史接口按同一规则输出
+    `message_id`；两处必须一致，否则用户刷新后反馈会挂到另一条消息上。
+    """
+    for index in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[index], AIMessage):
+            return f"{thread_id}:{index}"
+    return None
 
 
 def _derive_title(messages: list[Any]) -> str | None:

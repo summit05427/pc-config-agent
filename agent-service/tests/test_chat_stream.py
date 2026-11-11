@@ -447,6 +447,7 @@ def test_persists_messages_with_client_thread_id(
             stored: Any,
             title: str | None,
             replace_existing: bool = False,
+            build_result: Any = None,
         ) -> None:
             captured["storage"] = (user_id, thread_id, stored)
             captured["meta"] = (user_id, thread_id, title)

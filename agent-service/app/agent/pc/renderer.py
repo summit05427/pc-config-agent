@@ -12,6 +12,7 @@ from typing import Any
 from app.agent.pc.schemas import REQUIRED_CATEGORIES
 from app.agent.pc.status import (
     EMPTY_CANDIDATES_MESSAGE,
+    STATUS_ABORTED,
     STATUS_CLARIFICATION,
     STATUS_COMPATIBILITY_FAILED,
     STATUS_INVALID,
@@ -51,8 +52,14 @@ BUDGET_LABELS: dict[str, str] = {
 }
 
 SCENARIO_LABELS: dict[str, str] = {
+    "GENERAL": "综合均衡",
     "GAMING": "游戏",
+    "VIDEO_EDITING": "视频编辑",
+    "PROGRAMMING": "编程开发",
+    "RENDERING": "渲染",
+    "AI_INFERENCE": "本地 AI 推理",
     "CREATIVE": "创作",
+    "WORKSTATION": "工作站",
     "OFFICE": "办公",
     "BALANCED": "均衡",
 }
@@ -99,7 +106,7 @@ def has_demo_price(build: dict[str, Any]) -> bool:
     return False
 
 
-def _safe_url(value: Any) -> str | None:
+def safe_url(value: Any) -> str | None:
     url = as_text(value)
     if url.startswith("https://") or url.startswith("http://"):
         return url
@@ -157,7 +164,7 @@ def _component_row(item: dict[str, Any]) -> str:
     model = _escape_cell(as_text(item.get("modelName"), "—"))
     spec = _escape_cell(as_text(item.get("specSummary"), "—"))
     price = format_fen(as_int(item.get("priceFen")))
-    url = _safe_url(item.get("purchaseUrl"))
+    url = safe_url(item.get("purchaseUrl"))
     link = f"[购买]({url})" if url else "—"
     verified = as_text(item.get("verifiedAt"), "未核验")
     source = as_text(item.get("priceSource"))
@@ -238,9 +245,16 @@ def _compatibility_section(report: dict[str, Any]) -> list[str]:
 
 
 def build_frontend_payload(
-    build: dict[str, Any], reason_summary: str
+    build: dict[str, Any],
+    reason_summary: str,
+    *,
+    fallback_scenario: str | None = None,
 ) -> dict[str, Any]:
-    """投影出 `done.build_result` 的前端消费子集。"""
+    """投影出 `done.build_result` 的前端消费子集。
+
+    `fallback_scenario` 是本地解析出的用途：Java 未返回 `workloadProfile` 时用它回退，
+    避免用固定默认值冒充 Java 的判定结果。
+    """
     components = []
     for item in build_components_in_order(build):
         category = as_text(item.get("category"))
@@ -254,6 +268,8 @@ def build_frontend_payload(
         components.append(
             {
                 "category": category,
+                # 前端按 hardware_id 把逐件理由对到具体硬件行，缺失时理由不会被展示
+                "hardware_id": as_text(item.get("hardwareId")) or None,
                 "model_name": as_text(item.get("modelName")),
                 "brand": as_text(item.get("brand")) or None,
                 "title": as_text(item.get("title")) or None,
@@ -261,24 +277,37 @@ def build_frontend_payload(
                 "seller": as_text(item.get("seller")) or None,
                 "price_source": as_text(item.get("priceSource")) or None,
                 "spec_summary": as_text(item.get("specSummary")),
+                "image_url": safe_url(item.get("imageUrl")),
                 "price_fen": as_int(item.get("priceFen")),
-                "purchase_url": _safe_url(item.get("purchaseUrl")),
+                "purchase_url": safe_url(item.get("purchaseUrl")),
                 "benchmark": benchmark,
                 "offer_verified_at": as_text(item.get("verifiedAt")) or None,
             }
         )
 
     report = as_mapping(build.get("compatibilityReport"))
-    compatibility = [
-        {
+    requirements = as_mapping(build.get("requirements"))
+    compatibility: list[dict[str, Any]] = []
+    for check in (as_mapping(item) for item in as_list(report.get("checks"))):
+        entry = {
             "rule": as_text(check.get("ruleName"), as_text(check.get("ruleId"), "规则")),
             "status": as_text(check.get("status")),
             "message": as_text(check.get("message")),
         }
-        for check in (as_mapping(item) for item in as_list(report.get("checks")))
-    ]
+        # 风险等级缺失时直接省略，不能让前端把缺失误读成「无风险」
+        risk_level = as_text(check.get("riskLevel"))
+        if risk_level:
+            entry["risk_level"] = risk_level
+        compatibility.append(entry)
 
-    return {
+    # 优先用 Java 的用途判定；缺失时回退本地场景，两者都没有才留空
+    workload_profile = (
+        as_text(requirements.get("workloadProfile"))
+        or as_text(fallback_scenario)
+        or as_text(requirements.get("scenario"))
+    )
+
+    payload: dict[str, Any] = {
         "build_id": as_text(build.get("buildId")) or None,
         "components": components,
         "total_price_fen": as_int(build.get("totalPriceFen")),
@@ -294,6 +323,18 @@ def build_frontend_payload(
         ),
         "reason_summary": reason_summary,
     }
+    if workload_profile:
+        payload["workload_profile"] = workload_profile
+    scoring_version = as_text(build.get("scoringVersion")) or as_text(
+        requirements.get("scoringVersion")
+    )
+    if scoring_version:
+        payload["scoring_version"] = scoring_version
+    # 逐件选择理由由 Java 生成，这里原样透传；缺失或格式异常时省略整个字段
+    component_reasons = build.get("componentReasons")
+    if isinstance(component_reasons, (dict, list)) and component_reasons:
+        payload["component_reasons"] = component_reasons
+    return payload
 
 
 def render_failure_markdown(state: Mapping[str, Any]) -> str:
@@ -328,6 +369,9 @@ def render_failure_markdown(state: Mapping[str, Any]) -> str:
 
     if status == STATUS_UPSTREAM_ERROR:
         return UPSTREAM_ERROR_MESSAGE
+
+    if status == STATUS_ABORTED:
+        return "已按你的选择终止本轮方案。你可以调整预算或用途后重新提问。"
 
     return UPSTREAM_ERROR_MESSAGE
 

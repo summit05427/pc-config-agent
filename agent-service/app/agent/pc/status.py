@@ -17,6 +17,8 @@ STATUS_RETRY = "retry"
 STATUS_COMPATIBILITY_FAILED = "compatibility_failed"
 STATUS_UPSTREAM_ERROR = "upstream_error"
 STATUS_SUCCESS = "success"
+# 用户在 HITL 确认环节主动终止；属于终态，不再继续生成方案
+STATUS_ABORTED = "aborted"
 
 # 上游不可用的统一安全文案，不把内部地址与异常堆栈暴露给用户
 UPSTREAM_ERROR_MESSAGE = "配置服务暂时不可用，请稍后重试。"
@@ -30,6 +32,7 @@ TERMINAL_FAILURE_STATUSES = frozenset(
         STATUS_NO_SOLUTION,
         STATUS_UPSTREAM_ERROR,
         STATUS_COMPATIBILITY_FAILED,
+        STATUS_ABORTED,
     }
 )
 

@@ -43,11 +43,14 @@ class SessionStore(Protocol):
         messages: list[Any],
         title: str | None,
         replace_existing: bool = False,
+        build_result: dict[str, Any] | None = None,
     ) -> None:
         """写入本轮消息并刷新活跃时间；标题只在首次写入时生效。
 
         `replace_existing=True` 用于「重新生成」：同一序号的消息会被覆盖，
         而不是按 `ON CONFLICT DO NOTHING` 跳过。
+        `build_result` 挂在本轮最后一条助手消息上，随历史一起返回，
+        保证刷新页面后详情面板仍能取到结构化数据。
         """
         ...
 

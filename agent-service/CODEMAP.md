@@ -39,6 +39,10 @@
 | 修改工具治理（超时/重试/权限/配额/脱敏/截断） | app/agent/registry.py、app/agent/context.py、app/agent/tool_context.py、tests/test_tool_governance.py |
 | 接入或排查 MCP Server | deploy/litellm/config.yaml（`mcp_servers`）、app/agent/mcp.py、tests/test_mcp.py（默认 `MCP__ENABLED=false`） |
 | 新增审核/审计/可观测钩子 | app/agent/hooks.py、tests/test_hooks.py（默认零钩子；模块经 `AGENT__HOOKS_MODULES` 声明） |
+| 节点级耗时与追踪 | app/agent/pc/node_tracing.py（统一包装八个节点；`GraphInterrupt` 记为 `interrupted`）、app/core/metrics.py、tests/test_node_tracing.py |
+| HITL 门控与恢复（缺槽位/兼容性确认） | app/agent/pc/hitl.py、app/agent/pc/graph.py（`clarification_gate`、`compatibility_gate`）、app/api/v1/chat.py（`_validate_resume`）、tests/test_hitl.py（默认 `HITL__ENABLED=false`；开启必须 `STORAGE__BACKEND=postgres`） |
+| 输出事实校验（价格/预算/兼容性表述） | app/agent/pc/output_guard.py、app/agent/pc/nodes.py（response_generator 调用）、tests/test_output_guard.py |
+| 输入护栏与接口限流 | app/services/input_guard.py、app/services/rate_limit.py、app/api/v1/chat.py（护栏 → 限流 → 幂等）、tests/test_input_guard.py、tests/test_rate_limit.py |
 | 调整长会话摘要/长期记忆 | app/agent/memory.py、app/agent/context.py、tests/test_memory.py（默认关闭；摘要不落库） |
 | 接入或排查 RAG 检索 | app/rag/base.py、app/rag/registry.py、app/services/turn.py、tests/test_rag.py（默认 `RAG__ENABLED=false`，权限过滤须在检索前） |
 | 接入长任务 / 队列 | app/services/task_runner.py、tests/test_task_runner.py（默认内联同步执行；不改路由，用 `set_task_runner()` 替换实现，处理器按 `kind` 注册） |
