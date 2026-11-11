@@ -233,9 +233,12 @@ def build_benchmarks(catalog: dict[str, Any], data_dir: Path) -> dict[str, Any]:
             continue
         entries.append(entry)
 
+    # 运行时目录不一定带 generated_at（由不同阶段生成），缺失时用目录版本兜底即可；
+    # 该字段只用于溯源，不参与匹配逻辑。
+    generated_at = catalog.get("generated_at") or catalog.get("catalog_version") or ""
     return {
         "schema_version": "1.0.0",
-        "generated_at": catalog["generated_at"],
+        "generated_at": generated_at,
         "source": {"name": SOURCE_NAME, "snapshot_date": SOURCE_SNAPSHOT},
         "entries": entries,
         "unmatched": unmatched,
