@@ -231,6 +231,8 @@ cron 含空格，`.env` 与 YAML 中必须整体加引号。
 | `AGENT__DEFAULT_PROFILE` | 请求未携带 `agent_id` 时使用的 Profile | `pc-config` | 否 | 必须存在于 Profile 目录，否则启动失败 | `config.py` L319 |
 | `AGENT__SESSION_INDEX_TTL_SECONDS` | **已废弃（2026-10-29）**，仅为兼容旧 `.env` 保留 | `2592000` | 否 | 无 | `config.py` L306 |
 | `AGENT__SESSION_INDEX_MAX` | **已废弃（2026-10-29）**，同上 | `100` | 否 | 无 | `config.py` L308 |
+| `HITL__ENABLED` | HITL 人在回路总开关；关闭时澄清与兼容性流程与接入前一致 | `false` | 否 | **是**：`true` 且 `STORAGE__BACKEND != postgres` 时启动失败（memory 不保存中断，无法恢复） | `config.py`（`HitlSettings` 与 `validate_hitl_storage`）；`docker-compose.yml` agent-service；`agent-service/.env.example` HITL 段 |
+| `HITL__INTERRUPT_TTL_SECONDS` | 中断有效期；恢复时距 checkpoint 创建超过该值返回 `interrupt_expired` | `1800`（1–86400） | 否 | 字段级范围校验 | `config.py`（`HitlSettings`）；`app/api/v1/chat.py::_validate_resume` |
 | `OPENUI__ENABLED` | 生成式 UI 总开关；关闭时系统提示词与接入前逐字节一致 | `false` | 否 | 无（无密钥依赖）；必须与前端 `VITE_OPENUI_ENABLED` 同步 | `config.py` L318-335；`docker-compose.yml` L215 |
 | `OPENUI__PROMPT_NAME` | 组件契约文件名（不含 `.md`，取自 `app/agent/prompts/`） | `openui` | 否 | 字段级：名称白名单，禁止路径分隔符；文件缺失时首次对话抛错 | `config.py` L328；`agent-service/.env.example` L131 |
 | `OPENUI__MAX_BLOCKS` | 单次回答的顶层 UI 块上限，写入提示词约束输出规模 | `4`（1–10） | 否 | 字段级范围校验 | `config.py` L335；`agent-service/.env.example` L133 |
@@ -242,6 +244,13 @@ cron 含空格，`.env` 与 YAML 中必须整体加引号。
 | `RAG__ENABLED` | 可选 RAG 总开关；关闭时不导入检索器模块、不发外部请求，行为与接入前一致 | `false` | 否 | 无；开启但 `RAG__RETRIEVER_MODULE` 为空或模块导入/工厂非法时拒绝启动 | `config.py` L372-381；`app/main.py` L145-150；`docker-compose.yml` L233-236 |
 | `RAG__RETRIEVER_MODULE` | 检索器模块点分路径，模块必须暴露 `create_retriever()`，返回值需实现 `retrieve(request)` | 空 | `RAG__ENABLED=true` 时必填 | 启动期导入；缺模块、缺工厂、返回值非法均抛 `RagConfigError`，阻止启动 | `config.py` L380；`app/rag/registry.py`；`agent-service/.env.example` L157 |
 | `RAG__TOP_K` | 单轮检索返回的引用条数上限 | `5`（1–20） | 否 | 字段级范围校验 | `config.py` L381；`agent-service/.env.example` L159 |
+| `GUARD__ENABLED` | 输入侧护栏总开关；关闭后超长、控制字符、零宽字符与注入检测全部跳过 | `true` | 否 | 无 | `config.py`（`GuardSettings`）；`app/services/input_guard.py`；`docker-compose.yml` agent-service |
+| `GUARD__MAX_INPUT_CHARS` | 单条用户输入字符上限；命中返回 422 `input_rejected` | `4000`（1–20000） | 否 | 字段级范围校验 | `config.py`（`GuardSettings`）；`agent-service/.env.example` 护栏段 |
+| `GUARD__BLOCK_ON_INJECTION` | 是否拦截高置信度提示词注入；`false` 时只保留长度与字符类校验，用于灰度对比 | `true` | 否 | 无 | `config.py`（`GuardSettings`）；`app/services/input_guard.py` |
+| `RATE_LIMIT__ENABLED` | 对话接口限流总开关 | `true` | 否 | 无 | `config.py`（`RateLimitSettings`）；`app/services/rate_limit.py` |
+| `RATE_LIMIT__CHAT_PER_MINUTE` | 每用户窗口内允许的对话请求数；`0` 表示只保留配置位、不计数 | `20`（0–600） | 否 | 字段级范围校验 | `config.py`（`RateLimitSettings`）；`docker-compose.yml` agent-service |
+| `RATE_LIMIT__WINDOW_SECONDS` | 固定窗口长度 | `60`（10–3600） | 否 | 字段级范围校验 | `config.py`（`RateLimitSettings`）；`agent-service/.env.example` 限流段 |
+| `RATE_LIMIT__FAIL_OPEN` | Redis 不可用时是否放行；`true` 为降级放行，生产严格限流设为 `false`（返回 429） | `true` | 否 | 无 | `config.py`（`RateLimitSettings`）；`app/services/rate_limit.py` |
 
 ### 2.12 可观测
 
@@ -320,9 +329,13 @@ Compose 是两侧命名的唯一桥接层，映射关系全部在 `docker-compos
 | `LLM_BASE_URL` | 不使用 | `LLM__BASE_URL` | `docker-compose.yml` L207 |
 | `LLM_MAX_TOKENS` | 不使用 | `LLM__MAX_TOKENS` | `docker-compose.yml` L211 |
 | `OPENUI_ENABLED` | 不使用 | `OPENUI__ENABLED` | `docker-compose.yml` L215 |
+| `HITL_ENABLED` | 不使用 | `HITL__ENABLED` | `docker-compose.yml` agent-service |
+| `HITL_INTERRUPT_TTL_SECONDS` | 不使用 | `HITL__INTERRUPT_TTL_SECONDS` | `docker-compose.yml` agent-service |
 | `RAG_ENABLED` | 不使用 | `RAG__ENABLED` | `docker-compose.yml` L234 |
 | `RAG_RETRIEVER_MODULE` | 不使用 | `RAG__RETRIEVER_MODULE` | `docker-compose.yml` L235 |
 | `RAG_TOP_K` | 不使用 | `RAG__TOP_K` | `docker-compose.yml` L236 |
+| `GUARD_ENABLED` / `GUARD_MAX_INPUT_CHARS` / `GUARD_BLOCK_ON_INJECTION` | 不使用 | `GUARD__*` | `docker-compose.yml` agent-service |
+| `RATE_LIMIT_ENABLED` / `RATE_LIMIT_CHAT_PER_MINUTE` / `RATE_LIMIT_WINDOW_SECONDS` / `RATE_LIMIT_FAIL_OPEN` | 不使用 | `RATE_LIMIT__*` | `docker-compose.yml` agent-service |
 | `VITE_APP_TITLE` / `VITE_API_BASE_URL` / `VITE_AGENT_BASE_URL` | — | — | 前端 build args，`docker-compose.yml` L284-286 |
 | `VITE_OPENUI_ENABLED` | — | — | 前端 build args，`docker-compose.yml` L290；必须与 `OPENUI_ENABLED` 同步 |
 | `ADMIN_APP_TITLE` | — | — | 管理端标题，映射为 `VITE_APP_TITLE` build arg，`docker-compose.yml` L254 |

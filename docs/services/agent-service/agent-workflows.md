@@ -27,12 +27,18 @@
 START
   → requirement_parser        （LLM 结构化解析需求，打 TAG_NOSTREAM）
   → requirement_validator     （纯代码校验与澄清判断）
+  → clarification_gate        （HITL 门控：缺关键槽位时 interrupt；关闭时直通）
   → candidate_retriever       （调 Java 取候选硬件）
   → build_solver              （调 Java 确定性求解）
   → build_validator           （调 Java 复核；失败最多重解 1 次）
+  → compatibility_gate        （HITL 门控：兼容性 UNKNOWN 时 interrupt；关闭时直通）
   → response_generator        （LLM 生成解释文案 + 确定性数据渲染）
   → END
 ```
+
+- 澄清分支：`requirement_validator` 判定 `clarification` 时直接进 `response_generator`，**不经过** `clarification_gate`；恢复后从 `requirement_parser` 重跑并合并补充信息。
+- 门控节点无副作用，位于 `build_solver` / `build_validator` 之后，恢复时只重跑门控所在节点，不重放求解与写操作。
+- HITL 关闭（默认）时两个门控节点原样返回状态，图行为与接入前一致。详见 [HITL 工作流](../../pc-config/hitl-workflow.md)。
 
 - 单图替换，不再保留通用 ReAct 图；设计与决策见 [ADR-0009](../../adr/0009-single-pc-workflow-over-generic-chat.md)。
 - 图装配唯一入口仍是 `app/services/model_runtime.py` 的 `_default_graph` / `prepare_agent`，路由不自行拼装。
@@ -40,6 +46,8 @@ START
 - 节点不发 SSE，统一返回 `tool_events`，由 `app/services/turn.py` 映射为既有 `tool_call` / `tool_result` 事件；`done` 事件可附带可选 `build_result`（结构见 [api-contract.md](../../api-contract.md) §7）。
 - 循环上限由 `AGENT__RECURSION_LIMIT` 控制；`build_validator` 的重解次数另有配置上限，默认 1 次。
 - 模型不可用时走确定性 Markdown 兜底（[ADR-0010](../../adr/0010-deterministic-markdown-build-output.md)），结果不丢失。
+- 每个节点由 [node_tracing.py](../../../agent-service/app/agent/pc/node_tracing.py) 统一包装：记录 `agent_node_duration_seconds{node,status}` 指标与 `agent.node.completed` 结构化日志（含 `agent_id`、节点中间态 `workflow_status`、耗时与已命名的 `thread_id`）。包装器只观察，不改返回值、不吞异常；同步与 async 节点分别返回同步与异步包装器。
+- 输出层事实校验（[output_guard.py](../../../agent-service/app/agent/pc/output_guard.py)）在渲染后执行：校验分项与总价一致、预算状态与总价自洽、非 `PASS` 兼容性不得被宣称「已确认兼容」（识别否定语境）、模型文案不得含数字/型号/价格/渠道。命中时丢弃模型文案并改用确定性说明，数值类问题追加用户可见提示，同时累计 `agent_output_guard_violations_total{rule}`。
 
 ## 2. 状态
 
@@ -271,6 +279,8 @@ app/agents/**/*.yaml（按路径排序递归加载）
 这类用例记为 `skipped` 而不是 `passed`，避免「没校验也算通过」。
 退出码：`0` 无失败用例、`1` 存在失败、`2` 用例文件缺失或非法。
 每条用例使用独立 `thread_id` 与内存 checkpointer，不写业务库、不受历史对话影响。
+
+完整断言字段（`tool_sequence` / `workflow_status` / `missing_slots` / `structured_fields` / `price_consistency` / 延迟与 token 预算）与多轮 `turns` 语义见 [testing-and-evaluation.md](../../pc-config/testing-and-evaluation.md) §3。
 
 ## 12. MCP 接入（可选，默认关闭，仅网关拓扑）
 

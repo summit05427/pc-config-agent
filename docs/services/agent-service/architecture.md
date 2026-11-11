@@ -97,6 +97,22 @@ lifespan (AsyncExitStack)
 - 顺序固定为 checkpointer 先于 Redis（`app_lifespan` 显式顺序写死）。
 - 提示词、路径白名单、配置校验都在启动期完成，运行期不再重复判断。
 
+## 5.1 请求前置检查：输入护栏与限流
+
+对话接口在**建流、占会话锁、写幂等键之前**依次做两步纯入口检查，顺序固定：
+
+```
+resolve_profile（模型与用户解析）
+  ├─ enforce_input_guard(message)     # 超长 / 控制字符 / 零宽字符 / 高置信度注入 → 422 input_rejected
+  ├─ enforce_chat_rate_limit(user_id) # Redis 固定窗口 INCR+EXPIRE → 429 rate_limited + Retry-After
+  └─ _claim_idempotency → 会话锁 → 图执行
+```
+
+- 先护栏后限流：护栏是纯计算、成本最低，被拒绝的请求不应消耗配额。
+- 限流按登录用户（`X-User-Token` 解析出的 `sub`）计数，key 走 `build_key("ratelimit", "chat", user_id, window_index)`；Redis 不可用时按 `RATE_LIMIT__FAIL_OPEN` 决定放行或直接 429，与幂等/会话锁的降级策略一致。
+- 护栏只做高置信度规则匹配（7 条注入模式 + 字符类校验），命中记 `agent_input_guard_violations_total{rule}` 并打印**不含原文**的 warning 日志；不做内容改写，避免「静默篡改用户输入」。
+- 两个错误码都是项目自有 `AppError`，`AppError` 支持透传 `headers`，`Retry-After` 由此下发。
+
 ## 6. 与外部系统的关系
 
 | 对端 | 方向 | 当前事实 |
@@ -124,17 +140,19 @@ lifespan (AsyncExitStack)
 ## 8. 可观测
 
 - 结构化日志（structlog）：每条请求绑定 `request_id` / `method` / `path`，鉴权后再绑 `user_id`；请求结束记录 `request.finished` 与耗时；`finally` 中 `clear_contextvars()` 防泄漏。
-- 指标：13 个指标族，见 [api-reference.md](./api-reference.md) §6；标签只允许 method/route/status/tool/model/type，**禁止 user_id / thread_id**。
+- 指标：18 个指标族，见 [api-reference.md](./api-reference.md) §6；标签只允许 method/route/status/tool/model/type/node/rule/scope，**禁止 user_id / thread_id**。
 - 日志分级：`warning` 用于可恢复异常（Redis 探活失败、工具重试、幂等收尾失败），`exception` 只用于流内未预期异常与兜底 500，同一异常只打一次堆栈。
 
 ## 9. 测试结构
 
-`tests/` 共 23 个文件：22 个 `test_*.py` + `conftest.py`，按能力拆分：
+`tests/` 共 38 个文件：37 个 `test_*.py` + `conftest.py`，按能力拆分：
 
 | 模块 | 覆盖面 |
 | --- | --- |
 | `test_chat_stream` | SSE 事件、幂等 409、锁、超时、断开 |
-| `test_sessions` | 会话列表（`session_meta` + 标题）、重命名/删除、历史消息 `asc`/`desc`、分页、404、归属隔离、删除锁冲突 |
+| `test_sessions` | 会话列表（`session_meta` + 标题）、重命名/删除、历史消息 `asc`/`desc`、分页、404、归属隔离、删除锁冲突；历史接口在 HITL 开启时把待恢复中断附到窗口内最新助手消息（TTL 过期不附） |
+| `test_hitl` | 门控开启必须配 postgres 后端、未开启时澄清走原路径、澄清中断与恢复、空答案拒绝、未知兼容性中断与终止、图重建后中断仍可恢复、恢复请求校验（禁用 / 内存后端 / 无中断 / ID 不匹配 / 过期） |
+| `test_hitl_postgres` | 真实 Postgres 重启演练：触发中断后丢弃连接池与图，用全新连接池与图恢复并完成求解；未设 `AGENT_TEST_POSTGRES_URL` 时跳过 |
 | `test_health` / `test_metrics` | 存活/就绪判定、指标输出（含 outbox Gauge/Counter） |
 | `test_auth` | JWT 校验、401、dev-token 守卫 |
 | `test_agent_graph` / `test_context` | 图结构、裁剪策略、token 估算 |
@@ -166,7 +184,7 @@ lifespan (AsyncExitStack)
 
 ## 11. 明确不存在的能力
 
-无 RAG/向量检索（部署有 pgvector，代码未用）、无 MCP 工具接入、无多 Agent 编排、无人工审批节点、无 Token 刷新、无审计日志、无服务间鉴权重放防护。会话删除已实现，检查点删除通过 `session_deletion_tasks` 墓碑后台重试（实现见 `app/services/session_deletion/`，队列 + worker；审计 P1-06 已修复）。
+无 RAG 实现（仅有 `app/rag/` 的可插拔检索器接缝，默认 `RAG__ENABLED=false`，无知识库、切块与向量化实现；部署的 pgvector 未被使用）、MCP 仅支持经 LiteLLM 网关的客户端接入（默认关闭，不对外暴露 MCP Server）、无多 Agent 编排、无人工审批节点、无 Token 刷新、无审计日志、无服务间鉴权重放防护。会话删除已实现，检查点删除通过 `session_deletion_tasks` 墓碑后台重试（实现见 `app/services/session_deletion/`，队列 + worker；审计 P1-06 已修复）。
 
 ## 12. 深模块检查表（2026-11-05 架构审查）
 

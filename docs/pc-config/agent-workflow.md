@@ -7,15 +7,17 @@
 | 权威性 | 本文件描述 `app/agent/pc/graph.py` 与 `nodes.py` 的真实行为；SSE 契约以 [api-contract.md](../api-contract.md) §7 为准 |
 | 主要证据 | `agent-service/app/agent/pc/graph.py`、`nodes.py`、`status.py`、`renderer.py`、`app/services/turn.py` |
 
-## 1. 六节点
+## 1. 八个节点（含两个 HITL 门控）
 
 | 节点 | 职责 | 输入 | 输出 | 失败分支 |
 | --- | --- | --- | --- | --- |
 | `requirement_parser` | 解析自然语言需求 | `messages`、`preference_prompt` | `requirements` | 模型失败 → 正则兜底；仍缺信息交给校验 |
 | `requirement_validator` | 纯代码校验预算、场景与范围 | `requirements` | `validation_result` | `clarification` / `invalid` |
+| `clarification_gate` | HITL：缺关键槽位时 `interrupt` 收集补充信息；关闭时直通 | `validation_result` | `messages`、`workflow_status` | 回答非法 → `hitl_resume_invalid` |
 | `candidate_retriever` | 按 8 类并发检索候选、跑分与报价统计 | `requirements` | `candidate_pool` | `no_candidates` / `upstream_error` |
 | `build_solver` | 调 Java 确定性求解 | `requirements`、`retry_count` | `build_result`、`build_failure`、`budget_report` | `no_solution` / `upstream_error` |
 | `build_validator` | 调 Java 复核 8 类组合 | `build_result` | `compatibility_report` | `retry` / `compatibility_failed` |
+| `compatibility_gate` | HITL：兼容性 `UNKNOWN` 时确认继续或终止；关闭时直通 | `compatibility_report` | `workflow_status` | 非法选择 → `hitl_resume_invalid` |
 | `response_generator` | LLM 说明 + 代码渲染正文 | 全部业务字段 | `messages`、`reason_summary` | 非成功状态走确定性失败文案 |
 
 ## 2. 条件边路由
@@ -24,7 +26,10 @@
 START
   → requirement_parser
   → requirement_validator
-       ├─ clarification / invalid → response_generator → END
+       ├─ invalid → response_generator → END
+       ├─ clarification → clarification_gate
+       │     ├─ 仍为 clarification（HITL 关闭）→ response_generator → END
+       │     └─ 已恢复 → requirement_parser
        └─ 其余 → candidate_retriever
   → candidate_retriever
        ├─ no_candidates / upstream_error → response_generator → END
@@ -34,11 +39,13 @@ START
        └─ solved → build_validator
   → build_validator
        ├─ retry → build_solver（最多 1 次）
+       ├─ SUCCESS + UNKNOWN → compatibility_gate → response_generator → END
        └─ 其余 → response_generator → END
 ```
 
 - 路由只读 `workflow_status`，不解析自然语言；状态常量集中在 `status.py`。
 - `build_validator` 在状态不是 `solved` 时直接返回空更新，不覆盖已有结果。
+- 门控节点无副作用，恢复时只重跑门控本身；完整时序与恢复校验见 [HITL 工作流](./hitl-workflow.md)。
 
 ## 3. 重解机制
 

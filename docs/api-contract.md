@@ -288,11 +288,31 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 | POST | `/internal/v1/pc/builds/validate` | 复核完整性与兼容性，返回 `checks[]`、`overallStatus`、`ruleVersion` |
 | GET | `/internal/v1/pc/builds/{buildId}` | 读取快照；仅所属用户可见，越权返回 403 `40302` |
 
-求解请求字段：`budgetMaxFen`（为空表示无硬预算）、`scenario`（`GAMING` / `VIDEO_EDITING` / `CREATIVE` / `PROGRAMMING` / `WORKSTATION` / `OFFICE` / `GENERAL_USE` / `BALANCED`）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers`。
+求解请求字段：`budgetMaxFen`（为空表示无硬预算）、`scenario`（`GENERAL` / `GAMING` / `VIDEO_EDITING` / `PROGRAMMING` / `RENDERING` / `AI_INFERENCE`；兼容旧值 `CREATIVE` / `WORKSTATION` / `OFFICE` / `GENERAL_USE` / `BALANCED`）、`renderMode`（可空，`CPU` / `GPU` / `BOTH`，仅在 `scenario=RENDERING` 时有意义）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers`。响应 `requirements` 回显 `workloadProfile` 与 `renderMode`，响应顶层含 `scoringVersion`。
 
 报价字段含 `priceSource`：`OWNER_VERIFIED` 为人工核验价，`MOCK_DEMO` 为演示占位价。**`MOCK_DEMO` 不得在用户侧表述为已核验报价**，前端与 `response_generator` 必须显式标注。
 
-兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。
+兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。每条 `checks[]` 额外携带 `riskLevel`（`BLOCKING` / `ADVISORY`）：`BLOCKING` 表示该字段缺失时方案不得标记为完全验证通过，但不阻断求解。
+
+### 5.8 消息反馈（2026-11-10 已实现）
+
+> 实现见 `feedback/web/{MessageFeedbackController,AdminFeedbackController}.java`、`feedback/application/MessageFeedbackService.java`；迁移 `V25__create_message_feedback.sql`；接口测试见 `MessageFeedbackApiTests`、`AdminFeedbackApiTests`。
+
+消息身份由 Agent 下发（见 §6 与 §7）：`message_id` 形如 `{thread_id}:{seq}`，`seq` 是会话内消息序号。Java 不反查 Agent，只校验格式并把反馈绑定到提交者本人，表中不存对话正文。
+
+| 方法 | 路径 | 鉴权 | 请求 | 响应（`data`） |
+| --- | --- | --- | --- | --- |
+| PUT | `/api/v1/messages/{messageId}/feedback` | 需登录 | `{ "threadId": "...", "rating": "UP\|DOWN", "reasonCode": "INACCURATE\|OFF_TOPIC\|INCOMPLETE\|FORMAT\|UNSAFE\|OTHER", "comment": "..." }`；`threadId` 1..64、`reasonCode`/`comment` 可选且 `comment` ≤500 | `{ "messageId": "...", "rating": "DOWN", "reasonCode": "OFF_TOPIC", "comment": "..." }` |
+| DELETE | `/api/v1/messages/{messageId}/feedback` | 需登录 | 无 | 无 `data`；删除本人对该消息的评价 |
+| GET | `/api/v1/feedback?threadId=...` | 需登录 | 查询参数 `threadId` | `{ "list": [{ "messageId": "...", "rating": "UP", "reasonCode": null, "comment": null }] }`，只含本人评价 |
+| GET | `/api/v1/admin/feedback` | `ADMIN` | 查询参数 `page`、`size`、`rating`、`reasonCode`、`userId`、`threadId`、`from`、`to`（`yyyy-MM-dd`，左闭右开） | `{ "list": [{ "userId": "...", "username": "demo", "threadId": "...", "messageId": "...", "rating": "DOWN", "reasonCode": "OFF_TOPIC", "comment": "...", "createdAt": "..." }], "total": 1, "page": 1, "size": 20 }` |
+| GET | `/api/v1/admin/feedback/summary` | `ADMIN` | 同上过滤参数（不含分页） | `{ "upCount": 30, "downCount": 10, "reasons": [{ "reasonCode": "INACCURATE", "label": "信息不准确", "total": 6 }] }` |
+| GET | `/api/v1/admin/feedback/export` | `ADMIN` | 同上过滤参数 | `text/csv;charset=UTF-8` 附件，含 UTF-8 BOM 与中文表头；单次上限 10000 行，单元格以 `= + - @` 开头时前置 `'` 防公式注入 |
+
+- 一人一消息一条评价：唯一键 `(user_id, message_id)`，重复 PUT 覆盖并刷新 `updated_at`，不做乐观锁。
+- `rating=UP` 时服务端把 `reasonCode` 与 `comment` 归一化为 `null`，避免出现「点赞但带差评原因」的矛盾数据。
+- 删除不存在的评价返回 404 `40402`；`messageId` / `threadId` 格式非法返回 400 `40401` / `40405`；评分与原因非法返回 400 `40403` / `40404`。
+- 反馈只记录 ID、评分与备注，**不含对话正文**；排查问题需用 `thread_id` 回查 Agent 会话。
 
 ## 6. Agent 接口
 
@@ -312,7 +332,7 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 | PUT | `/agent/api/v1/sessions/{thread_id}/archive` | 需登录 | 归档/恢复，body `{ "archived": true }` |
 | PUT | `/agent/api/v1/sessions/{thread_id}/model` | 需登录 | 设置会话级模型，body `{ "model_key": "deepseek:deepseek-v4-pro" }`，`null` 表示 Auto |
 | DELETE | `/agent/api/v1/sessions/{thread_id}` | 需登录 | 删除会话（元数据 + 消息 + checkpoint），204 |
-| GET | `/agent/api/v1/sessions/{thread_id}/messages` | 需登录 | 历史消息，按窗口分页，支持 `order=asc\|desc` |
+| GET | `/agent/api/v1/sessions/{thread_id}/messages` | 需登录 | 历史消息，按窗口分页，支持 `order=asc\|desc`；每条消息携带稳定 `message_id`（`{thread_id}:{seq}`），用于消息反馈绑定 |
 
 **指标端点防护**（2026-10-28 决策：网关为主、应用内兜底）：`frontend/deploy/nginx/default.conf.template` 与 `agent-service/deploy/nginx/agent.conf` 都用精确 location `= /agent/api/v1/metrics` 只放行 `127.0.0.1` 与私有网段，其余 `deny all`；应用内再校验可选的 `X-Metrics-Token`，避免网关规则漏配时指标直接对外。
 
@@ -414,6 +434,7 @@ Idempotency-Key: <可选，8~128 字符>
 
 - `message` 长度 1..4000；`thread_id` 长度 1..64，由前端生成并复用。
 - `regenerate` 可选，默认 `false`。为 `true` 时服务端从检查点移除最后一条 AI 回答后重跑模型，并用覆盖写入替换 `session_messages` 中对应序号，不追加重复提问；没有可替换回答时降级为普通回合。
+- `resume` 可选，用于恢复一次 HITL 中断：`{ "interrupt_id": "...", "answer": { ... } }`。`interrupt_id` 取自 SSE `interrupt` 事件（1..128），`answer` 按该事件的 `input_schema.fields` 填写。恢复请求复用同一 `thread_id`，服务端从检查点续跑并覆盖写入本轮消息；与 `regenerate=true` 同时出现时返回 **422 `validation_error`**。前提：`HITL__ENABLED=true` 且 `STORAGE__BACKEND=postgres`。
 - `agent_id` 可选，请求级选择 Agent Profile（≤32，`^[a-z][a-z0-9_-]{0,31}$`）；省略时使用 `AGENT__DEFAULT_PROFILE`。未配置的 id 返回 **404 `agent_not_found`**，且在建立 SSE 流之前以裸 JSON 返回。Profile 决定系统提示词、工具集与模型参数；`tools: []` 的 Profile 不绑定任何工具。
 - `model` 可选，单次覆盖本轮的模型（≤64，`[a-z0-9:_.-]`），取值与 `GET /api/v1/models` 的 `modelKey` 一致；省略或 `null` 表示沿用会话选择 / Profile 默认模型 / Auto，不改变会话默认。仅在 `MODEL_RUNTIME__ENABLED=true` 时生效。
 - `reasoning` 可选，`boolean`，缺省 `null`：`true` 表示要求本轮开启思考，服务端按 `model-tasks` 返回的 `capabilities` 校验，缺 `reasoning` 能力位时在流建立前返回 422 `capability_unsupported`；`false` 表示不要求；`null` 沿用模型默认行为。门控必须留在 Agent 侧：网关 `drop_params: true` 会静默丢弃不支持的参数，否则前端无法判断思考是否真的生效。运行时关闭（`MODEL_RUNTIME__ENABLED=false`）时该字段被忽略。
@@ -449,7 +470,7 @@ data: {"text": "现在是 12 点", "schema_version": "1"}
 
 id: 6
 event: done
-data: {"thread_id": "t-demo", "schema_version": "1"}
+data: {"thread_id": "t-demo", "message_id": "t-demo:1", "schema_version": "1"}
 
 ```
 
@@ -461,6 +482,14 @@ event: reasoning
 data: {"text": "先分析问题再回答", "schema_version": "1"}
 ```
 
+HITL 中断（仅 `HITL__ENABLED=true` 且触发澄清或兼容性确认时出现；本轮不再发送 `done`）：
+
+```text
+id: 7
+event: interrupt
+data: {"interrupt_id": "int-1", "interaction_type": "clarify_requirements", "question": "还缺预算和使用场景，请补充后继续。", "input_schema": {"fields": [{"name": "budget_yuan", "label": "预算（元）", "type": "number", "required": true, "min": 1000}, {"name": "scenario", "label": "主要用途", "type": "select", "required": false, "options": [{"value": "GAMING", "label": "游戏"}]}], "submit_label": "提交并继续"}, "context": {"missing_slots": ["budget_yuan"]}, "schema_version": "1"}
+```
+
 | event | data | 说明 |
 | --- | --- | --- |
 | `token` | `{ "text": "...", "schema_version": "1" }` | 增量文本，前端按序拼接 |
@@ -468,7 +497,8 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 | `tool_call` | `{ "name": "...", "args": {}, "schema_version": "1" }` | 模型发起工具调用 |
 | `tool_result` | `{ "name": "...", "preview": "...", "schema_version": "1" }` | 工具结果摘要，`preview` 截断到 200 字符 |
 | `citations` | `{ "citations": [{ "source_id": "...", "title": "...", "snippet": "...", "score": 0.9 }], "schema_version": "1" }` | 可选：仅 `RAG__ENABLED=true` 且检索到结果时发送，位于首个 `token` 之前；`score` 可省略 |
-| `done` | `{ "thread_id": "...", "schema_version": "1", "build_result": { ... } }` | 正常结束；`thread_id` 是客户端原始值，不含用户命名空间。`build_result` 可选，仅 PC 配置求解成功时出现 |
+| `interrupt` | `{ "interrupt_id": "...", "interaction_type": "clarify_requirements \| confirm_compatibility", "question": "...", "input_schema": { "fields": [...], "submit_label": "..." }, "context": {}, "schema_version": "1" }` | HITL 暂停：本轮以 `interrupt` 结束，前端进入等待输入状态并用 `resume` 续跑；不会随后发送 `done`。字段 `type` ∈ `number\|select\|radio\|text` |
+| `done` | `{ "thread_id": "...", "message_id": "...", "schema_version": "1", "build_result": { ... } }` | 正常结束；`thread_id` 是客户端原始值，不含用户命名空间。`message_id` 为本轮助手消息的稳定标识（`{thread_id}:{seq}`），缺失时前端隐藏反馈入口；`build_result` 可选，仅 PC 配置求解成功时出现 |
 | `error` | `{ "code": "...", "message": "...", "schema_version": "1" }` | 流内错误；此时 HTTP 状态码已是 200 |
 
 `build_result` 结构（snake_case，前端容忍字段缺失）：
@@ -498,7 +528,7 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 - `done` 之前先写 `session_messages`，因此前端收到 `done` 立即查历史即可看到本轮消息；写入失败只记 warning，不改变流结果。
 - 客户端断开时服务端取消图执行并释放锁，避免无效模型调用与计费。
 - 未识别事件必须忽略，保证新增事件类型时旧前端仍可用。
-- `citations` 只在 `RAG__ENABLED=true` 且检索到结果时出现；检索按 `user_id` / `roles` 在检索前过滤，检索异常降级为「无引用」，不影响 `token`/`done` 流程。引用片段只进入本轮提示词，不写历史。
+- `citations` 只在 `RAG__ENABLED=true` 且检索到结果时出现；检索按 `user_id` / `roles` 在检索前过滤，检索异常降级为「无引用」，不影响 `token`/`done` 流程。引用片段只进入本轮提示词，不写历史；前端按 `sourceId` 去重后以折叠面板附在当前助手消息正文之后，刷新页面即消失。
 
 流建立前的错误走 HTTP + JSON：
 
@@ -508,6 +538,10 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 | 409 | `duplicate_request` | 相同 `Idempotency-Key` 已完成 |
 | 409 | `request_in_progress` | 相同 `Idempotency-Key` 处理中 |
 | 409 | `lock_not_acquired` | 等待窗口内未拿到会话锁 |
+| 409 | `hitl_unavailable` | 携带 `resume` 但 `HITL__ENABLED=false` 或存储不是 `postgres` |
+| 409 | `interrupt_not_found` | 该 `thread_id` 没有待恢复的中断 |
+| 409 | `interrupt_mismatch` | `interrupt_id` 与当前待恢复中断不一致（如已回答或已被新回合覆盖） |
+| 409 | `interrupt_expired` | 中断距 checkpoint 创建已超过 `HITL__INTERRUPT_TTL_SECONDS` |
 | 422 | `validation_error` | 字段校验失败，带 `details` |
 | 429 | `quota_exceeded` | 今日请求额度用尽（Java 在 `model-tasks` 中原子扣减），响应体带 `quota` |
 | 403 | `model_not_available` | 模型不存在或当前用户不可用 |
@@ -536,7 +570,7 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 - 控制面不可达时，Auto / Managed 请求记 `warning` 并显式降级到进程默认模型，SSE 正常结束；BYOK 请求不降级，返回 503。
 - 流已开始后只能发 `error` 事件，不得修改 HTTP 状态码。
 
-流内错误码：`request_timeout`（整轮超时）、`agent_error`（图执行异常）。
+流内错误码：`request_timeout`（整轮超时）、`agent_error`（图执行异常）、`hitl_resume_invalid`（恢复内容缺少必填字段或取值非法，用户可补充后重试）。
 
 ### 7.1 Assistant 内容中的 OpenUI 块（可选能力）
 
@@ -573,7 +607,11 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 | `forbidden` | 403 | 开发令牌接口在非开发环境被调用 |
 | `session_not_found` | 404 | 会话无消息或不属于当前用户 |
 | `duplicate_request` / `request_in_progress` / `lock_not_acquired` | 409 | 幂等与并发 |
+| `hitl_unavailable` / `interrupt_not_found` / `interrupt_mismatch` / `interrupt_expired` | 409 | HITL 恢复校验：未启用或存储不支持 / 无待恢复中断 / 中断 ID 不匹配 / 中断已过期 |
+| `hitl_resume_invalid` | 422（流内以 `error` 事件下发） | 恢复内容缺失必填字段或取值非法 |
 | `validation_error` | 422 | 请求校验 |
+| `input_rejected` | 422 | 输入侧护栏命中：超长、控制字符、零宽字符或高置信度提示词注入（指标 `agent_input_guard_violations_total{rule}`）；请求在建流前被拒绝，不占用会话锁与限流配额 |
+| `rate_limited` | 429 | 对话限流：每用户固定窗口内请求数超限（默认 20 次/分钟），响应头带 `Retry-After`（秒）；指标 `agent_rate_limit_rejections_total{scope}` |
 | `invalid_pagination` | 400 | 分页参数越界（`page < 1`、`size` 不在 1..100） |
 | `redis_unavailable` | 503 | Redis 已配置但不可用 |
 | `llm_not_configured` / `llm_provider_unsupported` | 503 | 模型不可用 |
@@ -601,8 +639,10 @@ data: {"text": "先分析问题再回答", "schema_version": "1"}
 | 会话与消息路径 | 一致：`/sessions`、`/sessions/{id}/messages` | `frontend/src/features/sessions/api/sessions.ts`、`agent-service/app/api/v1/sessions.py` |
 | 登录字段与 `tokenType` | 一致：Java 返回 `accessToken` + `tokenType=Bearer` + `user`，前端按 Bearer 拼接 | `AuthService.java`、`frontend/src/features/auth/api/auth.ts` |
 | 用户身份传递 | 一致：Token 由前端携带；Agent 用 `sub`（公开 UUID）做命名空间 | `agent-service/app/core/security.py`、`frontend/src/features/auth/model/auth-session.ts` |
-| 历史消息字段 | 一致：`role/content/tool_calls/name/created_at` 与前端 `SessionMessage` 对齐 | `session_store/mapping.py`、`frontend/src/features/sessions/api/types.ts` |
-| SSE 事件与结束语义 | 一致：7 类事件、`done` 收尾、未知事件忽略 | 第 7 节 |
+| 历史消息字段 | 一致：`message_id/role/content/tool_calls/name/created_at` 与前端 `SessionMessage` 对齐；`message_id` 缺失时前端退回会话下标 key 并隐藏反馈入口 | `session_store/mapping.py`、`frontend/src/features/sessions/api/types.ts` |
+| SSE 事件与结束语义 | 一致：8 类事件，正常回合以 `done` 收尾、HITL 回合以 `interrupt` 收尾；`done.message_id` 为本轮助手消息标识，缺失时前端忽略；未知事件忽略 | 第 7 节 |
+| 消息反馈 | 一致：前端 `PUT/DELETE /api/v1/messages/{messageId}/feedback`、`GET /api/v1/feedback` 与 Java `MessageFeedbackController` 同名同形；管理端用 `/api/v1/admin/feedback*` | 第 5.8 节、`frontend/src/features/feedback/api/feedback.ts`、`admin/src/features/feedback/api/admin-feedback-api.ts` |
+| 输入护栏与限流 | 一致：Agent 在建流前返回 422 `input_rejected` / 429 `rate_limited`（带 `Retry-After`）；前端把 `ApiError.message` 直接展示在助手气泡，未做按码分支，新增码不会破坏渲染 | 第 7、8 节、`agent-service/app/services/{input_guard,rate_limit}.py` |
 | 心跳 | 一致：服务端 `: ping - ...`，前端跳过 `:` 开头行 | `frontend/src/core/http/sseStream.ts` |
 | 响应信封 | 有意差异：Java 信封 / Agent 裸 JSON，前端分别封装 | 第 3 节 |
 | 错误码 | 有意差异：数字 / 字符串，HTTP 状态语义一致 | 第 8 节 |

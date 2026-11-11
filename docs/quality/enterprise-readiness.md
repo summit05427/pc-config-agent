@@ -87,7 +87,7 @@
 
 | 编号 | 标准（可验证） | 分 | 证据 | 验收方式 | 优先级 |
 | --- | --- | --- | --- | --- | --- |
-| C1 | 业务与运行时指标 | 4 | （已验证，2026-11-07）Agent 13 个指标族（`agent-service/app/core/metrics.py` L34–L101）、Java `/actuator/prometheus`（Micrometer）、LiteLLM `/metrics/`；三端由 `deploy/prometheus/prometheus.yml` 统一抓取 | 面板能看到首 token 延迟与 outbox 死信 | — |
+| C1 | 业务与运行时指标 | 4 | （已验证，2026-11-09）Agent 15 个指标族（`agent-service/app/core/metrics.py`）、Java `/actuator/prometheus`（Micrometer）、LiteLLM `/metrics/`；三端由 `deploy/prometheus/prometheus.yml` 统一抓取 | 面板能看到首 token 延迟、节点耗时与 outbox 死信 | — |
 | C2 | 指标标签基数受控 | 4 | 明确禁止 `user_id` / `thread_id` 作标签，路由用模板（`metrics.py` L12–L14、L110–L133） | 压测后序列数不随用户数线性增长 | — |
 | C3 | 结构化日志 + 请求关联 | 4 | JSON 日志与 `request_id` 绑定（`agent-service/app/core/logging.py` L31–L68、`app/core/middleware.py` L20–L60） | 用 request_id 串起一次请求全部日志 | — |
 | C4 | 日志脱敏 | 2 | 规则要求存在（`.trae/rules/00-monorepo-common.md` §5），【待确认】无统一脱敏器与自动化测试 | 日志中检索不到 Token / 手机号 | P1 |

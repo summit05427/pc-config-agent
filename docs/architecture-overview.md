@@ -17,7 +17,7 @@
 | --- | --- | --- | --- | --- |
 | 前端 | `frontend/` | React 19 + TypeScript + Vite + TanStack Router/Query + Zustand + Tailwind/Radix；容器内 Nginx 同时承担静态托管与反向代理 | 界面、路由、状态、SSE 消费、登录态维护 | 不保存模型密钥、不签发 Token、不做真实权限校验 |
 | Java 业务端 | `application-service/` | Java 21 + Spring Boot 4.1.1 + Spring Modulith 2.1.2 + MyBatis + Flyway + Spring Security（OAuth2 Resource Server, RS256） | 用户认证、双令牌签发与刷新会话、业务数据与权限、模型运行时控制面（模型目录 / BYOK 凭证 / 额度 / 用量） | 不调用 Agent、不执行对话编排、不下发模型密钥明文 |
-| Python Agent 端 | `agent-service/` | Python 3.12 + FastAPI + LangGraph + LangChain OpenAI + sse-starlette | 对话编排、工具调用、会话持久化、SSE 推流；PC 配置走确定性六节点流水线（需求解析 → 候选检索 → Java 求解 → 兼容性复核 → 解释渲染） | 不建用户表、不签发生产 Token、不查 Java 业务库、不自行计算价格与兼容性 |
+| Python Agent 端 | `agent-service/` | Python 3.12 + FastAPI + LangGraph + LangChain OpenAI + sse-starlette | 对话编排、工具调用、会话持久化、SSE 推流；PC 配置走确定性八节点流水线（需求解析 → 校验 → HITL 澄清门控 → 候选检索 → Java 求解 → 兼容性复核 → HITL 兼容性门控 → 解释渲染） | 不建用户表、不签发生产 Token、不查 Java 业务库、不自行计算价格与兼容性 |
 | 管理端 | `admin/` | React 19 + TypeScript + Vite + TanStack Router/Query + Zustand + Tailwind/shadcn-admin | 管理员登录、用户管理（状态 / 角色）、审计日志查询 | 不调用 Agent、不连接数据库、不持有模型密钥、不实现用户端功能 |
 
 证据：`frontend/package.json`、`application-service/pom.xml`、`agent-service/pyproject.toml`、`admin/package.json`、`frontend/deploy/nginx/default.conf.template`。

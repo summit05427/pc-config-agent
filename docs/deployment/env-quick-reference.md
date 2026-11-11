@@ -91,6 +91,8 @@
 | `AGENT__SESSION_INDEX_TTL_SECONDS` / `AGENT__SESSION_INDEX_MAX` | 否 | `2592000` / `100` | 已废弃（2026-10-29），仅为兼容旧 `.env` 保留 |
 | `OPENUI__ENABLED` / `OPENUI__PROMPT_NAME` | 否 | `false` / `openui` | 生成式 UI 总开关与组件契约文件名 |
 | `OPENUI__MAX_BLOCKS` | 否 | `4`（1–10） | 单次回答顶层 UI 块上限，仅写入提示词 |
+| `HITL__ENABLED` | 否 | `false` | 人在回路总开关；开启时 `STORAGE__BACKEND` 必须为 `postgres`，否则启动失败 |
+| `HITL__INTERRUPT_TTL_SECONDS` | 否 | `1800`（1–86400） | 中断有效期；超时恢复返回 `interrupt_expired` |
 | `MCP__ENABLED` / `MCP__GATEWAY_URL` | 否 | `false` / 空 | MCP 总开关与聚合端点覆盖值；留空由 `LLM__GATEWAY_BASE_URL + /mcp` 推导，Solo 无网关故不生效 |
 | `MCP__ALLOWED_TOOLS` | 否 | `[]` | 只接入列出的工具（网关返回的原始工具名，JSON 数组）；为空表示全部 |
 | `MCP__CONNECT_TIMEOUT_SECONDS` / `MCP__REQUEST_TIMEOUT_SECONDS` | 否 | `10` / `30` | 建连总超时与单次 MCP 工具调用超时；后者必须大于网关侧 `timeout` |

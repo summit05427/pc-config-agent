@@ -24,7 +24,7 @@
   → frontend Nginx
   → POST /agent/api/v1/chat/stream（SSE）
   → Agent chat.py / turn.py
-  → PC 图六节点
+  → PC 图八节点（两个 HITL 门控默认直通）
   → 治理后工具（app/agent/pc/tools.py）
   → PcApiClient（app/services/pc_client.py）
   → Java /internal/v1/pc/**（服务令牌 + X-User-Token）
@@ -71,4 +71,4 @@
 - 硬件数据版本化、历史价格曲线、自动报价采集【未实现】。
 - 管理端硬件 / 商品维护页面【未实现】。
 - Agent 侧 `PROGRAMMING` / `WORKSTATION` 场景解析【未实现】；Java 求解器已支持。
-- RAG、MCP、HITL、多 Agent 编排【未实现】，不属于本期演示范围。
+- HITL 已实现（默认关闭，见 [hitl-workflow.md](./hitl-workflow.md)）；RAG、MCP、多 Agent 编排【未实现】，不属于本期演示范围。

@@ -20,6 +20,7 @@
 | --- | --- | --- | --- |
 | [INDEX.md](INDEX.md) | 导航（**任务路由**） | 按任务给出最小必读清单、规则文件路由与派生文档说明 | 改代码的人 |
 | [architecture-overview.md](architecture-overview.md) | 事实 + 已确认决策 | 各端职责、部署拓扑、调用关系（含 Agent → Java 内部接口）、信任边界、未实现能力 | 所有人 |
+| [agent-capabilities-and-innovation.md](agent-capabilities-and-innovation.md) | 分析文档 | Agent 能力盘点、成熟度分层、核心创新点、价值与风险边界（含 RAG 规划） | 对外介绍 / 产品与架构评审 |
 | [api-contract.md](api-contract.md) | 契约 | 路径前缀、鉴权、双响应信封、Java/Agent/内部接口、SSE 协议、错误码总表 | 改接口的人 |
 | [api-contract-quick-reference.md](api-contract-quick-reference.md) | 派生速查 | API 契约速查视图（源：`api-contract.md`） | 改接口的人 |
 | [design-system/cross-app-ui-contract.md](design-system/cross-app-ui-contract.md) | 契约（跨端 UI） | L0 品牌层与 L1 语义层的唯一权威：品牌色、语义状态映射、两端对齐规则 | 改前端 / 管理端 UI 的人 |
@@ -61,7 +62,7 @@
 | 目录 / 文档 | 类型 | 内容 |
 | --- | --- | --- |
 | [quality/enterprise-readiness.md](quality/enterprise-readiness.md) | 质量基线（**企业级达标唯一评分表**） | 六大域评分口径、逐项验收方式、P0–P2 整改 backlog、业界基准映射 |
-| [adr/](adr/) | 架构决策 | 目前 15 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm`、`0009-single-pc-workflow-over-generic-chat`、`0010-deterministic-markdown-build-output`、`0011-manually-verified-offer-dataset`、`0012-persist-build-snapshot`、`0013-jsonl-governed-artifacts-in-repo`、`0014-governance-status-separate-from-data-quality`、`0015-lifecycle-unknown-is-not-excluded`、`0016-offline-governance-without-runtime-hookup`、`0017-single-etl-entry-with-ci-gate` |
+| [adr/](adr/) | 架构决策 | 目前 26 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm`、`0009-single-pc-workflow-over-generic-chat`、`0010-deterministic-markdown-build-output`、`0011-manually-verified-offer-dataset`（被 0021 取代）、`0012-persist-build-snapshot`、`0013-jsonl-governed-artifacts-in-repo`、`0014-governance-status-separate-from-data-quality`、`0015-lifecycle-unknown-is-not-excluded`、`0016-offline-governance-without-runtime-hookup`、`0017-single-etl-entry-with-ci-gate`、`0018-offers-stay-file-backed`、`0019-price-source-separation`、`0020-noncommercial-research-positioning`、`0021-rule-based-offer-verification`、`0022-stage10-keeps-runtime-catalog-scope`、`0023-compatibility-unknown-risk-levels`、`0024-scoring-version-in-snapshot-json`、`0025-blocking-risk-level-for-all-rules`、`0026-keep-mcp-client-no-server-exposure` |
 | [planning/closure-plan.md](planning/closure-plan.md) | 规划（**当前待办与放行条件唯一权威**） | 已处理事项及关闭依据、未完成 P0–P3 清单、收尾执行顺序与验收标准 |
 | [planning/pc-config-implementation-plan.md](planning/pc-config-implementation-plan.md) | 规划（PC 配置分期设计） | 决策 D1–D8、Stage 1–6 任务与验收指标；执行进度以本文件与 closure-plan 为准 |
 | [quality/pc-config-e2e-2026-11.md](quality/pc-config-e2e-2026-11.md) | 质量证据 | Stage 5 端到端联调：三组 Demo、指标核对、基础设施回归、遗留问题 |

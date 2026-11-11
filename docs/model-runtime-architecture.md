@@ -532,7 +532,7 @@ PR5 后收尾（2026-10-31）：`estimatedCost` 曾加 `@Digits(integer = 6, fra
 | `model_usage` 的 `worker.cancel()` 未 `await` | 改为 `await worker.cancel()` 并处理异常 | PR5 |
 | 模型目录与图实例两处缓存无容量上限 | 加容量上限或 TTL | PR5 |
 | 新增错误码未同步 `docs/services/agent-service/api-reference.md` | 补齐并跑 `check-doc-links` | PR5 |
-| `MODEL_RUNTIME__*`、`CONTROL_PLANE__*` 未同步 `docs/services/agent-service/configuration.md` | 补齐并跑 `check-env-docs` | PR5 |
+| `MODEL_RUNTIME__*`、`CONTROL_PLANE__*` 未同步 `docs/services/agent-service/configuration.md` | 补齐并跑 `check-env-docs` | 已完成（PR5 后统一收敛到 `docs/deployment/environment-variables.md`，该文件不存在也不需要；`MODEL_RUNTIME__ENABLED` 已进 `agent-service/.env.example`） |
 | 缺「Token / API Key 不进日志」的断言 | 用 `caplog` 覆盖 chat 与 control_plane 两条路径 | PR5 |
 
 **前端（`frontend`）**

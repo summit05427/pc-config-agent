@@ -68,7 +68,7 @@
 | GET    | `/agent/api/v1/health/ready`                  | 无     | 就绪探测          | 200 或 503；`dependencies` 细分 checkpointer / redis                                |
 | GET    | `/agent/api/v1/metrics`                       | 网关白名单 | Prometheus 文本 | 可配 `X-Metrics-Token`；关闭时 404 `metrics_disabled`                                 |
 | POST   | `/agent/api/v1/auth/dev-token`                | 无     | 仅开发环境签发令牌     | 请求 `user_id`、`expires_minutes`；响应 `access_token`、`token_type`、`expires_in`      |
-| POST   | `/agent/api/v1/chat/stream`                   | 需登录   | SSE 对话流       | 请求 `message`、`thread_id`、`model`、`reasoning`、`preferences`；可选 `Idempotency-Key` |
+| POST   | `/agent/api/v1/chat/stream`                   | 需登录   | SSE 对话流       | 请求 `message`、`thread_id`、`model`、`reasoning`、`preferences`、`resume{interrupt_id, answer}`、`regenerate`；可选 `Idempotency-Key` |
 | GET    | `/agent/api/v1/sessions`                      | 需登录   | 会话列表          | `thread_id`、`title`、`model_key`、`last_active_at`、`total`、`page`、`size`          |
 | PATCH  | `/agent/api/v1/sessions/{thread_id}`          | 需登录   | 重命名会话         | 请求 `title`（1..80）；响应 `thread_id`、`title`                                        |
 | PUT    | `/agent/api/v1/sessions/{thread_id}/model`    | 需登录   | 设置会话级模型       | 请求 `model_key`（`null` 为 Auto）；响应 `model_key`、`effective`、`model`、`updated_at`   |
@@ -84,6 +84,7 @@
 | `tool_call`   | `{"name": "...", "args": {}}`       | 模型发起工具调用                    |
 | `tool_result` | `{"name": "...", "preview": "..."}` | 工具结果摘要，`preview` 截断 200 字符  |
 | `done`        | `{"thread_id": "..."}`              | 正常结束                        |
+| `interrupt`   | `{"interrupt_id": "...", "interaction_type": "...", "question": "...", "input_schema": {"fields": [], "submit_label": "..."}, "context": {}}` | HITL 暂停：本轮结束且不发送 `done`，用 `resume` 续跑 |
 | `error`       | `{"code": "...", "message": "..."}` | 流内错误，HTTP 状态已为 200          |
 
 ## 统一错误码

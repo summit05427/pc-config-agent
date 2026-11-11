@@ -263,7 +263,7 @@ Solo 下的 Agent 与整栈的差异（存储、Redis、鉴权、密钥）见 [s
 
 | 服务 | 端点 | 说明 |
 | --- | --- | --- |
-| Agent | `GET /api/v1/metrics` | 13 个指标族（HTTP、SSE、工具、LLM token、outbox、会话删除）；Nginx 白名单 + 可选 `METRICS__TOKEN` |
+| Agent | `GET /api/v1/metrics` | 15 个指标族（HTTP、SSE、工具、节点耗时、LLM token、outbox、会话删除、输出校验）；Nginx 白名单 + 可选 `METRICS__TOKEN` |
 | Java | `GET /actuator/prometheus` | Micrometer 标准指标（HTTP 请求、JVM、Hikari）；端口只绑回环，Nginx 不代理 `/actuator` |
 | LiteLLM | `GET /metrics/` | 上游延迟、错误与 token；必须带 `Authorization: Bearer <LITELLM_MASTER_KEY>`，末尾斜杠不可省 |
 
@@ -391,6 +391,65 @@ cat backup-business.sql | docker compose exec -T postgres sh -c 'psql -U "$POSTG
 ```
 
 账号与库名取自容器内环境变量（`POSTGRES_USER` / `POSTGRES_DB`），不在脚本里写死；`pgvector` 容器内同样是 `POSTGRES_*` 三个变量，值来自 `AGENT_POSTGRES_*`。BYOK 主密钥 `MODEL_CRED_MASTER_KEY` 必须与数据库备份**分开保管**——丢失即全部已存凭证不可用。
+
+### 6.6 快照保留与归档（P1-02）
+
+现状：`pc_build_snapshots`（Flyway `V24`）是 append-only 表，代码只有 `insert` 与按 `build_id + user_id` 回读两条 SQL，**没有过期、清理或分区**；每行含 `requirements_snapshot` / `components` / `compatibility_report` / `benchmark_snapshot` / `offer_snapshot` 五份 JSONB，随使用量线性增长。生存期数据只是历史回读，不参与新求解。
+
+保留周期（默认值，运维可按量调整并在此处同步）：
+
+| 层 | 范围 | 处理 |
+| --- | --- | --- |
+| 在线 | `created_at` 在 12 个月内 | 留在主表，接口可直接回读 |
+| 在线条数上限 | 单用户 200 条（超出部分按 `created_at` 最旧先归档） | 防止个别用户把主表撑大 |
+| 归档文件 | 至少 24 个月 | 覆盖「一年前方案再回溯一年」的场景 |
+| 删除 | 只删已归档且校验通过的行 | 任何情况下都不删未归档数据 |
+
+归档方式（每月一次，UTC 月首；文件放 `deploy/backups/` 或对象存储，均不进 git）：
+
+```bash
+# 1) 导出（先归档再删除，归档失败就不进入第 2 步）
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "\copy (SELECT * FROM pc_build_snapshots WHERE created_at < now() - interval '12 months' ORDER BY created_at) TO STDOUT WITH CSV HEADER" \
+  | gzip > deploy/backups/pc_build_snapshots_$(date +%Y%m).csv.gz
+
+# 2) 删除：parent_build_id 是自引用外键且未设 ON DELETE，必须自叶向根删除，重复执行直到 0 行
+#    只删「本批内没有未归档子行」的行，跨批次的父子关系因此不会被拆散
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+  "DELETE FROM pc_build_snapshots s WHERE s.created_at < now() - interval '12 months' AND NOT EXISTS (SELECT 1 FROM pc_build_snapshots c WHERE c.parent_build_id = s.build_id);"
+```
+
+回滚方案（误删 / 需要回溯归档数据）：
+
+```bash
+# 1) 归档文件在宿主机，先送进容器（PROGRAM 在容器内执行）
+docker compose cp deploy/backups/pc_build_snapshots_202511.csv.gz postgres:/tmp/snapshots_202511.csv.gz
+
+# 2) 同一会话内建临时表、解压导入、按层回填；parent_build_id 是自引用外键，
+#    父行不存在时子行会被拒绝，所以循环插入直到无可插入的行
+docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+CREATE TEMP TABLE snapshots_restore (LIKE pc_build_snapshots);
+\copy snapshots_restore FROM PROGRAM 'gzip -dc /tmp/snapshots_202511.csv.gz' WITH CSV HEADER
+DO $$
+DECLARE inserted int;
+BEGIN
+    LOOP
+        INSERT INTO pc_build_snapshots
+        SELECT r.* FROM snapshots_restore r
+        WHERE NOT EXISTS (SELECT 1 FROM pc_build_snapshots s WHERE s.build_id = r.build_id)
+          AND (r.parent_build_id IS NULL
+               OR EXISTS (SELECT 1 FROM pc_build_snapshots p WHERE p.build_id = r.parent_build_id))
+        ON CONFLICT (build_id) DO NOTHING;
+        GET DIAGNOSTICS inserted = ROW_COUNT;
+        EXIT WHEN inserted = 0;
+    END LOOP;
+END $$;
+SQL
+```
+
+- 代码回滚不受影响：表结构与写入路径未变，回滚镜像后旧版本仍能正常写入与回读剩余行。
+- 归档不是备份的替代：`pg_dump` 全库备份（§6.5）仍在发布前执行；归档解决的是主表长期增长，不解决灾难恢复。
+- 未实现：自动清理 Job 与相关配置项。本策略当前是**运维手工流程**；要做成定时任务需新增 Job（参考 `RefreshSessionCleanupJob`）并同步 `.env.example` 与 [environment-variables.md](environment-variables.md)。
 
 ---
 

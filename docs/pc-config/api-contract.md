@@ -57,18 +57,20 @@
 | 字段 | 类型 | 必填 | 校验与语义 |
 | --- | --- | --- | --- |
 | `budgetMaxFen` | integer | 否 | `>= 0`；为空表示无硬预算 |
-| `scenario` | string | 否 | 8 个入参别名；缺省 `BALANCED` |
+| `scenario` | string | 否 | 10 个入参别名；缺省 `BALANCED` |
+| `renderMode` | string | 否 | `CPU` / `GPU`；仅 `RENDERING` 用途有意义，用于区分渲染方向 |
+| `preference` | string | 否 | `PERFORMANCE` / `VALUE`；`VALUE` 且存在预算时按性价比排序，缺省按性能总分 |
 | `minMemoryGb` / `minStorageGb` | integer | 否 | 1–512 / 1–8192 |
 | `requireVerifiedOffers` | boolean | 否 | 默认 `false`；为 `true` 时不接受演示价 |
 
 - 响应 `data`：`solved`、`build`（成功时）、`failure`（失败时）。`solved=false` 仍是 HTTP 200 的正常业务结果，**调用方不得自行放宽预算**。
-- `scenario` 入参：`GAMING`/`VIDEO_EDITING`/`CREATIVE`/`PROGRAMMING`/`WORKSTATION`/`OFFICE`/`GENERAL_USE`/`BALANCED`；响应归一化为 6 个领域值（`VIDEO_EDITING`→`CREATIVE`，`GENERAL_USE`→`BALANCED`）。
+- `scenario` 入参：`GAMING`/`VIDEO_EDITING`/`CREATIVE`/`PROGRAMMING`/`WORKSTATION`/`OFFICE`/`GENERAL_USE`/`BALANCED`/`RENDERING`/`AI_INFERENCE`；响应归一化为 6 个领域值（`VIDEO_EDITING`→`CREATIVE`，`GENERAL_USE`→`BALANCED`）。
 - `failure`：`reason`（`NO_CANDIDATES`/`NO_COMPATIBLE_BUILD`/`BUDGET_EXCEEDED`）、`message`、`missingCategories[]`、`candidateCounts{}`、`minimumRequiredBudgetFen`、`evaluatedCombinationCount`。
-- 错误：场景不在 8 个合法值时首先被 `@Pattern` 拦截为 `400 10001`；DTO 转换仍无法识别（防御分支）为 `400 40304`；目录不可用为 `503 40305`。
+- 错误：场景不在 10 个合法值时首先被 `@Pattern` 拦截为 `400 10001`；`preference` 非法值在 DTO 转换抛 `400 40304`；目录不可用为 `503 40305`。
 ## 7. POST /internal/v1/pc/builds/validate
 - 鉴权：仅服务令牌（不要求 `X-User-Token`），不落库。
 - 请求体八字段均 `@NotBlank`：`cpu`、`motherboard`、`memory`、`gpu`、`psu`、`case`（JSON 名）、`cooler`、`storage`。
-- 响应 `data`：`valid`（是否存在 `FAIL`）、`report.ruleVersion`、`report.overallStatus`、`report.hasFailure`、`report.checks[]`；check 为 `ruleId`、`ruleName`、`status`、`message`、`hardwareIds[]`。
+- 响应 `data`：`valid`（是否存在 `FAIL`）、`report.ruleVersion`、`report.overallStatus`、`report.hasFailure`、`report.checks[]`；check 为 `ruleId`、`ruleName`、`status`、`message`、`riskLevel`、`hardwareIds[]`。`riskLevel` 取 `BLOCKING` / `ADVISORY`，当前九条规则全部 `BLOCKING`，用于前端区分“必须处理”与“可接受风险”。
 - 语义：`UNKNOWN` 不影响 `valid`，但绝不能展示为 `PASS`。错误：空字段先由 `@NotBlank` 拦截为 `400 10001`；类别不符或 DTO 转换缺类别为 `400 40303`；硬件不存在 → `404 40301`。
 ## 8. GET /internal/v1/pc/builds/{buildId}
 - 鉴权：服务令牌 + `X-User-Token`。路径参数 `buildId`（UUID）。
@@ -77,9 +79,10 @@
 
 | 对象 | 字段 |
 | --- | --- |
-| `build` | `buildId`、`requirements`、`components[]`、`totalPriceFen`、`budgetMaxFen`、`budgetStatus`、`compatibilityReport`、`solverVersion`、`compatibilityRuleVersion`、`catalogVersion`、`offerDataStatus`、`verifiedOfferCount`、`demoOfferCount`、`createdAt` |
-| `requirements` | `budgetMaxFen`、`scenario`（6 个领域值）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers` |
+| `build` | `buildId`、`requirements`、`components[]`、`totalPriceFen`、`budgetMaxFen`、`budgetStatus`、`compatibilityReport`、`solverVersion`、`compatibilityRuleVersion`、`catalogVersion`、`offerDataStatus`、`verifiedOfferCount`、`demoOfferCount`、`reasonSummary`、`componentReasons[]`、`createdAt` |
+| `requirements` | `budgetMaxFen`、`scenario`（6 个领域值）、`workloadProfile`、`renderMode`、`scoringVersion`、`preference`、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers` |
 | `components[]` | `category`、`hardwareId`、`brand`、`modelName`、`specSummary`、`title`、`priceFen`、`priceSource`、`priceType`、`verifiedPrice`、`purchaseUrl`、`platform`、`seller`、`offerId`、`matchStatus`、`verifiedAt`、`validUntil`、`benchmarkType`、`benchmarkScore` |
+| `componentReasons[]` | `hardwareCategory`、`hardwareId`、`reason`、`scoreContribution`、`priceFen`；理由由 Java 确定性生成，调用方不得改写 |
 | `compatibilityReport` | `ruleVersion`、`overallStatus`（`PASS`/`WARNING`/`FAIL`/`UNKNOWN`）、`hasFailure`、`checks[]`（结构同 §7） |
 | `budgetStatus` | 当前枚举仅 `WITHIN_BUDGET`、`NO_BUDGET`；求解器不返回超预算方案 |
 
@@ -88,9 +91,11 @@
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `build_id` | string \| null | 快照 ID |
-| `components[]` | array | `category`、`model_name`、`brand`、`title`、`platform`、`seller`、`price_source`、`spec_summary`、`price_fen`、`purchase_url`、`benchmark{type,score}`、`offer_verified_at` |
+| `components[]` | array | `category`、`hardware_id`、`model_name`、`brand`、`title`、`platform`、`seller`、`price_source`、`spec_summary`、`price_fen`、`purchase_url`、`benchmark{type,score}`、`offer_verified_at` |
 | `total_price_fen` / `budget_max_fen` / `budget_status` | integer / integer / string | 总价、预算上限、预算结论 |
-| `compatibility[]` / `overall_status` | array/string | 逐条 `rule`、`status`、`message` 与总状态 |
+| `compatibility[]` / `overall_status` | array/string | 逐条 `rule`、`status`、`risk_level`、`message` 与总状态 |
+| `workload_profile` / `scoring_version` | string | 用途画像与评分策略版本；缺失时前端不展示 |
+| `component_reasons[]` | array | 逐件理由，`hardwareCategory`、`hardwareId`、`reason`、`scoreContribution`、`priceFen`；前端按 `hardware_id` 匹配到组件行 |
 | `demo_offer_count` | integer | 演示价条数；大于 0 时前端常驻提示 |
 | `reason_summary` | string | 推荐说明；权威正文仍是 `token` 事件 |
 

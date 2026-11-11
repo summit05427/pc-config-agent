@@ -67,6 +67,7 @@
 | `preferences.response_style` | string | `concise` / `balanced` / `detailed` | 追加回答风格提示 |
 | `preferences.use_history` | boolean | 默认 `true` | `false` 时模型只看本轮消息，但本轮仍正常落库 |
 | `regenerate` | boolean | 默认 `false` | 为 `true` 时移除最后一条 AI 回答后重跑模型，并覆盖落库，不追加重复提问 |
+| `resume` | object \| null | 可省略 | HITL 恢复：`{ "interrupt_id": "1..128", "answer": { ... } }`；与 `regenerate=true` 互斥（422）。要求 `HITL__ENABLED=true` 且 `STORAGE__BACKEND=postgres` |
 | `reasoning` | boolean \| null | 可省略 | `true` 要求本轮开启思考；按 `model-tasks` 返回的 `capabilities` 校验，缺 `reasoning` 能力位返回 422 `capability_unsupported`。`null` 沿用模型默认行为；运行时关闭时忽略 |
 
 `preferences` 省略时等价于全部默认值（不追加提示、注入历史）。服务端把偏好渲染成追加到系统提示词的片段，并按「基础提示词 + 偏好片段」重新计算上下文预算；`use_history=false` 时只取最后一条用户消息及其之后的窗口，状态与业务表仍保留完整历史。
@@ -88,6 +89,10 @@
 | 409 | `duplicate_request` | 相同 `Idempotency-Key` 已成功处理 |
 | 409 | `request_in_progress` | 相同 `Idempotency-Key` 正在处理 |
 | 409 | `lock_not_acquired` | 同一会话正在生成，等待窗口（默认 3s）内没抢到锁 |
+| 409 | `hitl_unavailable` | 携带 `resume` 但 HITL 未启用或存储不是 `postgres` |
+| 409 | `interrupt_not_found` | 该 `thread_id` 没有待恢复的中断 |
+| 409 | `interrupt_mismatch` | `interrupt_id` 与当前待恢复中断不一致 |
+| 409 | `interrupt_expired` | 中断已超过 `HITL__INTERRUPT_TTL_SECONDS` |
 | 422 | `validation_error` | 请求体或头不满足约束 |
 | 422 | `capability_unsupported` | `reasoning=true` 但当前模型目录未声明 `reasoning` 能力位；在流建立前返回，且不消耗 BYOK 一次性凭证 |
 | 503 | `redis_unavailable` | 配置了 Redis 但客户端不可用 |
@@ -101,7 +106,8 @@
 | `tool_call` | `{"name": "...", "args": {...}}` | 模型发起工具调用（来自 `model` 节点） |
 | `tool_result` | `{"name": "...", "preview": "前 200 字符"}` | 工具返回 |
 | `done` | `{"thread_id": "客户端原值"}`，PC 配置成功时额外带可选 `build_result` | 正常结束；回传客户端 ID，不暴露服务端命名空间 |
-| `error` | `{"code": "request_timeout" \| "agent_error", "message": "..."}` | 超时或内部错误 |
+| `interrupt` | 见下 | HITL 暂停：本轮以该事件结束，不再发送 `done`；携带 `interrupt_id`、`interaction_type`、`question`、`input_schema.fields`、`context` |
+| `error` | `{"code": "request_timeout" \| "agent_error" \| "hitl_resume_invalid", "message": "..."}` | 超时、内部错误或恢复内容非法 |
 
 编码格式（每个事件以空行结束）：
 
@@ -158,10 +164,10 @@ Path：`thread_id`（1–64）；Query 同 §4，另有 `order`（`asc` 默认 /
 {
   "thread_id": "my-thread",
   "list": [
-    { "role": "user", "content": "现在几点", "created_at": "2026-11-06T08:00:00Z" },
-    { "role": "assistant", "content": "", "tool_calls": [{ "name": "get_current_time", "args": {} }], "created_at": "2026-11-06T08:00:01Z" },
-    { "role": "tool", "content": "...", "name": "get_current_time", "created_at": "2026-11-06T08:00:02Z" },
-    { "role": "assistant", "content": "现在是……", "created_at": "2026-11-06T08:00:03Z" }
+    { "message_id": "my-thread:0", "role": "user", "content": "现在几点", "created_at": "2026-11-06T08:00:00Z" },
+    { "message_id": "my-thread:1", "role": "assistant", "content": "", "tool_calls": [{ "name": "get_current_time", "args": {} }], "created_at": "2026-11-06T08:00:01Z" },
+    { "message_id": "my-thread:2", "role": "tool", "content": "...", "name": "get_current_time", "created_at": "2026-11-06T08:00:02Z" },
+    { "message_id": "my-thread:3", "role": "assistant", "content": "现在是……", "created_at": "2026-11-06T08:00:03Z" }
   ],
   "total": 4,
   "page": 1,
@@ -171,6 +177,7 @@ Path：`thread_id`（1–64）；Query 同 §4，另有 `order`（`asc` 默认 /
 ```
 
 - 数据来源是 `session_messages` 表（每轮生成结束时写入），不读 checkpointer，也不依赖 Redis，所以 **Redis 不可用时该接口仍可用**。
+- `message_id` 为 `{thread_id}:{seq}`，是会话内稳定标识：同一消息在刷新、翻页、`order` 切换后保持不变，消息反馈据此绑定（Java 侧只校验格式，不反查 Agent）。
 - 归属隔离靠查询条件里的 `user_id`：`thread_id` 保持客户端原值，服务端按 (`user_id`, `thread_id`) 组合存储与查询，伪造 ID 只会得到自己名下的空结果。
 - 分页在数据库侧完成（`ORDER BY seq LIMIT/OFFSET` + `COUNT`），读取量只与页大小有关，与历史长度无关；`total` 是该会话消息总数。
 - `order=desc` 时按 `seq` 倒序返回窗口，供长会话从最新一页向前翻；响应中的 `order` 回显请求值。
@@ -295,7 +302,7 @@ Body 分别为 `{ "pinned": true }` 与 `{ "archived": true }`，返回：
 
 - 返回 Prometheus 文本格式，`METRICS__ENABLED=false` 时返回 404 `metrics_disabled`（开关默认值与生产要求见 [docs/deployment/environment-variables.md](../../deployment/environment-variables.md)）。
 - 鉴权分层：**Nginx 白名单为主防线**（精确 location 只放行回环与私有网段），应用内 `METRICS__TOKEN` 为兜底；配置了该变量后必须携带 `X-Metrics-Token`，缺失或不匹配返回 403 `metrics_forbidden`。
-- 共 13 个指标族：HTTP 请求数/耗时、SSE 活跃流/首 token 延迟/超时/断开、工具调用结果/重试、LLM token 用量、用量 outbox 待投递数（`agent_usage_outbox_pending`）、outbox 终态数（`agent_usage_outbox_dead`）、outbox 降级次数（`agent_usage_outbox_degraded_total`）、会话删除墓碑按状态（`agent_session_deletion_tasks{status}`）；**不把 `user_id` / `thread_id` 作为标签**。
+- 共 18 个指标族：HTTP 请求数/耗时、SSE 活跃流/首 token 延迟/超时/断开、工具调用结果/重试、图节点耗时（`agent_node_duration_seconds{node,status}`）、LLM token 用量、用量 outbox 待投递数（`agent_usage_outbox_pending`）、outbox 终态数（`agent_usage_outbox_dead`）、outbox 降级次数（`agent_usage_outbox_degraded_total`）、会话删除墓碑按状态（`agent_session_deletion_tasks{status}`）、输出事实校验命中（`agent_output_guard_violations_total{rule}`）、输入侧护栏命中（`agent_input_guard_violations_total{rule}`，`rule` ∈ `too_long\|control_chars\|zero_width\|injection`）、限流拒绝（`agent_rate_limit_rejections_total{scope}`，当前 `scope="chat"`）；**不把 `user_id` / `thread_id` 作为标签**。
 
 ## 7. `POST /api/v1/auth/dev-token`
 
@@ -324,6 +331,8 @@ Body 分别为 `{ "pinned": true }` 与 `{ "archived": true }`，返回：
 | `lock_not_acquired` | 409 | `lock.py` | 同一会话并发（生成或删除），等待窗口内未抢到锁 |
 | `app_error` | 400（默认） | `exceptions.py` | `AppError` 未显式指定时的兜底 code |
 | `validation_error` | 422 | `exceptions.py` | 请求参数校验失败，带 `details[].field` / `details[].reason` |
+| `input_rejected` | 422 | `input_guard.py` → `chat.py` | 输入侧护栏命中：超长、控制字符、零宽字符或高置信度提示词注入；在建流与占锁之前拒绝，`message` 不回显原文 |
+| `rate_limited` | 429 | `rate_limit.py` → `chat.py` | 每用户固定窗口请求数超限；响应头 `Retry-After` 为剩余秒数 |
 | `http_{status}` | 原样 | `exceptions.py` | 框架级 404/405 等，如 `http_404` |
 | `internal_error` | 500 | `exceptions.py` | 未捕获异常；`DEBUG=false` 时消息固定为「服务器内部错误」 |
 | `redis_unavailable` | 503 | `exceptions.py` | Redis 已配置但不可用（会话锁、幂等键）；会话列表/历史不依赖 Redis |
