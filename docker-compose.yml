@@ -331,6 +331,9 @@ services:
       MODEL_RUNTIME__ENABLED: ${MODEL_RUNTIME_ENABLED:-false}
       # 生成式 UI：开启后把 OpenUI 组件契约注入系统提示词；需与 VITE_OPENUI_ENABLED 同步
       OPENUI__ENABLED: ${OPENUI_ENABLED:-false}
+      # HITL 人在回路：默认关闭；开启必须配合 postgres 存储，否则启动即报错
+      HITL__ENABLED: ${HITL_ENABLED:-false}
+      HITL__INTERRUPT_TTL_SECONDS: ${HITL_INTERRUPT_TTL_SECONDS:-1800}
       # MCP 接入：默认关闭；Server 清单由 LiteLLM 托管，Agent 只连网关聚合端点
       MCP__ENABLED: ${MCP_ENABLED:-false}
       MCP__GATEWAY_URL: ${MCP_GATEWAY_URL:-}
@@ -339,6 +342,15 @@ services:
       RAG__ENABLED: ${RAG_ENABLED:-false}
       RAG__RETRIEVER_MODULE: ${RAG_RETRIEVER_MODULE:-}
       RAG__TOP_K: ${RAG_TOP_K:-5}
+      # 输入侧护栏：命中即 422 input_rejected，不进入模型
+      GUARD__ENABLED: ${GUARD_ENABLED:-true}
+      GUARD__MAX_INPUT_CHARS: ${GUARD_MAX_INPUT_CHARS:-4000}
+      GUARD__BLOCK_ON_INJECTION: ${GUARD_BLOCK_ON_INJECTION:-true}
+      # 对话限流：按登录用户 Redis 固定窗口计数，超限 429 + Retry-After
+      RATE_LIMIT__ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT__CHAT_PER_MINUTE: ${RATE_LIMIT_CHAT_PER_MINUTE:-20}
+      RATE_LIMIT__WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      RATE_LIMIT__FAIL_OPEN: ${RATE_LIMIT_FAIL_OPEN:-true}
       # 容器内走 Compose 服务名，不经过 Nginx
       CONTROL_PLANE__BASE_URL: http://application-service:8080
       # 必须与 Java 的 INTERNAL_AUTH_CLIENT_ID / INTERNAL_AUTH_CLIENT_SECRET 一致

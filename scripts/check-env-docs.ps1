@@ -41,32 +41,22 @@ $keyPattern = @(
 
 # Keys that are intentionally mentioned but never configured through .env.
 # Keep this list explicit and commented; an empty list is the healthy state.
+# 2026-11-10 cleanup: JWT_SECRET / AUTH_USERNAME / AUTH_PASSWORD / AUTH_ROLES are no
+# longer quoted anywhere; MODEL_RUNTIME__* is now declared in agent-service/.env.example.
+# Keeping dead entries here would hide the next rename.
 $allowedMissing = @(
     # Historical names removed on 2026-10-28; docs quote them only to explain the fix.
     'AUTH__JWT_ISSUER'
     'AUTH__JWT_ALGORITHM'
-    # Renamed on 2026-10-29 (RS256 + users 表): JWT_SECRET -> JWT_PRIVATE_KEY/JWT_PUBLIC_KEY,
-    # AUTH_USERNAME/PASSWORD/ROLES -> AUTH_ADMIN_*/AUTH_DEMO_*. Service docs are rewritten in P6.
-    'JWT_SECRET'
     'AUTH__JWT_SECRET'
-    'AUTH_USERNAME'
-    'AUTH_PASSWORD'
-    'AUTH_ROLES'
-    # 以下两个键当前代码并未读取，只在文档里作为「计划/历史」出现：
-    # - JWT_PREVIOUS_PUBLIC_KEY：certification.md 中的密钥轮换预留键，P2 只预留 kid，不实现双密钥验证
-    # - AUTH__ALGORITHM：agent-service 文档里 HS256 时代的旧名，实际字段是 AUTH__JWT_ALGORITHM，P6 重写服务文档
+    # Rotation placeholder: the code only verifies one public key by kid and never reads
+    # this key; environment-variables.md mentions it to explain the single-kid limitation.
     'JWT_PREVIOUS_PUBLIC_KEY'
+    # HS256-era name; architecture.md A-01 uses it to explain the rename history.
     'AUTH__ALGORITHM'
     # Negative examples: forbidden KEY names that the frontend build check rejects.
     'VITE_API_KEY'
     'VITE_JWT_SECRET'
-    # 仅出现在设计稿 docs/model-runtime-architecture.md 的「计划中」键，代码尚未读取：
-    # PR2 落地运行期解析时移出本白名单，并同步 agent-service/.env.example。
-    'MODEL_RUNTIME__ENABLED'
-    'MODEL_RUNTIME__CONTROL_PLANE_URL'
-    'MODEL_RUNTIME__TIMEOUT_SECONDS'
-    'MODEL_RUNTIME__CLIENT_ID'
-    'MODEL_RUNTIME__CLIENT_SECRET'
 )
 
 function Read-TextFileUtf8([System.IO.FileInfo]$File) {
