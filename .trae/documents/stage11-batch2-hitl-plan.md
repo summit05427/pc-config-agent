@@ -115,7 +115,7 @@ compatibility_gate --> response_generator
 - `.env.example`：`HITL__ENABLED=false`、`HITL__INTERRUPT_TTL_SECONDS=1800`。
 - `docs/deployment/environment-variables.md`：新增两项说明。
 - `docs/api-contract.md` §7：请求字段 `resume`、SSE `interrupt` 事件、五个错误码。
-- `docs/pc-config/hitl-workflow.md`（新建）：触发条件、时序、恢复校验、memory 限制。
+- `docs/pc-config/agent.md`（§11–§13）：触发条件、时序、恢复校验、memory 限制。
 - `docs/pc-config/README.md`、`docs/INDEX.md` 登记。
 - `docs/services/agent-service/agent-workflows.md`、`api-reference.md`、`agent-service/CODEMAP.md` 同步落点。
 

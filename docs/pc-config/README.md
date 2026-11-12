@@ -2,57 +2,49 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | Completed（Stage 1–6 完成；Stage 8 离线数据治理完成，待 Stage 9 接入运行时；Stage 10 首批求解器改造已实施） |
-| 最后核验 | 2026-11-09 |
-| 权威性 | 本文件是 `docs/pc-config/` 的入口与 SSOT 索引；术语、HTTP/SSE 契约与环境变量不在本文件重复定义 |
-| 主要证据 | [实施计划](../planning/pc-config-implementation-plan.md)、[联调报告](../quality/pc-config-e2e-2026-11.md)、`agent-service/app/agent/pc/`、`application-service/.../pcbuild/**` |
+| 状态 | Current |
+| 最后核验 | 2026-11-12 |
+| 权威性 | 本文件是 `docs/pc-config/` 的入口与索引；阶段状态与遗留问题以 [roadmap](../planning/roadmap.md) 为准，术语、HTTP/SSE 契约与环境变量不在本文件重复定义 |
+| 主要证据 | [roadmap](../planning/roadmap.md)、[联调报告](../quality/pc-config-e2e-2026-11.md)、`agent-service/app/agent/pc/`、`application-service/.../pcbuild/**` |
 
-## 1. 当前状态摘要
+## 1. 当前状态摘要（2026-11-12 实测）
 
-- **数据**：`catalog.json` 28 款硬件（CPU 4 / GPU 4 / 主板 4 / 内存 4 / 存储 3 / 散热 3 / 机箱 3 / 电源 3）；`offers.json` 28 条（10 条 `OWNER_VERIFIED` + 18 条 `MOCK_DEMO`），`dataStatus=MIXED_DEMO`；`benchmarks.json` 8 条聚合跑分。
-- **阶段**：Stage 1 数据、Stage 2 Java `pcbuild`、Stage 3 Agent 单图、Stage 4 前端卡片、Stage 5 联调、Stage 6 文档集与根文档同步均已完成；Stage 10 首批改造（用途画像、风险级别、第九条规则、用途感知排序）已实施，验收口径见 [就绪度报告](./stage-10-readiness-report.md)。
-- **实测结论**（2026-11-08）：15000 元 GAMING 生成 8 件配置、总价 146.42 万分的方案；3000 元返回无解且不放宽预算；缺预算与用途时只追问。证据见 [联调报告](../quality/pc-config-e2e-2026-11.md)。
-- **数据治理**（2026-11-09）：`data/pc-config/` 已生成 8,238 条硬件主数据、3,557 行跑分映射、四类发布候选池与 8,096 条第三方映射输入；**尚未接入运行时**，在线推荐覆盖率本期不变。详见 [硬件主数据治理报告](../quality/hardware-data-governance-report.md)。
+- **数据规模**：`catalog.json` **402** 款（CPU 71 / GPU 66 / 主板 60 / 内存 60 / 存储 53 / 电源 40 / 机箱 26 / 散热 26）；`offers.json` **402** 条，与 catalog 一一对应，`data_status=PLATFORM_OBSERVED_ONLY`（无人工逐件核验价）；`benchmarks.json` 169 条（CPU 71 / GPU 66 / 存储 32）。
+- **阶段状态**：Stage 1–6 完成；Stage 8 离线治理产物已生成但未接入运行时；Stage 9 商品映射与报价扩充已落地，可信度口径仍有 P0 缺口；Stage 10 兼容规则、用途画像、排序与解释已实施；Stage 11 HITL 与可观测性完成，RAG 暂缓。2026-11-12 起运行时目录改由 `scripts/data-cleaning` 流水线产出。
+- **实测结论**：`BuildSolverTests` 19/19 通过；`scripts/pc-config/tests` 118 例通过；Agent `pytest` 592 通过、2 失败、1 跳过。
+- **遗留问题**：按优先级见 [roadmap §8](../planning/roadmap.md)，本文件不复制结论。
 
 ## 2. 文档集导航
 
-按 [实施计划 §6.1](../planning/pc-config-implementation-plan.md) 共 12 份，已全部交付：
-
-| 文档 | 一句话职责 | 状态 |
-| --- | --- | --- |
-| [README.md](./README.md) | 文档集入口、当前状态与 SSOT 索引 | 已交付 |
-| [demo-scope.md](./demo-scope.md) | 本期演示范围、不做清单与数据诚信红线 | 已交付 |
-| [architecture.md](./architecture.md) | 三端职责、调用链与确定性单图的设计理由 | 已交付 |
-| [agent-workflow.md](./agent-workflow.md) | 六节点、条件路由、重解与 SSE 事件映射 | 已交付 |
-| [agent-state-and-tools.md](./agent-state-and-tools.md) | 图状态字段、checkpointer、5 个工具与 Profile | 已交付 |
-| [data-model.md](./data-model.md) | 硬件、跑分、报价、配置快照的数据结构与字段来源 | 已交付 |
-| [data-quality-and-lifecycle.md](./data-quality-and-lifecycle.md) | 数据质量状态、生命周期与推荐可用性规则 | 已交付 |
-| [market-offer-management.md](./market-offer-management.md) | 人工核验报价的录入、校验与替换流程 | 已交付 |
-| [data-acquisition-strategy.md](./data-acquisition-strategy.md) | 采集优先级、CPU/GPU 覆盖、主库关联与上线发布策略 | 已交付 |
-| [solver-and-compatibility.md](./solver-and-compatibility.md) | 求解搜索、预算剪枝、用途画像与 9 条兼容性规则 | 已交付 |
-| [stage-10-readiness-report.md](./stage-10-readiness-report.md) | Stage 10 能力审计、数据边界与验收口径 | 已交付 |
-| [api-contract.md](./api-contract.md) | PC 内部接口与 `done.build_result` 的模块级说明 | 已交付 |
-| [testing-and-evaluation.md](./testing-and-evaluation.md) | 测试矩阵、评测用例与回归基线 | 已交付 |
-| [extension-roadmap.md](./extension-roadmap.md) | 数据替换、候选扩充与后续演进的边界 | 已交付 |
+| 文档 | 一句话职责 |
+| --- | --- |
+| [architecture.md](./architecture.md) | 三端职责、调用链与确定性单图的设计理由 |
+| [agent.md](./agent.md) | 八节点、条件路由、状态、工具、Profile 与 HITL |
+| [data.md](./data.md) | 硬件、跑分、报价、快照、数据质量与治理产物 |
+| [market-offer-management.md](./market-offer-management.md) | 报价录入、规则核验、原子发布与回滚 |
+| [solver-and-compatibility.md](./solver-and-compatibility.md) | 求解搜索、预算剪枝、用途画像与兼容性规则 |
+| [api-contract.md](./api-contract.md) | PC 内部接口与 `done.build_result` 的模块级说明 |
+| [testing-and-evaluation.md](./testing-and-evaluation.md) | 测试矩阵、评测用例与回归基线 |
+| [glossary.md](./glossary.md) | 领域术语与中文命名 |
+| [README.md](./README.md) | 文档集入口与索引 |
 
 ## 3. SSOT 分工
 
 | 事实 | 唯一维护位置 |
 | --- | --- |
+| 阶段状态、决策与遗留问题 | [docs/planning/roadmap.md](../planning/roadmap.md) |
 | 领域术语与中文命名 | [glossary.md](./glossary.md) |
 | 对外 HTTP / SSE 契约、内部接口路径 | [docs/api-contract.md](../api-contract.md) §5.7、§7 |
 | 环境变量名、默认值与生产校验 | [docs/deployment/environment-variables.md](../deployment/environment-variables.md) |
-| 阶段任务与验收指标 | [docs/planning/pc-config-implementation-plan.md](../planning/pc-config-implementation-plan.md) §5、§8 |
-| 联调证据与遗留问题 | [docs/quality/pc-config-e2e-2026-11.md](../quality/pc-config-e2e-2026-11.md) |
-| Stage 10 数据边界与验收口径 | [stage-10-readiness-report.md](./stage-10-readiness-report.md) |
+| 联调证据 | [docs/quality/pc-config-e2e-2026-11.md](../quality/pc-config-e2e-2026-11.md) |
 | 治理产物、发布批次与生命周期分布 | [硬件主数据治理报告](../quality/hardware-data-governance-report.md)、`data/pc-config/manifest/catalog-manifest.json` |
 
 ## 4. 读者路径
 
-- **产品 / 验收**：先读 [demo-scope.md](./demo-scope.md)，再按计划 §8 与联调报告核对指标。
-- **Java 后端**：读 [solver-and-compatibility.md](./solver-and-compatibility.md) 与 [data-model.md](./data-model.md)，契约以 [api-contract.md](../api-contract.md) §5.7 为准。
-- **Agent 开发**：按 [architecture.md](./architecture.md) → [agent-workflow.md](./agent-workflow.md) → [agent-state-and-tools.md](./agent-state-and-tools.md) 顺序阅读。
+- **产品 / 验收**：先读 [roadmap](../planning/roadmap.md) §2 与 §8，再按联调报告核对指标。
+- **Java 后端**：读 [solver-and-compatibility.md](./solver-and-compatibility.md) 与 [data.md](./data.md)，契约以 [api-contract.md](../api-contract.md) §5.7 为准。
+- **Agent 开发**：按 [architecture.md](./architecture.md) → [agent.md](./agent.md) 顺序阅读。
 - **前端**：读 [architecture.md](./architecture.md) 的调用链，并核对 [api-contract.md](../api-contract.md) §7 的 `done.build_result`。
-- **数据维护**：先读 [data-acquisition-strategy.md](./data-acquisition-strategy.md) 确认优先级与关联规则，再读 [candidate-shortlist.md](./candidate-shortlist.md)、[market-offer-management.md](./market-offer-management.md) 与 [data-quality-and-lifecycle.md](./data-quality-and-lifecycle.md)。
+- **数据维护**：读 [market-offer-management.md](./market-offer-management.md) 与 [data.md](./data.md)，采集优先级与遗留缺口见 [roadmap](../planning/roadmap.md) §4–§5。
 
-> 本目录中的实现描述以当前分支源码为准；未在代码中出现的能力一律标注【未实现】，不提前承诺。
+> 本目录以当前分支源码为准；未在代码中出现的能力一律标注【未实现】，不提前承诺。

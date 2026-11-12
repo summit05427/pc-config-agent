@@ -20,10 +20,8 @@
 | --- | --- | --- | --- |
 | [INDEX.md](INDEX.md) | 导航（**任务路由**） | 按任务给出最小必读清单、规则文件路由与派生文档说明 | 改代码的人 |
 | [architecture-overview.md](architecture-overview.md) | 事实 + 已确认决策 | 各端职责、部署拓扑、调用关系（含 Agent → Java 内部接口）、信任边界、未实现能力 | 所有人 |
-| [agent-capabilities-and-innovation.md](agent-capabilities-and-innovation.md) | 分析文档 | Agent 能力盘点、成熟度分层、核心创新点、价值与风险边界（含 RAG 规划） | 对外介绍 / 产品与架构评审 |
 | [api-contract.md](api-contract.md) | 契约 | 路径前缀、鉴权、双响应信封、Java/Agent/内部接口、SSE 协议、错误码总表 | 改接口的人 |
 | [api-contract-quick-reference.md](api-contract-quick-reference.md) | 派生速查 | API 契约速查视图（源：`api-contract.md`） | 改接口的人 |
-| [design-system/cross-app-ui-contract.md](design-system/cross-app-ui-contract.md) | 契约（跨端 UI） | L0 品牌层与 L1 语义层的唯一权威：品牌色、语义状态映射、两端对齐规则 | 改前端 / 管理端 UI 的人 |
 | [development-rules.md](development-rules.md) | 规范 | 跨端变更影响矩阵、兼容性、验证命令、评审清单 | 提交代码的人 |
 | [documentation-governance.md](documentation-governance.md) | 规范 | 文档分类、目录与命名、状态标注、SSOT、变更与校验门禁 | 写文档的人 |
 | [model-runtime-architecture.md](model-runtime-architecture.md) | 设计 + 落地记录 | 模型接入与调度：控制面/数据面、凭证通道、PR1–PR6 状态 | 所有人 |
@@ -53,7 +51,7 @@
 | [services/agent-service/architecture.md](services/agent-service/architecture.md) | 服务事实说明 | Agent 分层、生命周期、数据归属、已知问题 |
 | [services/agent-service/agent-workflows.md](services/agent-service/agent-workflows.md) | 服务事实说明 | 图结构、上下文裁剪、工具治理、checkpointer、一次对话时序 |
 | [services/agent-service/api-reference.md](services/agent-service/api-reference.md) | 服务契约 | Agent 端点、SSE 事件、错误码 |
-| [pc-config/README.md](pc-config/README.md) | 模块文档集（**PC 配置主题入口**） | 12 份文档导航：范围、架构、工作流、状态与工具、数据模型、数据质量、报价运营、求解与兼容、接口、测试、路线图 |
+| [pc-config/README.md](pc-config/README.md) | 模块文档集（**PC 配置主题入口**） | 8 份文档导航：架构、Agent 工作流与 HITL、数据与治理、报价运营、求解与兼容、接口、测试、术语 |
 | [services/admin/architecture.md](services/admin/architecture.md) | 服务事实说明 | 管理端定位、目录、认证与会话、路由守卫、页面能力、已知边界 |
 | [services/admin/development-guide.md](services/admin/development-guide.md) | 服务规范 | 命令、环境变量、新增页面/接口步骤、认证改动检查、部署待接入 |
 
@@ -61,15 +59,13 @@
 
 | 目录 / 文档 | 类型 | 内容 |
 | --- | --- | --- |
-| [quality/enterprise-readiness.md](quality/enterprise-readiness.md) | 质量基线（**企业级达标唯一评分表**） | 六大域评分口径、逐项验收方式、P0–P2 整改 backlog、业界基准映射 |
-| [adr/](adr/) | 架构决策 | 目前 26 条：`0001-frontend-direct-to-agent`、`0004-extension-config-file-first`、`0005-agent-profile-first-class`、`0006-mechanism-vs-content-boundary`、`0007-session-store-seam`、`0008-unified-model-egress-litellm`、`0009-single-pc-workflow-over-generic-chat`、`0010-deterministic-markdown-build-output`、`0011-manually-verified-offer-dataset`（被 0021 取代）、`0012-persist-build-snapshot`、`0013-jsonl-governed-artifacts-in-repo`、`0014-governance-status-separate-from-data-quality`、`0015-lifecycle-unknown-is-not-excluded`、`0016-offline-governance-without-runtime-hookup`、`0017-single-etl-entry-with-ci-gate`、`0018-offers-stay-file-backed`、`0019-price-source-separation`、`0020-noncommercial-research-positioning`、`0021-rule-based-offer-verification`、`0022-stage10-keeps-runtime-catalog-scope`、`0023-compatibility-unknown-risk-levels`、`0024-scoring-version-in-snapshot-json`、`0025-blocking-risk-level-for-all-rules`、`0026-keep-mcp-client-no-server-exposure` |
-| [planning/closure-plan.md](planning/closure-plan.md) | 规划（**当前待办与放行条件唯一权威**） | 已处理事项及关闭依据、未完成 P0–P3 清单、收尾执行顺序与验收标准 |
-| [planning/pc-config-implementation-plan.md](planning/pc-config-implementation-plan.md) | 规划（PC 配置分期设计） | 决策 D1–D8、Stage 1–6 任务与验收指标；执行进度以本文件与 closure-plan 为准 |
+| [adr/README.md](adr/README.md) | 架构决策索引 | 7 份现行 ADR：模板类 0001、0004–0008，以及合并后的 `0027-pc-config-decisions` |
+| [planning/roadmap.md](planning/roadmap.md) | 规划（**阶段目标、决策与遗留问题唯一权威**） | Stage 1–11 的目标、已确认决策、实测状态、按优先级排列的遗留问题与验证命令 |
+| [planning/pc-config-implementation-plan.md](planning/pc-config-implementation-plan.md) | 规划（PC 配置分期设计，历史） | 决策 D1–D8、Stage 1–6 任务与验收指标；当前状态与待办以 `roadmap.md` 为准 |
 | [quality/pc-config-e2e-2026-11.md](quality/pc-config-e2e-2026-11.md) | 质量证据 | Stage 5 端到端联调：三组 Demo、指标核对、基础设施回归、遗留问题 |
 | [quality/hardware-data-governance-report.md](quality/hardware-data-governance-report.md) | 质量证据 | Stage 8 数据治理：输入规模、五状态分布、生命周期与 UNKNOWN 占比、跑分匹配率、候选池与发布门禁 |
-| [planning/Stage8.md](planning/Stage8.md) | 规划（数据治理实施方案） | 数据产物目录、字段兼容、生命周期规则、CI 门禁与九阶段任务拆分 |
 
-`docs/quality/` 现存放企业级达标评分表；`docs/archive/` 仍为空：2026-11-05 文档清理已删除全部历史归档，历史内容见 Git（清理前提交 `d4e349b`）。新增证据报告仍按 [documentation-governance.md](documentation-governance.md) §2、§10 放入对应目录。
+`docs/quality/` 现存放 PC 配置、硬件治理与联调证据；`docs/archive/` 仍为空：2026-11-05 文档清理已删除全部历史归档，历史内容见 Git（清理前提交 `d4e349b`）。新增证据报告仍按 [documentation-governance.md](documentation-governance.md) §2、§10 放入对应目录。
 
 ### 1.5 历史归档（`archive/`）
 
@@ -123,8 +119,8 @@
 | 改管理端 | [services/admin/architecture.md](services/admin/architecture.md) → [services/admin/development-guide.md](services/admin/development-guide.md) → [development-rules.md](development-rules.md) §1 |
 | 改接口 / 契约 | [api-contract.md](api-contract.md) 对应小节 → [development-rules.md](development-rules.md) §1 影响矩阵 → 两端服务文档 |
 | 要上线 / 配环境 | [deployment/deployment-guide.md](deployment/deployment-guide.md) → [deployment/environment-variables.md](deployment/environment-variables.md) |
-| 看当前待办 | [planning/closure-plan.md](planning/closure-plan.md) |
-| 看未验证项与发布条件 | [planning/closure-plan.md](planning/closure-plan.md) §1–§4 |
+| 看当前待办与遗留问题 | [planning/roadmap.md](planning/roadmap.md) §8 |
+| 看阶段状态与决策依据 | [planning/roadmap.md](planning/roadmap.md) §3–§7 |
 | 新增或整理文档 | [documentation-governance.md](documentation-governance.md) |
 
 ## 5. 单一事实来源（SSOT）
@@ -138,8 +134,7 @@
 | 环境变量与生产 fail-fast | `deployment/environment-variables.md` |
 | 部署 / CI / 回滚 | `deployment/deployment-guide.md` |
 | 技术决策 | `adr/**` |
-| 当前待办 | `planning/closure-plan.md` |
-| 当前未完成 / 未验证事项 | `planning/closure-plan.md` |
+| 阶段状态、当前待办与未验证事项 | `planning/roadmap.md` |
 | 编码硬约束 | `.trae/rules/**` |
 
 ## 6. 维护规则
@@ -148,4 +143,4 @@
 2. 不为求完整而创建文档；没有证据支撑的内容不写，或明确标记为待确认。
 3. 新增公共 API、配置项、环境变量时同步 `.env.example` 与 [deployment/environment-variables.md](deployment/environment-variables.md)。
 4. 文档只描述当前代码的真实行为；历史契约由 Git 历史保留，不在文档中堆积。
-5. 归档优先于删除；删除前必须确认「完全重复、无历史价值、无审计证据、无外部引用、已由权威文档完整承接」。
+5. 归档优先于删除；计划类文档在被权威文档完整承接、引用全部更新后可直接删除，历史由 Git 保留。删除前必须确认「完全重复或无独立价值、无外部引用、已由权威文档完整承接」。

@@ -97,7 +97,7 @@ score = weighted + memoryBonus + storageBonus + vramBonus
 - `UNKNOWN` 是一等状态：字段缺失必须返回它，不能跳过规则，也不能展示为 `PASS`。
 - 报告汇总取最严重状态，优先级 `FAIL > UNKNOWN > WARNING > PASS`；当前 `cooler_case_height=UNKNOWN` 会让整套方案 `overallStatus=UNKNOWN`。
 - 求解器只以 `FAIL` 判定冲突；`WARNING` 与 `UNKNOWN` 都不阻止生成方案。
-- 每条结论携带 `risk_level`（`BLOCKING` / `ADVISORY`）。`BLOCKING` 表示“该字段缺失时方案不得标记为完全验证通过”，**不是**阻断求解；`ADVISORY` 只提示。当前九条规则全部为 `BLOCKING`，因此默认方案一律展示为“待核验”，直到机箱限高等数据补齐，见 [ADR 0025](../adr/0025-blocking-risk-level-for-all-rules.md)。
+- 每条结论携带 `risk_level`（`BLOCKING` / `ADVISORY`）。`BLOCKING` 表示“该字段缺失时方案不得标记为完全验证通过”，**不是**阻断求解；`ADVISORY` 只提示。当前九条规则全部为 `BLOCKING`，因此默认方案一律展示为“待核验”，直到机箱限高等数据补齐，见 [PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md) §4.4。
 
 ## 6. `solved=false` 的 Failure 语义
 
@@ -109,8 +109,8 @@ score = weighted + memoryBonus + storageBonus + vramBonus
 
 Failure 还包含 `message`、`candidateCounts`、`evaluatedCombinationCount`。`evaluatedCombinationCount` 只统计通过兼容校验的完整组合。若探针也没有可行组合，`minimumRequiredBudgetFen` 无值，结果归为 `NO_COMPATIBLE_BUILD`。
 
-无解时求解器绝不修改需求：不放宽预算、不删除类别、不接受硬冲突。Agent 侧允许在校验失败后重解一次，且只放宽 `require_verified_offers`，预算与兼容性约束不变，见 [agent-workflow.md](./agent-workflow.md) §3。
+无解时求解器绝不修改需求：不放宽预算、不删除类别、不接受硬冲突。Agent 侧允许在校验失败后重解一次，且只放宽 `require_verified_offers`，预算与兼容性约束不变，见 [agent.md](./agent.md) §3。
 
 ## 7. 快照写入时机
 
-`BuildSolveService.solve` 带事务：求解成功后才生成新的 `build_id` 与 `created_at` 并写入 `pc_build_snapshots`；求解失败直接返回 Failure，不落库。快照同时记录 `solver_version`（`pc-solver-2.0.0`）、`compatibility_rule_version`（`pc-compat-2.0.0`）与 `catalog_version`，用于判断历史结果是否可比。`workload_profile`、`render_mode` 与 `scoring_version`（`pc-scoring-1.0.0`）写入 `requirements_snapshot` JSON，不新增表列，见 [ADR 0024](../adr/0024-scoring-version-in-snapshot-json.md)。读取时同时按 `build_id` 与 `user_id` 查询，越权或不存在均返回 `40302`。
+`BuildSolveService.solve` 带事务：求解成功后才生成新的 `build_id` 与 `created_at` 并写入 `pc_build_snapshots`；求解失败直接返回 Failure，不落库。快照同时记录 `solver_version`（`pc-solver-2.1.0`）、`compatibility_rule_version`（`pc-compat-2.0.0`）与 `catalog_version`，用于判断历史结果是否可比。`workload_profile`、`render_mode` 与 `scoring_version`（`pc-scoring-1.0.0`）写入 `requirements_snapshot` JSON，不新增表列，见 [PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md) §4.2。读取时同时按 `build_id` 与 `user_id` 查询，越权或不存在均返回 `40302`。

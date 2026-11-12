@@ -2,14 +2,14 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | Completed（Stage 1–6 完成） |
-| 最后核验 | 2026-11-08 |
-| 权威性 | 本文件是 PC 配置二次开发的任务拆分、阶段验收与差异记录依据；系统架构仍以 `docs/architecture-overview.md` 为准 |
-| 需求方案 | `docs/planning/planning.md` |
-| 代码基线 | `HEAD=136dc1b`，分支 `main`（含未提交改动，见 §3.1） |
-| 执行进度 | 分支 `feature/pc-config-agent`；Stage 1–6 全部完成。`offers.json` 为 10 条 VERIFIED（京东自营/官方旗舰店实采）+ 18 条 MOCK（`price_source=MOCK_DEMO`，`data_status=MIXED_DEMO`）。Stage 2 Java `pcbuild` 与 7 个内部接口、V24 快照表已完成；Stage 3 Agent 单图替换完成（ruff/mypy 通过，pytest 504 用例、覆盖率 92.23%）；Stage 4 前端 PC 入口与 `BuildResultCard` 完成（lint/type-check 通过，483 用例、覆盖率 92.64%）；Stage 5 端到端联调完成，证据见 `docs/quality/pc-config-e2e-2026-11.md`；Stage 6 已建立 `docs/pc-config/` 12 份文档并同步根文档、环境变量与 `docs/planning/closure-plan.md` |
+| 状态 | Superseded（历史方案，仅保留 Stage 1–6 的决策与验收记录） |
+| 最后核验 | 2026-11-08（历史） |
+| 权威性 | 阶段状态、后续决策与遗留问题以 [roadmap.md](./roadmap.md) 为准；系统架构以 `docs/architecture-overview.md` 为准 |
+| 需求方案 | 已合并进 [roadmap.md](./roadmap.md) §1 |
+| 代码基线 | 决策时 `HEAD=136dc1b`，分支 `main` |
+| 执行进度 | Stage 1–6 完成。数据与测试计数已被后续阶段覆盖，当前实测见 [roadmap.md](./roadmap.md) §2 |
 
-> `docs/planning/planning.md` 是需求方案，不是仓库现状。本文件基于源码与数据实测后编写；与方案冲突处集中在 §9。
+> 本文件是 2026-11-08 的历史方案，不是仓库现状；原先引用的 `planning.md`、`closure-plan.md`、`Stage8–11.md` 已于 2026-11-11 合并为 [roadmap.md](./roadmap.md)。
 
 ## 1. 结论
 
@@ -44,12 +44,12 @@
 | D7 | 保留 Profile 加载与校验机制，但仓库只保留 `pc-config.yaml`；删除通用图与示例人格 | 单图单 Profile；未知 `agent_id` 仍返回 404 |
 | D8 | 硬件数据使用 **JSON fixture + Repository 端口** | 迭代快；未来换 PostgreSQL 不改 Solver 与工具契约 |
 
-对应架构决策记录：
+对应架构决策记录（原 0009–0012 已合并，历史见 Git）：
 
-- `docs/adr/0009-single-pc-workflow-over-generic-chat.md`（单图 + 确定性流水线）
-- `docs/adr/0010-deterministic-markdown-build-output.md`（确定性渲染 + `done.build_result`）
-- `docs/adr/0011-manually-verified-offer-dataset.md`（人工核验报价）
-- `docs/adr/0012-persist-build-snapshot.md`（快照落库）
+- `docs/adr/0027-pc-config-decisions.md` §1.1（单图 + 确定性流水线）
+- `docs/adr/0027-pc-config-decisions.md` §1.2（确定性渲染 + `done.build_result`）
+- `docs/adr/0027-pc-config-decisions.md` §2.2–§2.4（报价来源与核验）
+- `docs/adr/0027-pc-config-decisions.md` §4.1（快照落库）
 
 ## 3. 基线事实
 
@@ -96,7 +96,7 @@
 | R4 | 硬件名与 PassMark `model_key` 需归一化匹配 | 同上 §4.6 | 30 款候选逐条人工建映射 |
 | R5 | 八类候选笛卡尔积过大 | 本文件 §7.4 | 候选过滤 + 每类上限 + 剪枝 + 分支限界 |
 | R6 | 删除通用图会牵连大量测试 | `agent-service/tests/test_agent_graph.py`、`evals/` | 同步改写为 PC 图测试，禁止删断言换通过率 |
-| R7 | `docs/planning/closure-plan.md` 被 `docs/README.md` 引用但不存在 | 文件系统核查 | Stage 6 创建或改链 |
+| R7 | 规划类文档被多处引用但互相不一致 | 文件系统核查 | 2026-11-11 已合并为 `docs/planning/roadmap.md` |
 | R8 | `planning.md` 写 PassMark 23,945，实际 25,318 | `Hardware data/README.md` §1 | 以本文件与数据实测为准 |
 
 ## 4. 目标架构
@@ -180,7 +180,7 @@ Java Application Service
 - 1.1 `scripts/pc-config/select_candidates.py`：按类别、品牌、价格、规格完整度筛选，输出候选清单。
 - 1.2 `scripts/pc-config/normalize_specs.py`：解析 socket、DDR 类型、板型、最大显卡长度、最大散热器高度、电源功率与供电接口、散热器 socket 支持、M.2/SATA；单位统一，缺失写 `null` 并记录原因。
 - 1.3 建立 PassMark 映射：CPU 用 `model_key`，GPU 用归一化型号；记录 `match_method` 与 `match_confidence`；无法匹配保留并标记 `benchmark_missing`。
-- 1.4 录入负责人提供的中国区报价清单，字段见 §7.3；填写 `docs/pc-config/offers.template.json`，由 `scripts/pc-config/ingest_offers.py` 校验并转换为 `offers.json`；每条必须有商家、平台、人民币分价、链接、核验时间、有效期。
+- 1.4 录入负责人提供的中国区报价清单，字段见 §7.3；填写 `docs/pc-config/offers.template.json`，由 `scripts/pc-config/ingest_offers.py` 校验并转换为 `offers.json`；每条必须有商家、平台、人民币分价、核验时间、有效期，链接可选。
 - 1.5 生成 fixture：`application-service/src/main/resources/pc-config/{catalog,benchmarks,offers}.json`。
 - 1.6 为每条硬件写 `data_quality_status`、`lifecycle_status`、`recommendation_status`。
 
@@ -190,8 +190,8 @@ Java Application Service
 
 - 八类均有候选；CPU、GPU、主板各至少 2 个备选。
 - 每件硬件的求解必需字段不为 `null`，或明确标记为不可参与求解。
-- 报价 `match_status=VERIFIED`、`price_fen` 为正整数、`purchase_url` 为人工核验链接。
-- 抽查 5 条报价与源页面一致；无编造价格或链接。
+- 报价 `match_status=VERIFIED`、`price_fen` 为正整数、`purchase_url` 可空。
+- 抽查 5 条报价的型号与价格可追溯到来源；不要求链接可达，不因链接失效否定价格。
 
 **风险**：1.4 未到位时阻塞，但 1.1–1.3、1.5–1.6 可先做。
 
@@ -372,7 +372,7 @@ Java Application Service
 | `title` | 商品标题 |
 | `price_fen` | 人民币分，正整数 |
 | `price_type` | 普通价 / 促销价 / 会员价 |
-| `purchase_url` | 人工核验链接 |
+| `purchase_url` | 来源链接（可空） |
 | `verified_at` | 核验时间 |
 | `valid_until` | 报价有效期 |
 | `match_status` | 必须为 `VERIFIED` 才能进入推荐 |
@@ -408,7 +408,7 @@ Java Application Service
 - 成功配置恰好包含八个类别。
 - 严格预算超支次数为 0。
 - 已知硬性兼容冲突进入成功方案次数为 0。
-- 虚构商品链接次数为 0、虚构价格次数为 0。
+- 虚构价格次数为 0；不再以链接真实性作为验收项。
 - 无法验证的关键规格不得展示为已兼容。
 - 工具错误不得伪装为正常推荐。
 
@@ -416,7 +416,7 @@ Java Application Service
 
 只保留基础设施回归：登录、刷新、会话列表、历史、SSE 七类事件、模型选择、偏好。默认聊天业务的断言随代码删除，但不得用“删测试”换取通过率。
 
-## 9. 与 `docs/planning/planning.md` 的差异
+## 9. 与原始需求方案的差异（历史）
 
 | 方案位置 | 方案原文 | 实际处理 | 原因 |
 | --- | --- | --- | --- |
@@ -448,7 +448,7 @@ Java Application Service
 
 | 编号 | 事项 | 阻塞阶段 | 需要谁 |
 | --- | --- | --- | --- |
-| O1 | 19–30 条中国区商品报价清单（标题、商家、平台、分价、链接、核验时间、有效期） | Stage 1.4 | 项目负责人 |
+| O1 | 19–30 条中国区商品报价清单（标题、商家、平台、分价、核验时间、有效期，链接可选） | Stage 1.4 | 项目负责人 |
 | O2 | 候选品牌/型号范围（AMD/Intel、NVIDIA/AMD） | Stage 1.1 | 项目负责人 |
 | O3 | 快照保留策略（本期只增不删是否需要保留期限） | Stage 6 | 项目负责人 |
 

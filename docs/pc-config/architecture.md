@@ -5,7 +5,7 @@
 | 状态 | 已验证（Stage 1–5 完成） |
 | 最后核验 | 2026-11-08 |
 | 权威性 | 本文件描述 PC 模块的三端职责与调用链；系统总体架构以 [docs/architecture-overview.md](../architecture-overview.md) 为准 |
-| 主要证据 | ADR-[0009](../adr/0009-single-pc-workflow-over-generic-chat.md)、[0010](../adr/0010-deterministic-markdown-build-output.md)、[0012](../adr/0012-persist-build-snapshot.md)、`agent-service/app/agent/pc/`、`agent-service/app/services/pc_client.py` |
+| 主要证据 | [PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md)、`agent-service/app/agent/pc/`、`agent-service/app/services/pc_client.py` |
 
 ## 1. 三端职责
 
@@ -39,7 +39,7 @@
 
 - 产品硬指标是「零超支、零虚构链接、已知冲突不进入成功方案」。让 LLM 自主决定调用哪个工具或跳过求解，无法保证这些指标。
 - 因此只保留一条固定流水线：节点顺序、路由条件与重解上限都在代码里，可单测、可复现。
-- 通用 ReAct 图与 PC 图并存会产生两套 State、Prompt 与测试的长期成本，决策与替代方案见 [ADR-0009](../adr/0009-single-pc-workflow-over-generic-chat.md)。
+- 通用 ReAct 图与 PC 图并存会产生两套 State、Prompt 与测试的长期成本，决策与替代方案见 [PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md) §1.1。
 
 ## 4. LLM 只做两件事
 
@@ -71,4 +71,4 @@
 - 硬件数据版本化、历史价格曲线、自动报价采集【未实现】。
 - 管理端硬件 / 商品维护页面【未实现】。
 - Agent 侧 `PROGRAMMING` / `WORKSTATION` 场景解析【未实现】；Java 求解器已支持。
-- HITL 已实现（默认关闭，见 [hitl-workflow.md](./hitl-workflow.md)）；RAG、MCP、多 Agent 编排【未实现】，不属于本期演示范围。
+- HITL 已实现（默认关闭，见 [agent.md](./agent.md) §11）；RAG、MCP、多 Agent 编排【未实现】，不属于本期演示范围。

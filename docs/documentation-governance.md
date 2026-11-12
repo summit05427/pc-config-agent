@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 状态 | Current |
-| 最后核验 | 2026-11-01 |
+| 最后核验 | 2026-11-11 |
 | 权威性 | Authoritative（文档体系的分类、命名、状态、SSOT、变更与门禁规则） |
 
 本文定义本仓库文档的分类、目录、命名、状态、变更与校验规则，是新增、修改、整理、审查文档的统一依据。本文只立规则，不描述具体实现；实现细节属于各服务文档。文档地图与阅读路径见 [README.md](README.md)。
@@ -49,11 +49,10 @@ docs/
 │   ├── deployment-guide.md                 # 部署与上线操作手册
 │   ├── environment-variables.md            # 环境变量唯一权威
 │   └── env-quick-reference.md              # 环境变量速查（派生）
-├── design-system/
-│   └── cross-app-ui-contract.md            # 跨端 UI 契约（L0 / L1 唯一权威）
 ├── planning/
-│   └── closure-plan.md                     # 当前待办与放行条件唯一权威
-├── quality/                                # 验收证据（按需创建，当前为空）
+│   ├── roadmap.md                          # 阶段目标、决策与遗留问题唯一权威
+│   └── pc-config-implementation-plan.md    # Stage 1–6 历史方案（状态以 roadmap 为准）
+├── quality/                                # 验收证据（PC 配置联调、硬件治理、基线）
 ├── services/{frontend,admin,application-service,agent-service}/
 └── archive/                                # 历史归档（按需创建，当前为空）
 frontend/README.md
@@ -107,10 +106,10 @@ agent-service/README.md
 | 编码硬约束（缩进、命名、安全基线） | `.trae/rules/*.md` | `docs/development-rules.md` 只写流程与矩阵 |
 | 端点签名细节（DTO 字段、校验、错误码） | 对应服务的 `docs/services/<service>/api-reference.md` | 跨端文档只保留摘要与链接 |
 | 管理端结构、认证流程、页面能力 | `docs/services/admin/architecture.md` | 用户端与 Agent 文档只描述自身消费方式 |
-| 功能实现状态（已实现 / 部分实现 / 规划中 / 未实现） | `docs/architecture-overview.md` §7（未实现能力清单）+ `docs/planning/closure-plan.md`（未完成事项） | 其他文档只链接，不自行断言「已实现」；已关闭事项依据见 closure-plan §3 |
+| 功能实现状态（已实现 / 部分实现 / 规划中 / 未实现） | `docs/architecture-overview.md` §7（未实现能力清单）+ `docs/planning/roadmap.md` §8（遗留问题） | 其他文档只链接，不自行断言「已实现」 |
 | 模型运行时设计决策与落地进度 | `docs/model-runtime-architecture.md` | 服务文档只描述自身职责 |
-| 当前待办与优先级 | `docs/planning/closure-plan.md` | 其他文档只链接 |
-| 当前未完成 / 未验证事项与放行条件 | `docs/planning/closure-plan.md` | 不复制结论 |
+| 阶段状态、当前待办与优先级 | `docs/planning/roadmap.md` | 其他文档只链接 |
+| 当前未完成 / 未验证事项与放行条件 | `docs/planning/roadmap.md` §8 | 不复制结论 |
 | 文档体系规则 | 本文件 + `docs/README.md` | 不重复规则条文 |
 
 ## 7. 与代码保持一致
@@ -128,7 +127,7 @@ agent-service/README.md
 2. 更新 `docs/api-contract.md` 对应小节（影响矩阵见 [development-rules.md](development-rules.md) §1）。
 3. 更新受影响服务的 `api-reference.md` 与事实文档。
 4. 同步 `*.env.example` 与 `docs/deployment/environment-variables.md`（若涉及配置）。
-5. 更新 `docs/architecture-overview.md` 的「未实现能力清单」或 `docs/planning/closure-plan.md`（若状态变化）。
+5. 更新 `docs/architecture-overview.md` 的「未实现能力清单」或 `docs/planning/roadmap.md`（若状态变化）。
 6. 执行校验（见 §11）。
 
 新增文档前先检查是否已有等价文档；能改现有文件时不新建。
@@ -183,5 +182,6 @@ agent-service/README.md
 | D-03 | 规划手册游离在 `docs/function/` | 移至 `docs/planning/execution-plan.md`（已于 2026-11 归档） |
 | D-04 | 缺少 ADR 目录，重要决策无固定载体 | 建立 `docs/adr/` 并新增 `0001`；后续决策按 `NNNN-<kebab-title>.md` 追加 |
 | D-05 | `production-configuration-guide.md` 同时承载变量表与部署步骤，双份维护 | 拆分为 `docs/deployment/deployment-guide.md` 与 `docs/deployment/environment-variables.md`，原文件归档 |
-| D-06 | 计划类文档散落 8 份且互相引用 | 统一归档至 `docs/archive/`；当前待办已于 2026-11-07 收敛为 `docs/planning/closure-plan.md`（由 `active-plan.md` 与 `agent-pending.md` 合并） |
+| D-06 | 计划类文档散落 8 份且互相引用 | 2026-11-07 收敛为单份待办；2026-11-11 进一步合并为 `docs/planning/roadmap.md`，Stage 8–11 任务书与 closure-plan 已删除（历史见 Git） |
 | D-07 | `agent-service/configuration.md` 与根运维手册重复 | 内容并入 `docs/deployment/environment-variables.md` 后删除原文件 |
+| D-08 | PC 相关 ADR 与模块文档分散且部分过期 | 2026-11-11 将 PC 决策合并为 `docs/adr/0027-pc-config-decisions.md`，新增 `docs/adr/README.md` 索引；`docs/pc-config/` 由 14 份收敛为 8 份（`agent.md`、`data.md` 承接原工作流/状态/HITL 与数据模型/质量文档），历史见 Git |

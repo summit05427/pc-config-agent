@@ -276,7 +276,7 @@ docker compose --env-file .env --profile infra up -d prometheus
 
 - master key 不写进配置文件：Compose 启动时读取 `LITELLM_MASTER_KEY` 写入容器内 `/tmp/litellm-master-key`，Prometheus 以 `credentials_file` 读取。
 - 宿主机直跑 Agent/Java 时，Compose 内的 Prometheus 解析不到服务名，直接 `curl` 对应端点即可，不必为此调整抓取配置。
-- 本配置只做指标汇聚；告警规则、SLO 与跨服务 tracing 尚未实现，见 `docs/quality/enterprise-readiness.md` 的 C5–C8。
+- 本配置只做指标汇聚；告警规则、SLO 与跨服务 tracing 尚未实现，见 `docs/planning/roadmap.md` §8。
 
 ---
 

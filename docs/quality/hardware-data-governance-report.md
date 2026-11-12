@@ -8,7 +8,7 @@
 | catalog_version | `2026.11.0` |
 | 分发状态 | `INTERNAL_ONLY`（原始数据许可未核实） |
 | 产物位置 | `data/pc-config/`（全量明细本地生成，Schema/清单/样本入库） |
-| 方案依据 | [Stage8.md](../planning/Stage8.md)、[ADR 0013](../adr/0013-jsonl-governed-artifacts-in-repo.md)–[ADR 0017](../adr/0017-single-etl-entry-with-ci-gate.md) |
+| 方案依据 | [roadmap](../planning/roadmap.md) §4、[PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md) §3 |
 | 校验命令 | `python scripts/pc-config/validate_dataset.py`、`python -m pytest scripts/pc-config/tests -q` |
 
 ## 1. 输入规模
@@ -147,7 +147,7 @@
 - 品牌与系列只走受控词典（`scripts/pc-config/reference/brand-zh.json`、`series-zh.json`），共登记 79 个品牌与 6 条 CPU 系列规则。
 - 型号数字与字母保持原文；`GeForce`/`Radeon` 仅在 `zh_short` 中省略，因为中文电商标题普遍直接用 `RTX 5060 Ti` 这类写法。
 - 未登记品牌不机器翻译，直接沿用英文原名，并保证 `en` 键保留原始型号。
-- 该映射只做命名转换，不推断任何规格，与 ADR 0015 的「不猜测」一致。
+- 该映射只做命名转换，不推断任何规格，与 [PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md) §3.3 的「不猜测」一致。
 
 品牌覆盖：8,096 条导出记录中 7,163 条（88.5%）生成了含中文的 `zh` 键。
 
@@ -175,7 +175,7 @@
 
 ## 10. 已知限制与 Stage 9 前置条件
 
-- 在线推荐覆盖率本期不提升：`BuildSolver` 只接受有可用 offer 的硬件，候选池扩容需等 Stage 9 接入真实报价后才生效（[ADR 0016](../adr/0016-offline-governance-without-runtime-hookup.md)）。
+- 在线推荐覆盖率本期不提升：`BuildSolver` 只接受有可用 offer 的硬件，候选池扩容需等 Stage 9 接入真实报价后才生效（[PC 配置模块决策合并记录](../adr/0027-pc-config-decisions.md) §3.5）。
 - PassMark 存储跑分覆盖不足，不能用于存储性能排序；需要更可靠的存储跑分源。
 - 散热、机箱、电源的生命周期无法从现有数据判定，保持 `UNKNOWN`。
 - 原始数据许可未核实，`distribution_status` 维持 `INTERNAL_ONLY`。

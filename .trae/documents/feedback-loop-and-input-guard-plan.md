@@ -174,7 +174,7 @@ CREATE INDEX idx_message_feedback_thread ON message_feedback (user_id, thread_id
 | `agent-service/.env.example` | 同上环境变量 |
 | `docs/services/agent-service/architecture.md` | 新增文件与测试计数 |
 | `docs/pc-config/testing-and-evaluation.md` | 反馈回流草稿目录与转换脚本用法 |
-| `docs/planning/closure-plan.md` | §3 增加 R10（反馈闭环）、R11（输入护栏与限流）关闭依据 |
+| `docs/planning/roadmap.md` | 关闭依据统一记入 §8 遗留问题表 |
 | `agent-service/tests/contracts/openapi_snapshot.json` | 契约测试失败时按实际响应更新快照，不手改字段 |
 
 ## 验证

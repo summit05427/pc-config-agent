@@ -122,7 +122,7 @@ Agent ──服务令牌 + X-User-Token──> Java(内网直连) /internal/v1/a
 - Agent 侧的人工审批、多 Agent 编排。
 - 接口限流：**登录失败限流已实现**（`InMemoryLoginAttemptLimiter`，进程内单实例，超限 429 `10007`，仅统计认证失败、成功登录清零）；**其余接口未实现限流**。模型请求额度（`40201`）属于模型运行时配额，不是通用限流。
 - 前端对 Agent 的跨域直连：当前走同源 `/agent/`，`CORS_ALLOWED_ORIGINS` 与 Agent `cors_origins` 只在分域部署时才需要。
-- PC 配置：**已实现**（2026-11-08，分支 `feature/pc-config-agent`）。Java 提供候选、跑分、报价、求解、兼容性校验与快照七类内部接口；Agent 以确定性单图替换原 ReAct 图，LLM 只做需求解析与解释生成。当前数据为 `MIXED_DEMO`（10 条人工核验价 + 18 条演示价），真实报价替换、机箱散热限高字段与入门/高端候选扩充仍待完成，见 [pc-config/extension-roadmap.md](pc-config/extension-roadmap.md)。
+- PC 配置：**已实现**。Java 提供候选、跑分、报价、求解、兼容性校验与快照七类内部接口；Agent 以确定性单图替换原 ReAct 图，LLM 只做需求解析与解释生成。2026-11-12 实测目录 402 款、报价 402 条（全部 `PLATFORM_OBSERVED`，`data_status=PLATFORM_OBSERVED_ONLY`）、跑分 169 条；机箱限高/冷排与主板最大内存字段仍待补齐，见 [planning/roadmap.md](planning/roadmap.md) §8。
 
 ## 8. 已知不一致与待确认
 

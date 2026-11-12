@@ -17,19 +17,19 @@
 | 改管理端 | `admin/CODEMAP.md` → `docs/services/admin/development-guide.md` → `docs/services/admin/architecture.md` | `docs/api-contract-quick-reference.md` |
 | 改 Java 接口 / 业务 | `.trae/rules-on-demand/20-backend-java.md` → `application-service/CODEMAP.md` → `docs/services/application-service/architecture.md` | `api-reference.md` 对应端点、`security.md` |
 | 改 Agent 节点 / 工具 / 流式 | `.trae/rules-on-demand/30-agent-python.md` → `agent-service/CODEMAP.md` → `docs/services/agent-service/agent-workflows.md` | `api-reference.md`、`model-runtime-architecture.md` |
-| 改 PC 配置需求解析 / 求解 / 推荐 | `docs/pc-config/README.md` → `docs/pc-config/agent-workflow.md` → `docs/pc-config/solver-and-compatibility.md` | `agent-state-and-tools.md`、`data-model.md`、`docs/api-contract.md` §5.7 |
-| 改报价数据 / 核验报价 | `docs/pc-config/data-acquisition-strategy.md` → `docs/pc-config/market-offer-management.md` → `docs/pc-config/data-quality-and-lifecycle.md` | `docs/pc-config/offers.template.json`、`scripts/pc-config/ingest_offers.py`、`scripts/pc-config/split_multi_model.py` |
-| 硬件主数据治理 / 生命周期分类 / 发布候选池 | `docs/quality/hardware-data-governance-report.md` → `data/pc-config/README.md` | `docs/planning/Stage8.md`、`docs/adr/0013`–`0017`、`docs/pc-config/data-quality-and-lifecycle.md` §8 |
+| 改 PC 配置需求解析 / 求解 / 推荐 | `docs/pc-config/README.md` → `docs/pc-config/agent.md` → `docs/pc-config/solver-and-compatibility.md` | `docs/pc-config/data.md`、`docs/api-contract.md` §5.7 |
+| 改报价数据 / 核验报价 | `docs/pc-config/market-offer-management.md` → `docs/pc-config/data.md` §6/§14 → `docs/planning/roadmap.md` §5.4 | `scripts/data-cleaning/stage4-price-observations.jsonl`、`scripts/data-cleaning/build_offers_from_shortlist.py`（旧入口 `scripts/pc-config/ingest_offers.py` 已不参与运行时） |
+| 硬件主数据治理 / 生命周期分类 / 发布候选池 | `docs/quality/hardware-data-governance-report.md` → `data/pc-config/README.md` | `docs/planning/roadmap.md` §4、`docs/adr/0027-pc-config-decisions.md` §3、`docs/pc-config/data.md` §13 |
 | 跨端契约变更 | `docs/development-rules.md` §1 → `docs/api-contract-quick-reference.md` | `docs/api-contract.md` 全文 |
 | 环境变量 / 部署 / 排障 | `docs/deployment/env-quick-reference.md` | `deployment-guide.md`、`environment-variables.md` |
 | Solo（只跑 Agent，dev-token 体验） | `docs/deployment/solo-mode.md` | `deployment-guide.md` §3.3 |
 | 模型运行时 / BYOK | `docs/model-runtime-architecture.md` | `docs/services/application-service/api-reference.md` |
 | OpenUI 生成式 UI | `docs/services/frontend/generative-ui.md` | `docs/api-contract.md` §7.1、`docs/services/frontend/ui-design-system.md` |
 | 文档一致性 / 治理 | `docs/documentation-governance.md` | `docs/README.md` |
-| 企业级达标自检 / 对外介绍前评估 | `docs/quality/enterprise-readiness.md` | `docs/architecture-overview.md` §7、`docs/planning/closure-plan.md` |
-| 对外介绍 / Agent 能力盘点与创新点 | `docs/agent-capabilities-and-innovation.md` | `docs/architecture-overview.md`、`docs/quality/enterprise-readiness.md` |
-| 看当前待办 / 收尾与放行条件 | `docs/planning/closure-plan.md` | — |
-| Agent 模板遗留 / 边界 / 已完成事项依据 | `docs/planning/closure-plan.md` | `docs/adr/0004-extension-config-file-first.md`、`0005-agent-profile-first-class.md`、`0006-mechanism-vs-content-boundary.md` |
+| 企业级达标自检 / 对外介绍前评估 | `docs/planning/roadmap.md` §2 与 §8 | `docs/architecture-overview.md` §7 |
+| 对外介绍 / Agent 能力盘点与创新点 | `docs/planning/roadmap.md` §6–§7 | `docs/architecture-overview.md` |
+| 看阶段状态 / 当前待办 / 遗留问题 | `docs/planning/roadmap.md` §8 | — |
+| Agent 模板遗留 / 边界 / 已完成事项依据 | `docs/planning/roadmap.md` | `docs/adr/0004-extension-config-file-first.md`、`0005-agent-profile-first-class.md`、`0006-mechanism-vs-content-boundary.md` |
 | 第一次接触项目 | `docs/architecture-overview.md` → 所在端 `CODEMAP.md` | `docs/README.md` 全量清单 |
 
 ## 2. 规则文件路由

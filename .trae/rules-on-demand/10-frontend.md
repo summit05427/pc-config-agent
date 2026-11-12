@@ -14,7 +14,7 @@ alwaysApply: true
 - `src/features/<domain>`：按业务域聚合 `api/` `model/` `components/` `runtime/` `hooks/`；跨域协作只经对方 `api/index.ts` 公开入口。
 - `src/routes`：`router.tsx` 路由树、`paths.ts` 路径常量、`guards.ts` 守卫、`pages/` 页面。
 - `src/shared`：`ui/`（Radix 封装）、`lib/`（纯函数与 `query-keys.ts`）、`types/`；`src/core/http` 为 HTTP 门面；`src/constants`、`src/i18n`、`src/locales`、`src/styles` 存放常量、文案与设计 Token。
-- 依赖方向：`core` / `shared` 不依赖 `features`；`features` 之间只经对方的 `api/index.ts` 引用（`chat` 域尚未提供域级 `index.ts`，属待收敛项，见 `docs/planning/closure-plan.md` C-15）；跨目录一律用 `@/` 别名。
+- 依赖方向：`core` / `shared` 不依赖 `features`；`features` 之间只经对方的 `api/index.ts` 引用（`chat` 域尚未提供域级 `index.ts`，属待收敛项）；跨目录一律用 `@/` 别名。
 - Vue 遗留目录与 `src/types/common.ts` 已于 2026-11-01 清理；若本地仍有空目录请勿提交，新增代码统一放入 `app/`、`routes/`、`features/`、`shared/`、`core/`。
 - 阅读顺序：[docs/README.md](../../docs/README.md) → `docs/services/frontend/architecture.md` → `development-guide.md` → `ui-design-system.md`；跨端改动先读 `docs/api-contract.md`。
 

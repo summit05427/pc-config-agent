@@ -24,11 +24,11 @@
 
 | 测试类 | 覆盖点 |
 | --- | --- |
-| `PcBuildApiTests` | 服务令牌 401；候选 28 条、GPU 4 条、未知类别 400；硬件详情 404 `40301`；跑分 8 条；报价 `MIXED_DEMO`、`CNY_FEN`、10 条核验 + 18 条演示；validate 9 条规则且机箱限高为 `UNKNOWN`；缺类别 400；solve 落库并可回读；越权读取 `40302`；缺 `X-User-Token` `40306`；预算不足结构化失败；`requireVerifiedOffers` 不用演示价 |
+| `PcBuildApiTests` | 服务令牌 401；候选非空、未知类别 400；硬件详情 404 `40301`；跑分非空；报价 `MIXED_DEMO`、`CNY_FEN`、含核验价与演示价；validate 9 条规则且机箱限高为 `UNKNOWN`；缺类别 400；solve 落库并可回读；越权读取 `40302`；缺 `X-User-Token` `40306`；预算不足结构化失败；`requireVerifiedOffers` 不用演示价 |
 | `BuildSolverTests` | 相同输入确定性一致；预算为硬上限（最低可行价、最低价 -1）；无预算走性价比；仅核验价时报告缺失类别；内存/存储下限过滤；`cooler_case_height=UNKNOWN` 不当作 `PASS`；八类各一条报价；`GENERAL` 结果与改造前一致；`AI_INFERENCE` 优先高显存、`PROGRAMMING` 优先多核；`RENDERING` 在 `renderMode=CPU/GPU` 下权重不同 |
 | `CompatibilityValidatorTests` | 9 条规则基线；插槽、内存类型、板型、显卡长度、散热器插槽、散热限高、供电、M.2、内存条数各类失败；缺参数返回 `UNKNOWN`；空选择全部 `UNKNOWN`；检查顺序固定；每条结论 `riskLevel=BLOCKING`；`ruleVersion=pc-compat-2.0.0` |
 | `BuildSnapshotPersistenceTests` | 所属用户可读回 8 个组件与兼容性报告；其他用户读取 `40302`；不存在的快照同样 `40302`；`requirements_snapshot` 含 `workloadProfile`、`renderMode`、`scoringVersion` |
-| `PcFixtureRepositoryTests` | 目录 28 条且分类计数固定；机箱 `maxCoolerHeightMm` 为 null；跑分 8 条；报价 28 条、10 核验 + 18 演示且演示价 `verifiedPrice=false`；报价在当日均可用 |
+| `PcFixtureRepositoryTests` | 分类计数之和等于目录总数；机箱 `maxCoolerHeightMm` 为 null；跑分非空；报价含核验价与演示价且演示价 `verifiedPrice=false`；报价在当日均可用 |
 
 ## 3. Agent 测试与评测
 
@@ -97,7 +97,7 @@ uv --directory agent-service run python scripts/feedback/export_eval_cases.py <f
 
 ## 6. 已知未覆盖项
 
-- 【未实现】真实数据 E2E：运行时目录为 234 条硬件 / 12 条跑分 / 214 条报价，报价仍含演示价，Stage 9 首批真实报价导入前，任何“真实市场配置已通过”的表述都不成立。见 [ADR 0022](../adr/0022-stage10-keeps-runtime-catalog-scope.md)。
+- 【部分实现】真实数据 E2E：运行时目录 **402** 款、报价 **402** 条（2026-11-12 实测，`data_status=PLATFORM_OBSERVED_ONLY`）。已消除演示价与孤儿报价，但 159 条价格为规格档位/榜单估算，仍无人工逐件核验价；在人工核验收口前，任何“真实市场配置已通过”的表述都不成立。见 [roadmap](../planning/roadmap.md) §5.4。
 - 【已采集】求解性能基线由 `BuildSolverBenchmarkTests` 采集（候选数、评估组合数、中位/P95 耗时），断言只校验确定性的计数，不断言耗时以免 CI 抖动。数字见 [Stage 10 质量报告 §5](../quality/pc-config-stage-10-report.md)。
 - 【部分实现】浏览器视觉回归：`frontend/e2e/build-visual.spec.ts` 已用断言锁定八件配置、演示价提示、无解回退与 HITL 表单四组界面，并留存截图；仍缺像素级截图对比、跨浏览器与窄屏人工验收。
 - 【未实现】性能压测（并发求解、SSE 长连接、快照表增长）。

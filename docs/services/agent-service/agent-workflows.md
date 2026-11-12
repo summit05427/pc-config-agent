@@ -36,16 +36,16 @@ START
   → END
 ```
 
-- 澄清分支：`requirement_validator` 判定 `clarification` 时直接进 `response_generator`，**不经过** `clarification_gate`；恢复后从 `requirement_parser` 重跑并合并补充信息。
+- 澄清分支：`requirement_validator` 判定 `clarification` 时进入 `clarification_gate`；HITL 关闭时门控原样放行到 `response_generator`，开启时中断收集补充信息，恢复后从 `requirement_parser` 重跑并合并补充信息。
 - 门控节点无副作用，位于 `build_solver` / `build_validator` 之后，恢复时只重跑门控所在节点，不重放求解与写操作。
-- HITL 关闭（默认）时两个门控节点原样返回状态，图行为与接入前一致。详见 [HITL 工作流](../../pc-config/hitl-workflow.md)。
+- HITL 关闭（默认）时两个门控节点原样返回状态，图行为与接入前一致。详见 [PC 配置 Agent](../../pc-config/agent.md) §11。
 
-- 单图替换，不再保留通用 ReAct 图；设计与决策见 [ADR-0009](../../adr/0009-single-pc-workflow-over-generic-chat.md)。
+- 单图替换，不再保留通用 ReAct 图；设计与决策见 [PC 配置模块决策合并记录](../../adr/0027-pc-config-decisions.md) §1.1。
 - 图装配唯一入口仍是 `app/services/model_runtime.py` 的 `_default_graph` / `prepare_agent`，路由不自行拼装。
 - LLM 只用于需求解析与解释生成；硬件组合、价格、总价、SKU、链接全部来自 Java 内部接口的确定性结果。
 - 节点不发 SSE，统一返回 `tool_events`，由 `app/services/turn.py` 映射为既有 `tool_call` / `tool_result` 事件；`done` 事件可附带可选 `build_result`（结构见 [api-contract.md](../../api-contract.md) §7）。
 - 循环上限由 `AGENT__RECURSION_LIMIT` 控制；`build_validator` 的重解次数另有配置上限，默认 1 次。
-- 模型不可用时走确定性 Markdown 兜底（[ADR-0010](../../adr/0010-deterministic-markdown-build-output.md)），结果不丢失。
+- 模型不可用时走确定性 Markdown 兜底（[PC 配置模块决策合并记录](../../adr/0027-pc-config-decisions.md) §1.2），结果不丢失。
 - 每个节点由 [node_tracing.py](../../../agent-service/app/agent/pc/node_tracing.py) 统一包装：记录 `agent_node_duration_seconds{node,status}` 指标与 `agent.node.completed` 结构化日志（含 `agent_id`、节点中间态 `workflow_status`、耗时与已命名的 `thread_id`）。包装器只观察，不改返回值、不吞异常；同步与 async 节点分别返回同步与异步包装器。
 - 输出层事实校验（[output_guard.py](../../../agent-service/app/agent/pc/output_guard.py)）在渲染后执行：校验分项与总价一致、预算状态与总价自洽、非 `PASS` 兼容性不得被宣称「已确认兼容」（识别否定语境）、模型文案不得含数字/型号/价格/渠道。命中时丢弃模型文案并改用确定性说明，数值类问题追加用户可见提示，同时累计 `agent_output_guard_violations_total{rule}`。
 
@@ -180,7 +180,7 @@ app/agents/**/*.yaml（按路径排序递归加载）
 
 - Agent 解析优先级：`request.agent_id` > `AGENT__DEFAULT_PROFILE`（默认 `pc-config`）；两者都不命中时在**建立流之前**返回 404 `agent_not_found`，不存在第三层兜底。
 - 模型优先级：`request.model` > 会话 `model_key` > `profile.model.default_key` > Auto。Profile 默认模型按**显式模型**处理，控制面不可达时**不降级**。
-- `pc-config` Profile 绑定 5 个 PC 工具与 `pc-config-system` 提示词，行为见 [docs/pc-config/agent-workflow.md](../../pc-config/agent-workflow.md)。
+- `pc-config` Profile 绑定 5 个 PC 工具与 `pc-config-system` 提示词，行为见 [PC 配置 Agent](../../pc-config/agent.md)。
 - 缓存隔离：`get_chat_model` 与 `get_agent_for_runtime` 的键都含 `agent_id`，同一模型下不同 Profile 不复用实例；凭证撤销仍按 `credential_id` 清理。
 - 失败策略：YAML 非法、id 与文件名不一致、提示词缺失、工具未注册、目录为空或不存在、id 重复，均在 `create_app` 启动期抛 `RuntimeError`，不等到首个请求。
 

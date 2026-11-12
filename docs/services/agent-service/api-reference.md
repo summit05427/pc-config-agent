@@ -118,7 +118,7 @@ data: {"text": "你好", "schema_version": "1"}
 ```
 
 - 每个事件的 `data` 都带 `schema_version`（当前 `"1"`），由编码层统一注入；新增字段一律可选，旧前端忽略后仍可渲染。
-- `done.build_result` 仅在 PC 流水线成功且存在配置时出现，字段见 [api-contract.md](../../api-contract.md) §7；缺失时前端回退 Markdown 正文。默认 Profile 为 `pc-config`，见 [docs/pc-config/agent-workflow.md](../../pc-config/agent-workflow.md)。
+- `done.build_result` 仅在 PC 流水线成功且存在配置时出现，字段见 [api-contract.md](../../api-contract.md) §7；缺失时前端回退 Markdown 正文。默认 Profile 为 `pc-config`，见 [PC 配置 Agent](../../pc-config/agent.md)。
 - `id` 从 1 自增，仅用于排查乱序，**不做断点续传**。
 - 心跳为注释行 `: ping\n\n`，由 sse-starlette 的 `EventSourceResponse(ping=...)` 实现，默认每 15s 一次（`AGENT__SSE_HEARTBEAT_SECONDS`），前端必须忽略注释。
 - 分隔符统一为 LF（`\n`），事件块以空行结束；`Content-Type` 为 `text/event-stream; charset=utf-8`。

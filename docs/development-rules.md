@@ -51,7 +51,7 @@
 | 管理端结构、认证流程、页面能力 | [services/admin/architecture.md](services/admin/architecture.md) |
 | 模型运行时设计决策 | [model-runtime-architecture.md](model-runtime-architecture.md) |
 | 编码硬约束 | `.trae/rules/*.md` |
-| 未完成事项与优先级 | [planning/closure-plan.md](planning/closure-plan.md) |
+| 未完成事项与优先级 | [planning/roadmap.md](planning/roadmap.md) §8 |
 | 文档分类、状态标签、命名与归档 | [documentation-governance.md](documentation-governance.md) |
 
 - 三端公共契约只写在根 `docs/`；服务内 `docs/` 不提交（`.gitignore` 已排除），不得在其内维护第二份契约。

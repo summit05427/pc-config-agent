@@ -12,7 +12,7 @@ Stage 10 的**契约、规则体系、用途画像、求解改造**已完成并�
 
 | Stage 10 章节 | 状态 | 说明 |
 | --- | --- | --- |
-| 10.0 代码与数据审计 | 完成 | [stage-10-readiness-report.md](../pc-config/stage-10-readiness-report.md) |
+| 10.0 代码与数据审计 | 完成 | 见 [roadmap](../planning/roadmap.md) §6 |
 | 10.1 兼容性规则 | 部分 | 新增 `memory_module_count`；九条规则统一 `risk_level`；芯片组/BIOS/VRM/QVL/M.2 通道共享因无字段无法实现 |
 | 10.2 用途画像 | 部分 | 六个 `WorkloadProfile` + 渲染取向 + 澄清流程；分辨率、刷新率、视频工作流等需求提取未做 |
 | 10.3 求解算法 | 完成 | 用途感知候选排序、兼容感知池构建、`preference` 性价比分支、确定性 tie-break |
@@ -69,10 +69,10 @@ Agent 侧同名字段以 snake_case 透传；前端对非法值只丢弃该字�
 
 ## 7. 剩余缺口
 
-1. **真实数据 E2E**：214 条报价中仍含演示价，`requireVerifiedOffers` 之外的生产链路不能宣称“已核验”。
+1. **真实数据 E2E**：2026-11-11 实测 3,837 条报价中仍有 18 条演示价、2,474 条 `FALLBACK` 价格与 3,809 条可得性 `UNKNOWN`，`requireVerifiedOffers` 之外的生产链路不能宣称“已核验”。
 2. **规格字段**：芯片组支持列表、BIOS 版本、VRM、QVL、M.2 通道共享、GPU 厚度、机箱限高缺失，相关规则只能 `UNKNOWN`。
 3. **需求提取广度**：只提取用途、渲染取向、偏好；分辨率/刷新率、视频工作流、开发工具未做。
-4. **文档债务**：`data-model.md`、`demo-scope.md`、`pc-config/README.md`、`candidate-shortlist.md` 仍写“28 条”，与当前 234 条目录、214 条报价不符，需在数据侧定稿后统一同步。
+4. **文档债务**：已于 2026-11-11 文档治理中处理：`demo-scope.md`、`candidate-shortlist.md` 等过期文档删除，`pc-config/README.md` 与 `data.md` 改为实测口径；当前目录 3,974 款、报价 3,837 条，见 [roadmap](../planning/roadmap.md) §2。
 
 ## 8. 可量化的边界声明
 
