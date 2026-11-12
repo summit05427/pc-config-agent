@@ -54,9 +54,12 @@ class BuildSolverBenchmarkTests {
     /** 固定询价日期，保证报价有效期判断不随运行日期漂移。 */
     private static final LocalDate PRICING_DATE = LocalDate.of(2026, 11, 9);
 
-    private static final int WARMUP_ITERATIONS = 10;
+    // 单次求解在无预算场景下约 14 秒，10+20 次采样会让该类测试跑到 10 分钟以上；
+    // 本类只做趋势观测、不对耗时断言，因此压到 3+5 次（约 2.5 分钟），
+    // 需要精确 p95 时再手动调大这两个常量。
+    private static final int WARMUP_ITERATIONS = 3;
 
-    private static final int MEASUREMENT_ITERATIONS = 20;
+    private static final int MEASUREMENT_ITERATIONS = 5;
 
     private static final int SYNTHETIC_PER_CATEGORY = 200;
 
@@ -110,7 +113,7 @@ class BuildSolverBenchmarkTests {
     }
 
     /**
-     * 执行一个场景：warmup 后测量 20 次，输出一行基线。
+     * 执行一个场景：warmup 3 次后测量 5 次，输出一行基线。
      *
      * @return 单次求解评估到的完整组合数
      */

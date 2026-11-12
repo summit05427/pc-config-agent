@@ -1,0 +1,5 @@
+{
+  "source": "pcpp_hardware_all",
+  "note": "catalog.source.image_url 已回填时不产生条目；本文件只补 catalog 缺失的图片",
+  "entries": {}
+}

@@ -68,7 +68,7 @@ class BuildSnapshotPersistenceTests {
         assertThat(response.solverVersion()).isEqualTo(BuildSolverVersion.SOLVER_VERSION);
         assertThat(response.scoringVersion()).isEqualTo("pc-scoring-1.0.0");
         assertThat(response.requirements().workloadProfile()).isNotNull();
-        assertThat(response.offerDataStatus()).isEqualTo("MIXED_DEMO");
+        assertThat(response.offerDataStatus()).isEqualTo("PLATFORM_OBSERVED_ONLY");
         assertThat(response.createdAt()).isNotNull();
         // 快照读取时按组件与跑分重建逐件理由，历史方案不因读取路径丢失解释。
         assertThat(response.componentReasons()).hasSize(8);

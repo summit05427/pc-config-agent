@@ -176,9 +176,10 @@ class CompatibilityValidatorTests {
 
     @Test
     void gpuPowerConnectorsInsufficient_shouldFail() {
+        // RX 9070 XT 需要 3 根 PCIE_8PIN；be quiet! SFX 450W 仅提供 2 根 → FAIL
         HardwareSelection selection = baseline()
                 .with(HardwareCategory.GPU, hardware("gpu-radeon-rx-9070-xt-16gb"))
-                .with(HardwareCategory.PSU, hardware("psu-msi-mag-a650gls-pcie5"));
+                .with(HardwareCategory.PSU, hardware("psu-be-quiet-sfx-power-3-450"));
 
         CompatibilityCheck check = validator.check(CompatibilityRule.GPU_PSU_POWER, selection);
 
@@ -188,10 +189,24 @@ class CompatibilityValidatorTests {
 
     @Test
     void gpuPowerWithoutHeadroom_shouldWarn() {
+        // 接口匹配 + 功率 > baseLoad 但 < baseLoad*1.3 → WARNING
+        // 用 synthetic CPU/GPU/PSU 把数值调到 "有余量但不足 30%" 区间
+        Hardware lowPowerCpu = synthetic(
+                "cpu-test-low-tdp", HardwareCategory.CPU,
+                "{\"socket\":\"AM5\",\"core_count\":4,\"thread_count\":8,\"tdp_w\":30}");
+        Hardware lowPowerGpu = synthetic(
+                "gpu-test-low-power", HardwareCategory.GPU,
+                "{\"chipset\":\"test\",\"external_power\":{\"connector_type\":\"PCIE_12VHPWR\",\"count\":1},\"tdp_w\":200,\"length_mm\":300,\"vram_gb\":16}");
+        Hardware lowPowerPsu = synthetic(
+                "psu-test-headroom", HardwareCategory.PSU,
+                "{\"form_factor\":\"ATX\",\"wattage_w\":450,\"pcie_12vhpwr_count\":1,\"pcie_8pin_count\":0,\"efficiency\":\"80+ Gold\",\"modular\":\"Full\",\"length_mm\":140,\"sata_connectors\":4}");
         HardwareSelection selection = baseline()
-                .with(HardwareCategory.GPU, hardware("gpu-geforce-rtx-5070-ti-16gb"))
-                .with(HardwareCategory.PSU, hardware("psu-msi-mag-a650gls-pcie5"));
+                .with(HardwareCategory.CPU, lowPowerCpu)
+                .with(HardwareCategory.GPU, lowPowerGpu)
+                .with(HardwareCategory.PSU, lowPowerPsu);
 
+        // baseLoad = 200(BASE) + 30 + 200 = 430, requiredW = 430*1.3 = 559
+        // PSU 450W ∈ [430, 559) → WARNING
         assertThat(validator.check(CompatibilityRule.GPU_PSU_POWER, selection).status())
                 .isEqualTo(CompatibilityStatus.WARNING);
     }
@@ -266,16 +281,18 @@ class CompatibilityValidatorTests {
     }
 
     private HardwareSelection baseline() {
+        // 每类选新 catalog 里真实存在、规格覆盖各校验规则的条目。
+        // 注意 PSU 必须带 pcie_12vhpwr_count >= 1，RTX 5070 Ti 需要一个 12VHPWR 接口。
         return HardwareSelection.empty()
                 .with(HardwareCategory.CPU, hardware("cpu-amd-ryzen-7-9800x3d"))
-                .with(HardwareCategory.MOTHERBOARD, hardware("motherboard-msi-mag-b850-tomahawk-max-wifi"))
+                .with(HardwareCategory.MOTHERBOARD, hardware("motherboard-msi-mag-b850m-mortar-wifi"))
                 .with(HardwareCategory.MEMORY, hardware(
-                        "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-6000-cl36"))
-                .with(HardwareCategory.GPU, hardware("gpu-geforce-rtx-5070-ti-16gb"))
-                .with(HardwareCategory.PSU, hardware("psu-montech-century-ii"))
-                .with(HardwareCategory.CASE, hardware("case-lian-li-lancool-216"))
-                .with(HardwareCategory.COOLER, hardware("cooler-thermalright-peerless-assassin-120-se"))
-                .with(HardwareCategory.STORAGE, hardware("storage-kingston-nv3-1-tb"));
+                        "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-5600-cl40"))
+                .with(HardwareCategory.GPU, hardware("gpu-geforce-rtx-5070-ti-16gb-563955"))
+                .with(HardwareCategory.PSU, hardware("psu-segotep-gm750w"))
+                .with(HardwareCategory.CASE, hardware("case-lian-li-lancool-205-mesh"))
+                .with(HardwareCategory.COOLER, hardware("cooler-thermalright-peerless-assassin"))
+                .with(HardwareCategory.STORAGE, hardware("storage-kingston-nv3-1-tb-591379"));
     }
 
     private Hardware hardware(String hardwareId) {

@@ -99,3 +99,10 @@ data/pc-config/master/
 data/pc-config/pools/
 data/pc-config/export/
 data/pc-config/staging/
+# cleaning 下的 stage1-3 是中间派生物（约 40MB），不入库；
+# 只保留 Stage 4 短名单、价格观测账本与跑分/图片映射作为可复现输入。
+data/pc-config/cleaning/stage1-*
+data/pc-config/cleaning/stage2-*
+data/pc-config/cleaning/stage3*
+data/pc-config/cleaning/*.bak
+data/pc-config/cleaning/search-cache/

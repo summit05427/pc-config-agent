@@ -1,6 +1,6 @@
 {
-  "schema_version": "1.0.0",
-  "note": "只翻译中文电商确实使用中文的系列名；型号数字与字母保持原文。GPU 的 GeForce/Radeon 在中文标题中普遍保留英文，因此不登记替换。",
+  "schema_version": "1.1.0",
+  "note": "只翻译中文电商确实使用中文的系列名；型号数字与字母保持原文。每条规则都必须有可核验的电商页面证据。",
   "rules": [
     {
       "categories": ["CPU"],
@@ -31,6 +31,72 @@
       "categories": ["CPU"],
       "pattern": "xeon",
       "zh": "至强"
+    },
+    {
+      "categories": ["MEMORY"],
+      "pattern": "predator",
+      "zh": "掠夺者",
+      "evidence": "https://m.jd.com/brand/670db8827c03736227a.html"
+    },
+    {
+      "categories": ["MEMORY"],
+      "pattern": "pallas",
+      "zh": "凌霜",
+      "evidence": "https://detail.zol.com.cn/memory/s2950_s2950_p35013/"
+    },
+    {
+      "categories": ["MEMORY"],
+      "pattern": "vesta",
+      "zh": "炫光星舰",
+      "evidence": "https://m.jd.com/brand/670db8827c03736227a.html"
+    },
+    {
+      "categories": ["MEMORY"],
+      "pattern": "hermes",
+      "zh": "冰刃",
+      "evidence": "https://m.jd.com/brand/670db8827c03736227a.html"
+    },
+    {
+      "categories": ["MEMORY"],
+      "pattern": "hera",
+      "zh": "影锋",
+      "evidence": "https://m.jd.com/hprm/6707e1586cf449d0c6c.html"
+    },
+    {
+      "categories": ["COOLER"],
+      "pattern": "peerless assassin",
+      "zh": "绝双刺客",
+      "evidence": "https://detail.zol.com.cn/cooling_product/index1367285.shtml"
+    },
+    {
+      "categories": ["GPU"],
+      "pattern": "ventus",
+      "zh": "万图师",
+      "evidence": "https://guangtao.taobao.com/topic-199340663.html"
+    },
+    {
+      "categories": ["GPU"],
+      "pattern": "gaming trio",
+      "zh": "魔龙",
+      "evidence": "https://guangtao.taobao.com/topic-199340663.html"
+    },
+    {
+      "categories": ["GPU"],
+      "pattern": "shadow",
+      "zh": "幻影师",
+      "evidence": "https://m.jd.com/cppf/13765cb4c2301160e6f45.html"
+    },
+    {
+      "categories": ["GPU"],
+      "pattern": "inspire",
+      "zh": "硬派师",
+      "evidence": "https://guangtao.taobao.com/topic-199340663.html"
+    },
+    {
+      "categories": ["GPU"],
+      "pattern": "eagle",
+      "zh": "猎鹰",
+      "evidence": "https://guangtao.taobao.com/topic-199340663.html"
     }
   ]
 }

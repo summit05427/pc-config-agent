@@ -21,7 +21,6 @@ SELLABLE = MKT / "sellable.json"
 LISTINGS = MKT / "listings.jsonl"
 OUTPUT = MKT / "bucket_offers.json"
 
-SKIP_FLAGS = {"USED", "BUNDLE", "ACCESSORY", "GRAY"}
 MIN_SAMPLES = 3
 MAX_SPREAD = 0.6
 # 机箱/散热/电源/内存属于规格主导的通用件，同档价格带宽天然更大；
@@ -169,8 +168,6 @@ def load_buckets() -> dict[tuple[str, tuple], list[dict]]:
         if not line.strip():
             continue
         listing = json.loads(line)
-        if set(listing.get("flags") or []) & SKIP_FLAGS:
-            continue
         key = listing_key(listing["category_hint"], listing["title"])
         if key is None:
             continue

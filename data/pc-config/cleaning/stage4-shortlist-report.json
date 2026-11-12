@@ -1,0 +1,95 @@
+{
+  "stage": "4A-shortlist",
+  "order": "配额 -> 热门榜单命中 -> 现代型号补足 -> 价格标记",
+  "quotas": {
+    "CPU": 72,
+    "GPU": 72,
+    "MOTHERBOARD": 60,
+    "MEMORY": 60,
+    "STORAGE": 54,
+    "PSU": 40,
+    "COOLER": 26,
+    "CASE": 26
+  },
+  "stratum_targets": {
+    "CPU": {
+      "socket:AM5": 30,
+      "socket:LGA1851": 20,
+      "socket:LGA1700": 14,
+      "socket:AM4": 8
+    },
+    "GPU": {
+      "vram:8": 22,
+      "vram:12": 14,
+      "vram:16+": 36
+    },
+    "MOTHERBOARD": {
+      "socket:AM5": 26,
+      "socket:LGA1851": 16,
+      "socket:LGA1700": 12,
+      "socket:AM4": 6
+    },
+    "MEMORY": {
+      "type:DDR5": 40,
+      "type:DDR4": 20
+    },
+    "STORAGE": {
+      "media:SSD": 40,
+      "media:HDD": 14
+    },
+    "PSU": {
+      "watt:450-550": 6,
+      "watt:600-700": 14,
+      "watt:750-850": 14,
+      "watt:1000+": 6
+    },
+    "COOLER": {
+      "cooling:air": 13,
+      "cooling:water-120": 2,
+      "cooling:water-240": 4,
+      "cooling:water-280": 3,
+      "cooling:water-360": 3,
+      "cooling:water-420": 1
+    },
+    "CASE": {
+      "form:ATX Mid Tower": 13,
+      "form:ATX Full Tower": 3,
+      "form:MicroATX Mid Tower": 5,
+      "form:MicroATX Mini Tower": 3,
+      "form:Mini ITX Tower": 1,
+      "form:Mini ITX Desktop": 1
+    }
+  },
+  "total": 410,
+  "excluded": 1543,
+  "cn_candidates": 58,
+  "cn_selected": 48,
+  "by_category": {
+    "CASE": 26,
+    "COOLER": 26,
+    "CPU": 72,
+    "GPU": 72,
+    "MEMORY": 60,
+    "MOTHERBOARD": 60,
+    "PSU": 40,
+    "STORAGE": 54
+  },
+  "hot_matched": {
+    "CPU": 6,
+    "GPU": 5,
+    "MOTHERBOARD": 6,
+    "MEMORY": 5,
+    "STORAGE": 5,
+    "PSU": 4,
+    "COOLER": 3,
+    "CASE": 4
+  },
+  "hot_missing": {},
+  "hot_observed_at": "2026-11-11",
+  "price_status": {
+    "OBSERVED_2026-11-11": 48,
+    "PROVISIONAL": 343,
+    "ESTIMATED_2026-11-11": 19
+  },
+  "note": "热门=公开榜单命中，不是销量；未命中条目标注 NOT_EVALUATED，价格仍为规格桶参考价。"
+}

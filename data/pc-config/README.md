@@ -2,10 +2,10 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | Stage 8 生成，`catalog_version=2026.11.0` |
+| 状态 | 主数据由 Stage 8 生成（`catalog_version=2026.11.0`）；运行时目录由 `scripts/data-cleaning` 流水线产出（`catalog_version=2026.11.2`，402 条） |
 | 权威格式 | JSONL；Parquet 等格式只能由 JSONL 派生，不得反向覆盖 |
 | 原始数据 | 外部只读目录 `F:\LLM_PC_Agent\Hardware data`，本目录不保存原始 CSV |
-| 方案与规则 | [Stage 8 实施方案](../../docs/planning/Stage8.md)、[ADR 0013–0017](../../docs/adr/) |
+| 方案与规则 | [路线图](../../docs/planning/roadmap.md) §4、[ADR 0013–0017](../../docs/adr/) |
 
 ## 1. 目录职责
 

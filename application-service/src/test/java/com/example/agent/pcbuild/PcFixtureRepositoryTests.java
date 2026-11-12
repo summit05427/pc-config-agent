@@ -49,10 +49,15 @@ class PcFixtureRepositoryTests {
     }
 
     @Test
-    void catalog_casesShouldHaveUnknownCoolerHeight() {
-        // fixture 明确未提供机箱限高，不能据此推断为 PASS。
+    void catalog_caseCoolerHeightIsMeasuredOrUnknown() {
+        // 机箱限高：国行型号带实测值，海外 fixture 未采集则为 null；不允许出现 0 或负数这类占位值
         assertThat(catalog.findAll()).filteredOn(item -> item.category() == HardwareCategory.CASE)
-                .allSatisfy(item -> assertThat(item.specifications().maxCoolerHeightMm()).isNull());
+                .allSatisfy(item -> {
+                    Integer height = item.specifications().maxCoolerHeightMm();
+                    if (height != null) {
+                        assertThat(height).isPositive();
+                    }
+                });
     }
 
     @Test
@@ -64,8 +69,8 @@ class PcFixtureRepositoryTests {
                 .asString()
                 .startsWith("https://");
 
-        // 未采集图片的条目必须保持 null，不能用占位图冒充
-        assertThat(catalog.findById("cpu-intel-core-i5-14400"))
+        // 未采集图片的条目必须保持 null，不能用占位图冒充（国行补充型号暂未采集图片）
+        assertThat(catalog.findById("gpu-galax-sacred-blade-rtx-5060-ti-16gb"))
                 .get()
                 .extracting(Hardware::imageUrl)
                 .isNull();
@@ -88,26 +93,25 @@ class PcFixtureRepositoryTests {
             assertThat(entry.benchmarkType()).isNotBlank();
             assertThat(entry.score()).isPositive();
         });
-        assertThat(benchmarks.findByHardwareId("gpu-geforce-rtx-5070-ti-16gb")).isPresent();
+        assertThat(benchmarks.findByHardwareId("gpu-geforce-rtx-5070-ti-16gb-563955")).isPresent();
         assertThat(benchmarks.findByHardwareId("cpu-amd-ryzen-7-9800x3d")).isPresent();
         assertThat(benchmarks.findByHardwareId("not-exists")).isEmpty();
     }
 
     @Test
-    void offers_shouldKeepVerifiedAndMockSourcesDistinct() {
+    void offers_shouldCarryPlatformObservedStatusAndNoOwnerVerified() {
         List<Offer> entries = offers.findAll();
 
-        // 报价数量随采集变化，只校验来源区分与统计口径一致。
+        // 本轮 offers 全部来自 Stage 4 短名单的 WebSearch/估算价，尚未有人工逐件核验。
         assertThat(entries).isNotEmpty();
-        assertThat(offers.dataStatus()).isEqualTo("MIXED_DEMO");
+        assertThat(offers.dataStatus()).isEqualTo("PLATFORM_OBSERVED_ONLY");
         assertThat(offers.priceUnit()).isEqualTo("CNY_FEN");
         assertThat(entries).allSatisfy(offer -> assertThat(offer.priceFen()).isPositive());
+        // 全量 PLATFORM_OBSERVED，无 OWNER_VERIFIED 也无 MOCK_DEMO。
         long verifiedCount = entries.stream().filter(Offer::isVerifiedPrice).count();
-        assertThat(verifiedCount).isPositive();
-        assertThat(entries.size() - verifiedCount).isPositive();
-        // 演示价必须仍可被识别，不能被当成核验价。
-        assertThat(entries).filteredOn(offer -> "MOCK_DEMO".equals(offer.priceSource()))
-                .allSatisfy(offer -> assertThat(offer.isVerifiedPrice()).isFalse());
+        assertThat(verifiedCount).isEqualTo(0L);
+        assertThat(entries).allSatisfy(offer -> assertThat(offer.priceSource())
+                .isEqualTo("PLATFORM_OBSERVED"));
     }
 
     @Test

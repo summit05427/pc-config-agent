@@ -50,28 +50,7 @@ BRAND_CN = {
     "Maxsun": ["铭瑄"], "Intel": ["英特尔", "intel"], "AMD": ["amd"],
 }
 
-USED_RE = re.compile(r"二手|拆机|翻新|拆封|矿卡|九成新")
-BUNDLE_RE = re.compile(r"套装|整机|主机|板u|准系统|主机箱")
-# 海外直购/未税不开票的商品不是中国区行货价，不能作为参考价。
-GRAY_RE = re.compile(r"海外|直购|未税|不开票|无票|代购|海淘")
 RAW_NAME_RE = re.compile(r"^\d+-([A-Z]+)-")
-
-PRODUCT_WORDS = {
-    "CPU": ("处理器", "cpu", "盒装", "散片"),
-    "GPU": ("显卡", "gpu"),
-    "MOTHERBOARD": ("主板",),
-    "MEMORY": ("内存", "dimm"),
-    "STORAGE": ("固态", "ssd", "硬盘"),
-    "COOLER": ("散热", "水冷", "风冷"),
-    "CASE": ("机箱",),
-    "PSU": ("电源",),
-}
-
-# 标题含品类词但实际卖配件的商品（如「机箱风扇」「散热硅脂」），不能参与整件定价。
-ACCESSORY_EXTRA = {
-    "CASE": re.compile(r"风扇|配件|防尘|支架|理线|脚垫|侧板|螺丝|机箱灯"),
-    "COOLER": re.compile(r"硅脂|导热|水冷液|扣具|散热片"),
-}
 
 
 def norm(text: str) -> str:
@@ -279,17 +258,6 @@ def load_listings() -> list[dict]:
             seen.add(item_id)
             title = item.get("title") or ""
             plain = title.lower()
-            flags = []
-            if USED_RE.search(title):
-                flags.append("USED")
-            if BUNDLE_RE.search(title):
-                flags.append("BUNDLE")
-            if GRAY_RE.search(title):
-                flags.append("GRAY")
-            if not any(word in plain for word in PRODUCT_WORDS.get(category, ())):
-                flags.append("ACCESSORY")
-            if ACCESSORY_EXTRA.get(category, re.compile("$^")).search(title):
-                flags.append("ACCESSORY")
             variants = count_variants(category, plain)
             listings.append({
                 "query": query,
@@ -306,7 +274,6 @@ def load_listings() -> list[dict]:
                 "fetched_at": structured.get("fetched_at"),
                 "model_variants": variants,
                 "vram_variants": capacity_variants(category, plain),
-                "flags": flags,
                 "norm_title": norm(title),
             })
     return listings
@@ -319,8 +286,6 @@ def match_row(row: dict, listings: list[dict]) -> list[dict]:
     hits = []
     for listing in listings:
         if listing["category_hint"] != row["category"]:
-            continue
-        if {"USED", "BUNDLE", "ACCESSORY", "GRAY"} & set(listing["flags"]):
             continue
         hay = listing["norm_title"]
         if not all(has_model_token(hay, token) for token in must):
@@ -385,7 +350,6 @@ def main() -> int:
                 "url": hit["listing"]["url"],
                 "price_fen": hit["listing"]["price_fen"],
                 "confidence": confidence,
-                "flags": hit["listing"]["flags"],
             })
         if best == "EXACT":
             by_category[row["category"]]["exact"] += 1

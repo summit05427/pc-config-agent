@@ -281,13 +281,26 @@ class BuildSolverTests {
 
     @Test
     void programming_shouldKeepMulticoreCandidatesInCpuPool() {
-        // 13 颗 24 核 CPU 超过候选上限，MULTICORE_FIRST 必须把低核心数的真实 CPU 挤出候选池。
-        List<Hardware> hardware = new ArrayList<>(catalog.findAll());
-        List<Offer> offerList = new ArrayList<>(offers.findAll());
+        // 用 13 颗 synthetic 24 核 CPU 填满 CPU 池，让 MULTICORE_FIRST 排序
+        // 保持全部 synthetic 在 PERFORMANCE_LIMIT 里，求解器必须选中其中一颗，
+        // 否则说明 PERFORMANCE_LIMIT 排序失效或 CHEAP 档错误挤出了多核候选。
+        final String syntheticSocket = "AM5";  // 兼容真实 AM5 主板
+        List<Hardware> hardware = new ArrayList<>();
+        List<Offer> offerList = new ArrayList<>();
+
+        // 只保留真实非 CPU 硬件，CPU 全部换成 synthetic 24 核
+        for (Hardware h : catalog.findAll()) {
+            if (h.category() != HardwareCategory.CPU) {
+                hardware.add(h);
+                offerList.addAll(offers.findAll().stream()
+                        .filter(o -> o.hardwareId().equals(h.hardwareId()))
+                        .toList());
+            }
+        }
         for (int index = 0; index < 13; index++) {
             Hardware cpu = synthetic(
                     "cpu-test-multicore-" + index, HardwareCategory.CPU,
-                    "{\"socket\":\"AM5\",\"core_count\":24,\"thread_count\":48,\"tdp_w\":120}");
+                    "{\"socket\":\"" + syntheticSocket + "\",\"core_count\":24,\"thread_count\":48,\"tdp_w\":120}");
             hardware.add(cpu);
             offerList.add(offer(cpu, 200_000L + index));
         }
@@ -304,8 +317,7 @@ class BuildSolverTests {
         assertThat(outcome.isSolved()).isTrue();
         assertThat(outcome.build().requirements().workloadProfile())
                 .isEqualTo(WorkloadProfile.PROGRAMMING);
-        // 预算场景会额外保留低价档候选，真实 24 核型号（如 i9-13900KS）也可能胜出；
-        // 这里验证的是「多核优先没有被低价低核型号挤掉」，而不是绑定某个测试夹具。
+        // CPU 池里全是 synthetic 24 核，且 MULTICORE_FIRST 保证它们全在候选池里
         assertThat(outcome.build().selection().cpu().specifications().coreCount())
                 .isGreaterThanOrEqualTo(24);
     }

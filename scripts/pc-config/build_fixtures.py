@@ -68,6 +68,26 @@ def validate(catalog: dict, benchmarks: dict) -> None:
         raise SystemExit("benchmarks.json 存在重复 hardware_id")
 
 
+def guard_runtime_output(output_dir: Path, force: bool) -> None:
+    """阻止旧 Stage-8 流水线覆盖当前运行时目录。
+
+    运行时 catalog 现在由 scripts/data-cleaning（stage4 → export_runtime_catalog）生成，
+    候选池与价格为国内筛选后的 402 条；本脚本用的是旧的 candidate_selection.json，
+    直接执行会把目录回退到 3,974 条并冲掉 observations 账本产出的价格。
+    """
+
+    catalog_path = output_dir / "catalog.json"
+    if force or not catalog_path.is_file():
+        return
+    raise SystemExit(
+        f"拒绝覆盖已存在的运行时目录：{catalog_path}\n"
+        "该目录由 scripts/data-cleaning 流水线生成（stage4_hot_shortlist → "
+        "apply_price_observations → stage4_price_fallback → build_benchmark_image_maps → "
+        "export_runtime_catalog → build_offers_from_shortlist）。\n"
+        "如确需用旧选择集重建，请显式加 --force。"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="生成 PC 配置 Java fixture")
     parser.add_argument("--data-dir", help="Hardware data 根目录，也可用 PC_DATA_DIR")
@@ -75,10 +95,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--shortlist-doc", default=str(DEFAULT_SHORTLIST_DOC))
     parser.add_argument("--generated-at", default=None)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="允许覆盖已存在的运行时目录（默认拒绝，避免回退到旧 Stage-8 选择集）",
+    )
     args = parser.parse_args(argv)
 
     data_dir = resolve_data_dir(args.data_dir)
     output_dir = Path(args.output_dir)
+    guard_runtime_output(output_dir, args.force)
     generated_at = args.generated_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     config, selected = load_selection(Path(args.selection), data_dir)

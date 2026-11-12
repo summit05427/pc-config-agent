@@ -80,16 +80,18 @@ class PcBuildApiTests {
 
     private static final String DEMO_PASSWORD = "test-only-demo-password";
 
+    // 每类选一个新 catalog 里真实存在、规格完备的条目做基线。
+    // PSU 必须带 pcie_12vhpwr_count >= 1，RTX 5070 Ti 需要一根 12VHPWR 接口。
     private static final String BASELINE_VALIDATE_BODY = """
             {
               "cpu": "cpu-amd-ryzen-7-9800x3d",
-              "motherboard": "motherboard-msi-mag-b850-tomahawk-max-wifi",
-              "memory": "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-6000-cl36",
-              "gpu": "gpu-geforce-rtx-5070-ti-16gb",
-              "psu": "psu-montech-century-ii",
-              "case": "case-lian-li-lancool-216",
-              "cooler": "cooler-thermalright-peerless-assassin-120-se",
-              "storage": "storage-kingston-nv3-1-tb"
+              "motherboard": "motherboard-msi-mag-b850m-mortar-wifi",
+              "memory": "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-5600-cl40",
+              "gpu": "gpu-geforce-rtx-5070-ti-16gb-563955",
+              "psu": "psu-segotep-gm750w",
+              "case": "case-lian-li-lancool-205-mesh",
+              "cooler": "cooler-thermalright-peerless-assassin",
+              "storage": "storage-kingston-nv3-1-tb-591379"
             }
             """;
 
@@ -135,10 +137,10 @@ class PcBuildApiTests {
     @Test
     void hardwareDetail_shouldReturnBrandAnd404ForUnknown() throws Exception {
         String bearer = bearerToken();
-        mockMvc.perform(get(HARDWARE_PATH + "/gpu-geforce-rtx-5070-ti-16gb")
+        mockMvc.perform(get(HARDWARE_PATH + "/gpu-geforce-rtx-5070-ti-16gb-563955")
                         .header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.hardwareId").value("gpu-geforce-rtx-5070-ti-16gb"))
+                .andExpect(jsonPath("$.data.hardwareId").value("gpu-geforce-rtx-5070-ti-16gb-563955"))
                 .andExpect(jsonPath("$.data.specSummary").isNotEmpty());
 
         mockMvc.perform(get(HARDWARE_PATH + "/not-exists")
@@ -160,10 +162,10 @@ class PcBuildApiTests {
 
         mockMvc.perform(get(OFFERS_PATH).header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.dataStatus").value("MIXED_DEMO"))
+                .andExpect(jsonPath("$.data.dataStatus").value("PLATFORM_OBSERVED_ONLY"))
                 .andExpect(jsonPath("$.data.priceUnit").value("CNY_FEN"))
                 .andExpect(jsonPath("$.data.verifiedOfferCount").value(verifiedTotal))
-                // mockOfferCount 统计所有非人工核验报价，含演示价与平台观测价。
+                // 全部 PLATFORM_OBSERVED，非核验计数即 offers 总数。
                 .andExpect(jsonPath("$.data.mockOfferCount").value(offerTotal - verifiedTotal))
                 .andExpect(jsonPath("$.data.total").value(offerTotal));
 
@@ -172,9 +174,9 @@ class PcBuildApiTests {
                         .header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(1))
-                .andExpect(jsonPath("$.data.list[0].priceFen").value(299900))
-                .andExpect(jsonPath("$.data.list[0].priceSource").value("OWNER_VERIFIED"))
-                .andExpect(jsonPath("$.data.list[0].verifiedPrice").value(true));
+                .andExpect(jsonPath("$.data.list[0].priceFen").value(379900))
+                .andExpect(jsonPath("$.data.list[0].priceSource").value("PLATFORM_OBSERVED"))
+                .andExpect(jsonPath("$.data.list[0].verifiedPrice").value(false));
     }
 
     @Test
@@ -230,7 +232,7 @@ class PcBuildApiTests {
                 .andExpect(jsonPath("$.data.build.scoringVersion").value("pc-scoring-1.0.0"))
                 .andExpect(jsonPath("$.data.build.requirements.workloadProfile").value("GAMING"))
                 .andExpect(jsonPath("$.data.build.requirements.renderMode").value("BOTH"))
-                .andExpect(jsonPath("$.data.build.offerDataStatus").value("MIXED_DEMO"))
+                .andExpect(jsonPath("$.data.build.offerDataStatus").value("PLATFORM_OBSERVED_ONLY"))
                 .andExpect(jsonPath("$.data.build.components[*].priceSource", not(empty())))
                 .andReturn();
         String buildId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.build.buildId");

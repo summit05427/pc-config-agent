@@ -1,0 +1,16 @@
+{
+  "applied": 65,
+  "still_provisional": 0,
+  "still_provisional_ids": [],
+  "total": 410,
+  "price_status": {
+    "OBSERVED_2026-11-11": 248,
+    "ESTIMATED_2026-11-11": 162
+  },
+  "confidence": {
+    "MEDIUM": 206,
+    "HIGH": 81,
+    "LOW": 104,
+    "NONE": 19
+  }
+}

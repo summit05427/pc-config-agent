@@ -54,8 +54,18 @@ class OfferValidationTest(unittest.TestCase):
         self.assertEqual(result["price_fen"], 129900)
         self.assertEqual(result["purchase_url"], VALID_ENTRY["purchase_url"])
 
-    def test_rejects_pcpartpicker_link(self) -> None:
+    def test_allows_non_product_link(self) -> None:
         entry = {**VALID_ENTRY, "purchase_url": "https://pcpartpicker.com/product/x"}
+        result = offers.validate_offer(entry, {"cpu-test"})
+        self.assertEqual(result["purchase_url"], "https://pcpartpicker.com/product/x")
+
+    def test_allows_missing_link(self) -> None:
+        entry = {**VALID_ENTRY, "purchase_url": None}
+        result = offers.validate_offer(entry, {"cpu-test"})
+        self.assertIsNone(result["purchase_url"])
+
+    def test_rejects_unsafe_link_scheme(self) -> None:
+        entry = {**VALID_ENTRY, "purchase_url": "javascript:alert(1)"}
         with self.assertRaises(offers.OfferValidationError):
             offers.validate_offer(entry, {"cpu-test"})
 

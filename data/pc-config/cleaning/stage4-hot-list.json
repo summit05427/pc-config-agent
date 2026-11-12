@@ -1,0 +1,51 @@
+{
+  "observed_at": "2026-11-11",
+  "note": "榜单与报价来自公开搜索结果，仅作为热门与参考价线索，不代表成交价。",
+  "items": [
+    {"category": "CPU", "label": "AMD Ryzen 7 9800X3D", "tokens": ["9800X3D"], "price_cny": 3799, "source": "https://g.pconline.com.cn/product/hot/cpu/"},
+    {"category": "CPU", "label": "AMD Ryzen 9 9950X", "tokens": ["9950X"], "price_cny": 3699, "source": "https://cpu.zol.com.cn/soc/?proId=1360148"},
+    {"category": "CPU", "label": "AMD Ryzen 5 9600X", "tokens": ["9600X"], "price_cny": 1399, "source": "https://wap.zol.com.cn/top/cpu/hot.html"},
+    {"category": "CPU", "label": "AMD Ryzen 5 7500F", "tokens": ["7500F"], "price_cny": 1239, "source": "https://wap.zol.com.cn/top/cpu/hot.html"},
+    {"category": "CPU", "label": "AMD Ryzen 5 5600G", "tokens": ["5600G"], "price_cny": 1599, "source": "https://wap.zol.com.cn/top/cpu/hot.html"},
+    {"category": "CPU", "label": "AMD Ryzen 7 5800X", "tokens": ["5800X"], "price_cny": 1299, "source": "https://detail.zol.com.cn/cpu/index1342130.shtml"},
+
+    {"category": "GPU", "label": "RTX 5060 8GB", "tokens": ["RTX5060"], "vram_gb": 8, "price_cny": 2899, "source": "https://wap.zol.com.cn/top/vga/param_29.html"},
+    {"category": "GPU", "label": "RTX 5060 Ti 8GB", "tokens": ["RTX5060TI"], "vram_gb": 8, "price_cny": 3599, "source": "https://wap.zol.com.cn/top/vga/param_29.html"},
+    {"category": "GPU", "label": "RTX 5060 Ti 16GB", "tokens": ["RTX5060TI"], "vram_gb": 16, "price_cny": 4099, "source": "https://top.zol.com.cn/compositor/6/param__16.html"},
+    {"category": "GPU", "label": "Radeon RX 9070 XT", "tokens": ["RX9070XT"], "price_cny": 7299, "source": "https://top.zol.com.cn/compositor/6/param__16.html"},
+    {"category": "GPU", "label": "RTX 5080", "tokens": ["RTX5080"], "price_cny": 14300, "source": "https://c.m.163.com/news/a/LBG0KALR05198CJN.html"},
+
+    {"category": "MOTHERBOARD", "label": "技嘉 B850M AORUS ELITE WIFI6E ICE", "tokens": ["B850M", "AORUS", "ELITE"], "price_cny": 1399, "source": "https://wap.zol.com.cn/top/motherboard/hot.html"},
+    {"category": "MOTHERBOARD", "label": "技嘉 B760 AORUS MASTER DDR4", "tokens": ["B760", "AORUS", "MASTER"], "price_cny": 1899, "source": "https://wap.zol.com.cn/top/motherboard/hot.html"},
+    {"category": "MOTHERBOARD", "label": "微星 PRO B760M-A WIFI DDR4 II", "tokens": ["B760M", "PRO"], "price_cny": 1049, "source": "http://wap.zol.com.cn/top/motherboard/msi/"},
+    {"category": "MOTHERBOARD", "label": "微星 B850MPOWER", "tokens": ["B850MPOWER"], "price_cny": 2499, "source": "http://wap.zol.com.cn/top/motherboard/msi/"},
+    {"category": "MOTHERBOARD", "label": "微星 MAG B850M MORTAR MAX WIFI", "tokens": ["B850M", "MORTAR"], "price_cny": null, "source": "http://wap.zol.com.cn/top/motherboard/msi/"},
+    {"category": "MOTHERBOARD", "label": "华硕 TUF GAMING B850M-PLUS WIFI", "tokens": ["B850M", "TUF"], "price_cny": 1399, "source": "https://finance.sina.com.cn/roll/2026-08-27/doc-iniptxkt9029787.shtml.md"},
+
+    {"category": "MEMORY", "label": "雷克沙 Ares 战神之翼 DDR5 6000 32GB", "tokens": ["ARES"], "price_cny": 999, "source": "https://wap.zol.com.cn/top/memory/hot.html"},
+    {"category": "MEMORY", "label": "威刚 XPG 龙耀 D500G DDR5 6000 32GB", "tokens": ["D500G"], "price_cny": 979, "source": "https://wap.zol.com.cn/top/memory/hot.html"},
+    {"category": "MEMORY", "label": "金百达银爵 DDR5 6000 32GB", "tokens": ["KINGBANK"], "price_cny": 649, "source": "https://g.pconline.com.cn/product/hot/memory/"},
+    {"category": "MEMORY", "label": "宏碁掠夺者 Hermes 冰刃 DDR5 6000 32GB", "tokens": ["HERMES"], "price_cny": 999, "source": "https://product.pconline.com.cn/hot/memory/smalltype/"},
+    {"category": "MEMORY", "label": "三星 DDR5 5600 32GB", "tokens": ["SAMSUNG"], "price_cny": 899, "source": "https://product.pconline.com.cn/hot/memory/smalltype/"},
+
+    {"category": "STORAGE", "label": "致态 TiPlus7100 1TB", "tokens": ["TIPLUS7100"], "price_cny": 529, "source": "https://wap.zol.com.cn/top/solid_state_drive/hot.html"},
+    {"category": "STORAGE", "label": "致态 TiPlus7100s 2TB", "tokens": ["TIPLUS7100S"], "price_cny": 1099, "source": "https://wap.zol.com.cn/top/solid_state_drive/hot.html"},
+    {"category": "STORAGE", "label": "西部数据 SN7100 1TB", "tokens": ["SN7100"], "price_cny": 489, "source": "https://top.zol.com.cn/compositor/626/solid_state_drive.html"},
+    {"category": "STORAGE", "label": "西部数据 SN8100 1TB", "tokens": ["SN8100"], "price_cny": 1029, "source": "https://g.pconline.com.cn/product/hot/dianziyingpan/"},
+    {"category": "STORAGE", "label": "西部数据 GREEN SATA 1TB", "tokens": ["GREEN"], "price_cny": 619, "source": "https://wap.zol.com.cn/top/solid_state_drive/hot.html"},
+
+    {"category": "PSU", "label": "航嘉 WD750K 全模组", "tokens": ["WD750K"], "price_cny": 479, "source": "https://wap.zol.com.cn/top/power/hot.html"},
+    {"category": "PSU", "label": "长城 GX850W", "tokens": ["GX850"], "price_cny": 769, "source": "https://top.zol.com.cn/compositor/35/power.html"},
+    {"category": "PSU", "label": "振华 LEADEX PE 850W", "tokens": ["LEADEX"], "price_cny": 779, "source": "https://wap.zol.com.cn/top/power/hot.html"},
+    {"category": "PSU", "label": "影驰 金属大师 GL850", "tokens": ["GL850"], "price_cny": 569, "source": "https://g.pconline.com.cn/product/hot/power/"},
+
+    {"category": "COOLER", "label": "利民 PA120 SE", "tokens": ["PEERLESS", "ASSASSIN"], "price_cny": null, "source": "https://www.jd.com/phb/key_670d6ecb2679abae622.html"},
+    {"category": "COOLER", "label": "Tt 钢影 冰霜 360", "tokens": ["TOUGHLIQUID"], "price_cny": null, "source": "https://wap.zol.com.cn/top/cooling_product/"},
+    {"category": "COOLER", "label": "钛钽 LG600 360", "tokens": ["LG600"], "price_cny": 688, "source": "https://g.pconline.com.cn/product/hot/sanre/"},
+
+    {"category": "CASE", "label": "华硕 ROG GR701 创世神", "tokens": ["GR701"], "price_cny": 3299, "source": "https://wap.zol.com.cn/top/case/hot.html"},
+    {"category": "CASE", "label": "华硕 ROG GR801 幻世神", "tokens": ["GR801"], "price_cny": 2399, "source": "https://g.pconline.com.cn/product/hot/case/"},
+    {"category": "CASE", "label": "航嘉 S960 暴风雪 X", "tokens": ["S960"], "price_cny": 279, "source": "https://top.zol.com.cn/compositor/10/case.html"},
+    {"category": "CASE", "label": "乔思伯 Z20", "tokens": ["Z20"], "price_cny": 399, "source": "https://wap.zol.com.cn/top/case/hot.html"}
+  ]
+}

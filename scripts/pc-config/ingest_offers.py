@@ -20,7 +20,6 @@ from pc_config_data import DEFAULT_OUTPUT_DIR, REPO_ROOT
 
 DEFAULT_TEMPLATE_PATH = REPO_ROOT / "docs" / "pc-config" / "offers.template.json"
 ALLOWED_PRICE_TYPES = {"NORMAL", "PROMO", "MEMBER", "UNKNOWN"}
-BLOCKED_URL_HOSTS = {"pcpartpicker.com", "www.pcpartpicker.com"}
 OBSERVED_MATCH_STATUS = "OBSERVED"
 PLATFORM_OBSERVED = "PLATFORM_OBSERVED"
 
@@ -53,14 +52,20 @@ def parse_date(value: Any, field: str) -> date:
         raise OfferValidationError(f"{field} 必须是 YYYY-MM-DD：{value!r}") from error
 
 
-def validate_url(value: Any) -> str:
+def validate_url(value: Any) -> str | None:
+    """链接只做协议安全校验：允许为空，非空时必须是 http(s)。
+
+    不再校验链接真实性、店铺归属、是否可达或是否指向具体商品；
+    这些属于来源展示问题，不能作为价格能否入库的门槛。
+    """
+
+    if value is None:
+        return None
     if not isinstance(value, str) or not value.strip():
-        raise OfferValidationError("purchase_url 不能为空")
+        return None
     parsed = urlparse(value.strip())
-    if parsed.scheme != "https" or not parsed.netloc:
-        raise OfferValidationError(f"purchase_url 必须是 https 链接：{value!r}")
-    if parsed.netloc.lower() in BLOCKED_URL_HOSTS:
-        raise OfferValidationError("purchase_url 不能使用 PCPartPicker 参考链接")
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise OfferValidationError(f"purchase_url 必须是 http(s) 链接或 null：{value!r}")
     return value.strip()
 
 
@@ -136,7 +141,7 @@ def validate_mock_offer(entry: dict[str, Any], known_hardware_ids: set[str]) -> 
 
 def build_market_offer(entry: dict[str, Any], known_hardware_ids: set[str],
                        provider: str, price_basis: str, observed_at: str) -> dict[str, Any]:
-    """把平台观测价转换为运行时报价；不校验日期，但必须保留链接与观测时间。"""
+    """把平台观测价转换为运行时报价；不校验日期，但保留来源链接与观测时间。"""
 
     hardware_id = _require_text(entry, "hardware_id")
     if hardware_id not in known_hardware_ids:
@@ -144,7 +149,7 @@ def build_market_offer(entry: dict[str, Any], known_hardware_ids: set[str],
     price_fen = entry.get("price_fen")
     if not isinstance(price_fen, int) or price_fen <= 0:
         raise OfferValidationError(f"price_fen 必须是正整数分：{price_fen!r}")
-    url = validate_url(entry.get("url"))
+    url = validate_url(entry.get("url") or entry.get("source_url"))
     item_id = str(entry.get("item_id") or "").strip() or None
     samples = int(entry.get("sample_count") or 1)
     spread = float(entry.get("spread") or 0)

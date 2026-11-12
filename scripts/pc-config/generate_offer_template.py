@@ -19,7 +19,7 @@ DEFAULT_TEMPLATE_PATH = REPO_ROOT / "docs" / "pc-config" / "offers.template.json
 INSTRUCTIONS = [
     "只填写能核验的报价；不采购或不确定的条目保持 match_status=PENDING，入库时会被跳过。",
     "price_cny 填人民币元，最多两位小数；入库脚本会转换为整数分。",
-    "purchase_url 必须是核验时实际打开的 https 链接；不接受搜索页或店铺首页。",
+    "purchase_url 可填可空；填写时只要求是 http(s) 地址，不校验店铺、可达性或是否为具体商品页。",
     "verified_at 与 valid_until 使用 YYYY-MM-DD，valid_until 不得早于 verified_at。",
     "同一硬件有多个商家时，复制条目并修改 offer_id 后缀（-01、-02），保留 hardware_id 不变。",
     "不要删除字段，未知值填 null；match_status 只允许 PENDING 或 VERIFIED。",

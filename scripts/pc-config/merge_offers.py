@@ -1,7 +1,7 @@
 """合并多路观测价，同一硬件按来源精度取一条。
 
-来源优先级：SKU_PANEL（详情规格面板）> LISTING_MATCH（详情标题拆解）> SEARCH_LIST（搜索卡片）。
-低精度来源的价格只作补充，不覆盖已有高精度报价。
+来源优先级：SKU_PANEL（详情规格面板）> LISTING_MATCH（详情标题拆解）> SEARCH_LIST（搜索卡片）
+> WEB_ANCHOR（多来源区间锚点）> BUCKET（同档中位价）。低精度来源的价格只作补充，不覆盖已有高精度报价。
 """
 
 from __future__ import annotations
@@ -22,7 +22,14 @@ CATALOG = (
     REPO_ROOT / "application-service" / "src" / "main" / "resources" / "pc-config" / "catalog.json"
 )
 
-PRIORITY = {"FALLBACK": -1, "BUCKET": 0, "SEARCH_LIST": 1, "LISTING_MATCH": 2, "SKU_PANEL": 3}
+PRIORITY = {
+    "FALLBACK": -1,
+    "BUCKET": 0,
+    "WEB_ANCHOR": 1,
+    "SEARCH_LIST": 2,
+    "LISTING_MATCH": 3,
+    "SKU_PANEL": 4,
+}
 PRICE_RANGES_FEN = {"CPU": (10_000, 2_000_000), "GPU": (50_000, 4_000_000)}
 
 # 单样本低置信观测常是「定金价」「SKU 最低价」或多型号混卖页，价格会低到离谱

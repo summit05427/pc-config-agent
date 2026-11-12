@@ -1,2442 +1,58 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-11-09-reference-12",
+  "generated_at": "2026-10-05T00:00:00Z",
   "source": {
     "name": "PassMark",
     "snapshot_date": "2026-10-05"
   },
   "entries": [
     {
-      "hardware_id": "cpu-amd-ryzen-5-9600x",
+      "hardware_id": "cpu-amd-ryzen-5-5600",
       "benchmark_type": "CPUMARK",
-      "score": 30040.0,
-      "secondary_score": 4569.0,
-      "rank_no": 573,
-      "samples": 9695,
+      "score": 21487.0,
+      "secondary_score": 3253.0,
+      "rank_no": 944,
+      "samples": 15931,
       "source": {
         "name": "PassMark",
-        "source_id": "6199",
-        "source_name": "AMD Ryzen 5 9600X",
+        "source_id": "4811",
+        "source_name": "AMD Ryzen 5 5600",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "cpu-amd-ryzen-7-9800x3d",
+      "hardware_id": "cpu-amd-ryzen-5-5600g",
       "benchmark_type": "CPUMARK",
-      "score": 39917.0,
-      "secondary_score": 4420.0,
-      "rank_no": 379,
-      "samples": 26916,
+      "score": 19620.0,
+      "secondary_score": 3178.0,
+      "rank_no": 1065,
+      "samples": 16312,
       "source": {
         "name": "PassMark",
-        "source_id": "6344",
-        "source_name": "AMD Ryzen 7 9800X3D",
+        "source_id": "4325",
+        "source_name": "AMD Ryzen 5 5600G",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "cpu-intel-core-ultra-5-245k",
+      "hardware_id": "cpu-amd-ryzen-5-5600xt",
       "benchmark_type": "CPUMARK",
-      "score": 43047.0,
-      "secondary_score": 4716.0,
-      "rank_no": 341,
-      "samples": 1104,
+      "score": 22253.0,
+      "secondary_score": 3467.0,
+      "rank_no": 901,
+      "samples": 583,
       "source": {
         "name": "PassMark",
-        "source_id": "6324",
-        "source_name": "Intel Core Ultra 5 245K",
+        "source_id": "6387",
+        "source_name": "AMD Ryzen 5 5600XT",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
       "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-ultra-7-265k",
-      "benchmark_type": "CPUMARK",
-      "score": 58567.0,
-      "secondary_score": 4928.0,
-      "rank_no": 193,
-      "samples": 8487,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6326",
-        "source_name": "Intel Core Ultra 7 265K",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-9060-xt-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 20136.0,
-      "secondary_score": 1167.0,
-      "rank_no": 93,
-      "samples": 9206,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5957",
-        "source_name": "Radeon RX 9060 XT 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-9070-xt-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 26919.0,
-      "secondary_score": 1310.0,
-      "rank_no": 38,
-      "samples": 18079,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5956",
-        "source_name": "Radeon RX 9070 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "cpu-intel-core-i5-14600kf",
-      "benchmark_type": "CPUMARK",
-      "score": 38230.0,
-      "secondary_score": 4252.0,
-      "rank_no": 404,
-      "samples": 4579,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5722",
-        "source_name": "Intel Core i5-14600KF",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i7-14700kf",
-      "benchmark_type": "CPUMARK",
-      "score": 51925.0,
-      "secondary_score": 4466.0,
-      "rank_no": 251,
-      "samples": 6675,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5723",
-        "source_name": "Intel Core i7-14700KF",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-5-8600g",
-      "benchmark_type": "CPUMARK",
-      "score": 25191.0,
-      "secondary_score": 3876.0,
-      "rank_no": 763,
-      "samples": 2057,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5842",
-        "source_name": "AMD Ryzen 5 8600G",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-7-7800x3d",
-      "benchmark_type": "CPUMARK",
-      "score": 34279.0,
-      "secondary_score": 3759.0,
-      "rank_no": 464,
-      "samples": 28163,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5299",
-        "source_name": "AMD Ryzen 7 7800X3D",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-7-9700x",
-      "benchmark_type": "CPUMARK",
-      "score": 36931.0,
-      "secondary_score": 4642.0,
-      "rank_no": 423,
-      "samples": 9961,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6205",
-        "source_name": "AMD Ryzen 7 9700X",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-7-9850x3d",
-      "benchmark_type": "CPUMARK",
-      "score": 41291.0,
-      "secondary_score": 4705.0,
-      "rank_no": 361,
-      "samples": 1705,
-      "source": {
-        "name": "PassMark",
-        "source_id": "7074",
-        "source_name": "AMD Ryzen 7 9850X3D",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-9-9900x",
-      "benchmark_type": "CPUMARK",
-      "score": 54289.0,
-      "secondary_score": 4670.0,
-      "rank_no": 234,
-      "samples": 6797,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6171",
-        "source_name": "AMD Ryzen 9 9900X",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-9-9900x3d",
-      "benchmark_type": "CPUMARK",
-      "score": 56047.0,
-      "secondary_score": 4628.0,
-      "rank_no": 226,
-      "samples": 1227,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6548",
-        "source_name": "AMD Ryzen 9 9900X3D",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-9-9950x",
-      "benchmark_type": "CPUMARK",
-      "score": 65708.0,
-      "secondary_score": 4728.0,
-      "rank_no": 145,
-      "samples": 6846,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6211",
-        "source_name": "AMD Ryzen 9 9950X",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-9-9950x3d",
-      "benchmark_type": "CPUMARK",
-      "score": 70100.0,
-      "secondary_score": 4737.0,
-      "rank_no": 126,
-      "samples": 12262,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6549",
-        "source_name": "AMD Ryzen 9 9950X3D",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i3-14100",
-      "benchmark_type": "CPUMARK",
-      "score": 15086.0,
-      "secondary_score": 3759.0,
-      "rank_no": 1352,
-      "samples": 682,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5831",
-        "source_name": "Intel Core i3-14100",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i3-14100f",
-      "benchmark_type": "CPUMARK",
-      "score": 15403.0,
-      "secondary_score": 3775.0,
-      "rank_no": 1333,
-      "samples": 605,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5853",
-        "source_name": "Intel Core i3-14100F",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i5-13600kf",
-      "benchmark_type": "CPUMARK",
-      "score": 37306.0,
-      "secondary_score": 4111.0,
-      "rank_no": 417,
-      "samples": 4602,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5059",
-        "source_name": "Intel Core i5-13600KF",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i5-14400",
-      "benchmark_type": "CPUMARK",
-      "score": 25036.0,
-      "secondary_score": 3741.0,
-      "rank_no": 770,
-      "samples": 2194,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5868",
-        "source_name": "Intel Core i5-14400",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i5-14400f",
-      "benchmark_type": "CPUMARK",
-      "score": 25416.0,
-      "secondary_score": 3700.0,
-      "rank_no": 754,
-      "samples": 6389,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5837",
-        "source_name": "Intel Core i5-14400F",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i5-14500",
-      "benchmark_type": "CPUMARK",
-      "score": 30706.0,
-      "secondary_score": 3948.0,
-      "rank_no": 547,
-      "samples": 2389,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5835",
-        "source_name": "Intel Core i5-14500",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i5-14600k",
-      "benchmark_type": "CPUMARK",
-      "score": 38369.0,
-      "secondary_score": 4264.0,
-      "rank_no": 400,
-      "samples": 4429,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5720",
-        "source_name": "Intel Core i5-14600K",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i7-14700",
-      "benchmark_type": "CPUMARK",
-      "score": 40204.0,
-      "secondary_score": 4233.0,
-      "rank_no": 375,
-      "samples": 3988,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5852",
-        "source_name": "Intel Core i7-14700",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i7-14700f",
-      "benchmark_type": "CPUMARK",
-      "score": 41275.0,
-      "secondary_score": 4256.0,
-      "rank_no": 362,
-      "samples": 4773,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5834",
-        "source_name": "Intel Core i7-14700F",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i7-14700k",
-      "benchmark_type": "CPUMARK",
-      "score": 51919.0,
-      "secondary_score": 4454.0,
-      "rank_no": 252,
-      "samples": 8848,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5719",
-        "source_name": "Intel Core i7-14700K",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i9-14900",
-      "benchmark_type": "CPUMARK",
-      "score": 44530.0,
-      "secondary_score": 4322.0,
-      "rank_no": 329,
-      "samples": 973,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5886",
-        "source_name": "Intel Core i9-14900",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i9-14900f",
-      "benchmark_type": "CPUMARK",
-      "score": 46439.0,
-      "secondary_score": 4508.0,
-      "rank_no": 307,
-      "samples": 662,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5833",
-        "source_name": "Intel Core i9-14900F",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i9-14900k",
-      "benchmark_type": "CPUMARK",
-      "score": 58197.0,
-      "secondary_score": 4690.0,
-      "rank_no": 197,
-      "samples": 13728,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5717",
-        "source_name": "Intel Core i9-14900K",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i9-14900kf",
-      "benchmark_type": "CPUMARK",
-      "score": 58065.0,
-      "secondary_score": 4687.0,
-      "rank_no": 199,
-      "samples": 7670,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5684",
-        "source_name": "Intel Core i9-14900KF",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-intel-core-i9-14900ks",
-      "benchmark_type": "CPUMARK",
-      "score": 59859.0,
-      "secondary_score": 4807.0,
-      "rank_no": 185,
-      "samples": 1643,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5957",
-        "source_name": "Intel Core i9-14900KS",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4090-24gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 38038.0,
-      "secondary_score": 1304.0,
-      "rank_no": 3,
-      "samples": 22622,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4606",
-        "source_name": "GeForce RTX 4090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5050-8gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 16770.0,
-      "secondary_score": 1051.0,
-      "rank_no": 136,
-      "samples": 2922,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6668",
-        "source_name": "GeForce RTX 5050",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-super-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 31841.0,
-      "secondary_score": 1246.0,
-      "rank_no": 16,
-      "samples": 10614,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4980",
-        "source_name": "GeForce RTX 4070 Ti SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7600-xt-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 17347.0,
-      "secondary_score": 1026.0,
-      "rank_no": 125,
-      "samples": 2286,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4982",
-        "source_name": "Radeon RX 7600 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7700-xt-12gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 22758.0,
-      "secondary_score": 1157.0,
-      "rank_no": 67,
-      "samples": 2954,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4919",
-        "source_name": "Radeon RX 7700 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580364",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580366",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580370",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580371",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580372",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580376",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580383",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580384",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580385",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-580387",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585389",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585390",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585395",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585397",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585398",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585407",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-585408",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-604671",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-608881",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-627911",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-635887",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-640030",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-8gb-643358",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "CHIPSET_AND_VRAM",
-      "match_confidence": 0.98
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580296",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580298",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580300",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580303",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580306",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580307",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580311",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580320",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580321",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580325",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580329",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580333",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580335",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580338",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580340",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580342",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580344",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580346",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580687",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-611052",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-615224",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-617596",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-638025",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-643919",
-      "benchmark_type": "G3D_MARK",
-      "score": 21885.0,
-      "secondary_score": 1162.0,
-      "rank_no": 78,
-      "samples": 4494,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6441",
-        "source_name": "GeForce RTX 5060 Ti 8GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7600-8gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 16446.0,
-      "secondary_score": 985.0,
-      "rank_no": 146,
-      "samples": 6757,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4832",
-        "source_name": "Radeon RX 7600",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7600-8gb-472238",
-      "benchmark_type": "G3D_MARK",
-      "score": 16446.0,
-      "secondary_score": 985.0,
-      "rank_no": 146,
-      "samples": 6757,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4832",
-        "source_name": "Radeon RX 7600",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7600-8gb-472242",
-      "benchmark_type": "G3D_MARK",
-      "score": 16446.0,
-      "secondary_score": 985.0,
-      "rank_no": 146,
-      "samples": 6757,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4832",
-        "source_name": "Radeon RX 7600",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7600-8gb-552443",
-      "benchmark_type": "G3D_MARK",
-      "score": 16446.0,
-      "secondary_score": 985.0,
-      "rank_no": 146,
-      "samples": 6757,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4832",
-        "source_name": "Radeon RX 7600",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580297",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580299",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580305",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580308",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580309",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580316",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580326",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580330",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580334",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580336",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580339",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580341",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580343",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580347",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580357",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-603579",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-610044",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-611016",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-611043",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-611089",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-617585",
-      "benchmark_type": "G3D_MARK",
-      "score": 22609.0,
-      "secondary_score": 1204.0,
-      "rank_no": 68,
-      "samples": 11942,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6160",
-        "source_name": "GeForce RTX 5060 Ti 16GB",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET_VRAM",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-563968",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-563969",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-563970",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-563972",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564021",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564022",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564023",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564024",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564025",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564035",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564067",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564068",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564069",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564070",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564073",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564074",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564075",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564095",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564104",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-564105",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-567625",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-569333",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-576717",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-579064",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-579589",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-585449",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-589769",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-591391",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-593512",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-597804",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-600080",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-611048",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-635976",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-639534",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5080-16gb-639753",
-      "benchmark_type": "G3D_MARK",
-      "score": 35627.0,
-      "secondary_score": 1396.0,
-      "rank_no": 5,
-      "samples": 21130,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5721",
-        "source_name": "GeForce RTX 5080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
     },
     {
       "hardware_id": "cpu-amd-ryzen-5-7500",
@@ -2567,6 +183,22 @@
       "match_confidence": 1.0
     },
     {
+      "hardware_id": "cpu-amd-ryzen-5-8600g",
+      "benchmark_type": "CPUMARK",
+      "score": 25191.0,
+      "secondary_score": 3876.0,
+      "rank_no": 763,
+      "samples": 2057,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5842",
+        "source_name": "AMD Ryzen 5 8600G",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
       "hardware_id": "cpu-amd-ryzen-5-9600",
       "benchmark_type": "CPUMARK",
       "score": 29294.0,
@@ -2577,6 +209,86 @@
         "name": "PassMark",
         "source_id": "6590",
         "source_name": "AMD Ryzen 5 9600",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-5-9600x",
+      "benchmark_type": "CPUMARK",
+      "score": 30040.0,
+      "secondary_score": 4569.0,
+      "rank_no": 573,
+      "samples": 9695,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6199",
+        "source_name": "AMD Ryzen 5 9600X",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-5700",
+      "benchmark_type": "CPUMARK",
+      "score": 24189.0,
+      "secondary_score": 3298.0,
+      "rank_no": 811,
+      "samples": 1920,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4968",
+        "source_name": "AMD Ryzen 7 5700",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-5700x",
+      "benchmark_type": "CPUMARK",
+      "score": 26548.0,
+      "secondary_score": 3386.0,
+      "rank_no": 715,
+      "samples": 22811,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4814",
+        "source_name": "AMD Ryzen 7 5700X",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-5800x3d",
+      "benchmark_type": "CPUMARK",
+      "score": 28283.0,
+      "secondary_score": 3233.0,
+      "rank_no": 630,
+      "samples": 11939,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4823",
+        "source_name": "AMD Ryzen 7 5800X3D",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-5800xt",
+      "benchmark_type": "CPUMARK",
+      "score": 28021.0,
+      "secondary_score": 3532.0,
+      "rank_no": 647,
+      "samples": 2572,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6307",
+        "source_name": "AMD Ryzen 7 5800XT",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
@@ -2631,23 +343,7 @@
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "cpu-amd-ryzen-7-7700x3d",
-      "benchmark_type": "CPUMARK",
-      "score": 32849.0,
-      "secondary_score": 3543.0,
-      "rank_no": 495,
-      "samples": 21,
-      "source": {
-        "name": "PassMark",
-        "source_id": "7425",
-        "source_name": "AMD Ryzen 7 7700X3D",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "cpu-amd-ryzen-7-7800x3d-579700",
+      "hardware_id": "cpu-amd-ryzen-7-7800x3d",
       "benchmark_type": "CPUMARK",
       "score": 34279.0,
       "secondary_score": 3759.0,
@@ -2689,6 +385,70 @@
         "name": "PassMark",
         "source_id": "5836",
         "source_name": "AMD Ryzen 7 8700G",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-9700x",
+      "benchmark_type": "CPUMARK",
+      "score": 36931.0,
+      "secondary_score": 4642.0,
+      "rank_no": 423,
+      "samples": 9961,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6205",
+        "source_name": "AMD Ryzen 7 9700X",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-7-9800x3d",
+      "benchmark_type": "CPUMARK",
+      "score": 39917.0,
+      "secondary_score": 4420.0,
+      "rank_no": 379,
+      "samples": 26916,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6344",
+        "source_name": "AMD Ryzen 7 9800X3D",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-9-5900xt",
+      "benchmark_type": "CPUMARK",
+      "score": 43849.0,
+      "secondary_score": 3478.0,
+      "rank_no": 334,
+      "samples": 1633,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6187",
+        "source_name": "AMD Ryzen 9 5900XT",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-9-5950x",
+      "benchmark_type": "CPUMARK",
+      "score": 45248.0,
+      "secondary_score": 3477.0,
+      "rank_no": 322,
+      "samples": 19767,
+      "source": {
+        "name": "PassMark",
+        "source_id": "3862",
+        "source_name": "AMD Ryzen 9 5950X",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
@@ -2775,6 +535,70 @@
       "match_confidence": 1.0
     },
     {
+      "hardware_id": "cpu-amd-ryzen-9-9900x",
+      "benchmark_type": "CPUMARK",
+      "score": 54289.0,
+      "secondary_score": 4670.0,
+      "rank_no": 234,
+      "samples": 6797,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6171",
+        "source_name": "AMD Ryzen 9 9900X",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-9-9900x3d",
+      "benchmark_type": "CPUMARK",
+      "score": 56047.0,
+      "secondary_score": 4628.0,
+      "rank_no": 226,
+      "samples": 1227,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6548",
+        "source_name": "AMD Ryzen 9 9900X3D",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-9-9950x",
+      "benchmark_type": "CPUMARK",
+      "score": 65708.0,
+      "secondary_score": 4728.0,
+      "rank_no": 145,
+      "samples": 6846,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6211",
+        "source_name": "AMD Ryzen 9 9950X",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-amd-ryzen-9-9950x3d",
+      "benchmark_type": "CPUMARK",
+      "score": 70100.0,
+      "secondary_score": 4737.0,
+      "rank_no": 126,
+      "samples": 12262,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6549",
+        "source_name": "AMD Ryzen 9 9950X3D",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
       "hardware_id": "cpu-amd-ryzen-9-9950x3d2",
       "benchmark_type": "CPUMARK",
       "score": 72018.0,
@@ -2791,16 +615,48 @@
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "cpu-intel-core-i5-13400",
+      "hardware_id": "cpu-intel-celeron-g6900",
       "benchmark_type": "CPUMARK",
-      "score": 23892.0,
-      "secondary_score": 3585.0,
-      "rank_no": 828,
-      "samples": 2089,
+      "score": 4475.0,
+      "secondary_score": 2669.0,
+      "rank_no": 2692,
+      "samples": 154,
       "source": {
         "name": "PassMark",
-        "source_id": "4994",
-        "source_name": "Intel Core i5-13400",
+        "source_id": "4709",
+        "source_name": "Intel Celeron G6900",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i5-12400f",
+      "benchmark_type": "CPUMARK",
+      "score": 19539.0,
+      "secondary_score": 3485.0,
+      "rank_no": 1070,
+      "samples": 17845,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4681",
+        "source_name": "Intel Core i5-12400F",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i5-12600kf",
+      "benchmark_type": "CPUMARK",
+      "score": 27501.0,
+      "secondary_score": 3916.0,
+      "rank_no": 673,
+      "samples": 4137,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4625",
+        "source_name": "Intel Core i5-12600KF",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
@@ -2839,16 +695,96 @@
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "cpu-intel-core-i7-13700f",
+      "hardware_id": "cpu-intel-core-i5-14400f",
       "benchmark_type": "CPUMARK",
-      "score": 37741.0,
-      "secondary_score": 4118.0,
-      "rank_no": 410,
-      "samples": 2879,
+      "score": 25416.0,
+      "secondary_score": 3700.0,
+      "rank_no": 754,
+      "samples": 6389,
       "source": {
         "name": "PassMark",
-        "source_id": "5163",
-        "source_name": "Intel Core i7-13700F",
+        "source_id": "5837",
+        "source_name": "Intel Core i5-14400F",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i5-14500",
+      "benchmark_type": "CPUMARK",
+      "score": 30706.0,
+      "secondary_score": 3948.0,
+      "rank_no": 547,
+      "samples": 2389,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5835",
+        "source_name": "Intel Core i5-14500",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i5-14600k",
+      "benchmark_type": "CPUMARK",
+      "score": 38369.0,
+      "secondary_score": 4264.0,
+      "rank_no": 400,
+      "samples": 4429,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5720",
+        "source_name": "Intel Core i5-14600K",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i7-12700",
+      "benchmark_type": "CPUMARK",
+      "score": 29755.0,
+      "secondary_score": 3840.0,
+      "rank_no": 580,
+      "samples": 6979,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4669",
+        "source_name": "Intel Core i7-12700",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i7-12700f",
+      "benchmark_type": "CPUMARK",
+      "score": 30145.0,
+      "secondary_score": 3842.0,
+      "rank_no": 566,
+      "samples": 4500,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4692",
+        "source_name": "Intel Core i7-12700F",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i7-12700kf",
+      "benchmark_type": "CPUMARK",
+      "score": 33913.0,
+      "secondary_score": 3979.0,
+      "rank_no": 472,
+      "samples": 6841,
+      "source": {
+        "name": "PassMark",
+        "source_id": "4608",
+        "source_name": "Intel Core i7-12700KF",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
@@ -2871,6 +807,70 @@
       "match_confidence": 1.0
     },
     {
+      "hardware_id": "cpu-intel-core-i7-14700",
+      "benchmark_type": "CPUMARK",
+      "score": 40204.0,
+      "secondary_score": 4233.0,
+      "rank_no": 375,
+      "samples": 3988,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5852",
+        "source_name": "Intel Core i7-14700",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i7-14700f",
+      "benchmark_type": "CPUMARK",
+      "score": 41275.0,
+      "secondary_score": 4256.0,
+      "rank_no": 362,
+      "samples": 4773,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5834",
+        "source_name": "Intel Core i7-14700F",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i7-14700k",
+      "benchmark_type": "CPUMARK",
+      "score": 51919.0,
+      "secondary_score": 4454.0,
+      "rank_no": 252,
+      "samples": 8848,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5719",
+        "source_name": "Intel Core i7-14700K",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i7-14700kf",
+      "benchmark_type": "CPUMARK",
+      "score": 51925.0,
+      "secondary_score": 4466.0,
+      "rank_no": 251,
+      "samples": 6675,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5723",
+        "source_name": "Intel Core i7-14700KF",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
       "hardware_id": "cpu-intel-core-i9-13900",
       "benchmark_type": "CPUMARK",
       "score": 44558.0,
@@ -2887,22 +887,6 @@
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "cpu-intel-core-i9-13900kf",
-      "benchmark_type": "CPUMARK",
-      "score": 57431.0,
-      "secondary_score": 4580.0,
-      "rank_no": 207,
-      "samples": 4809,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5055",
-        "source_name": "Intel Core i9-13900KF",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_NAME",
-      "match_confidence": 1.0
-    },
-    {
       "hardware_id": "cpu-intel-core-i9-13900ks",
       "benchmark_type": "CPUMARK",
       "score": 60385.0,
@@ -2913,6 +897,22 @@
         "name": "PassMark",
         "source_id": "5160",
         "source_name": "Intel Core i9-13900KS",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-i9-14900f",
+      "benchmark_type": "CPUMARK",
+      "score": 46439.0,
+      "secondary_score": 4508.0,
+      "rank_no": 307,
+      "samples": 662,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5833",
+        "source_name": "Intel Core i9-14900F",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
@@ -2961,6 +961,22 @@
         "name": "PassMark",
         "source_id": "6526",
         "source_name": "Intel Core Ultra 5 235",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "cpu-intel-core-ultra-5-245k",
+      "benchmark_type": "CPUMARK",
+      "score": 43047.0,
+      "secondary_score": 4716.0,
+      "rank_no": 341,
+      "samples": 1104,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6324",
+        "source_name": "Intel Core Ultra 5 245K",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_NAME",
@@ -3047,6 +1063,22 @@
       "match_confidence": 1.0
     },
     {
+      "hardware_id": "cpu-intel-core-ultra-7-265k",
+      "benchmark_type": "CPUMARK",
+      "score": 58567.0,
+      "secondary_score": 4928.0,
+      "rank_no": 193,
+      "samples": 8487,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6326",
+        "source_name": "Intel Core Ultra 7 265K",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_NAME",
+      "match_confidence": 1.0
+    },
+    {
       "hardware_id": "cpu-intel-core-ultra-7-265kf",
       "benchmark_type": "CPUMARK",
       "score": 58447.0,
@@ -3111,16 +1143,16 @@
       "match_confidence": 1.0
     },
     {
-      "hardware_id": "gpu-geforce-rtx-4060-8gb",
+      "hardware_id": "gpu-arc-b570-10gb",
       "benchmark_type": "G3D_MARK",
-      "score": 19484.0,
-      "secondary_score": 1036.0,
-      "rank_no": 100,
-      "samples": 28815,
+      "score": 14127.0,
+      "secondary_score": 628.0,
+      "rank_no": 192,
+      "samples": 513,
       "source": {
         "name": "PassMark",
-        "source_id": "4850",
-        "source_name": "GeForce RTX 4060",
+        "source_id": "5652",
+        "source_name": "Intel Arc B570",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
@@ -3128,22 +1160,6 @@
     },
     {
       "hardware_id": "gpu-geforce-rtx-4060-8gb-476274",
-      "benchmark_type": "G3D_MARK",
-      "score": 19484.0,
-      "secondary_score": 1036.0,
-      "rank_no": 100,
-      "samples": 28815,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4850",
-        "source_name": "GeForce RTX 4060",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-8gb-476280",
       "benchmark_type": "G3D_MARK",
       "score": 19484.0,
       "secondary_score": 1036.0,
@@ -3175,38 +1191,6 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-4060-8gb-477069",
-      "benchmark_type": "G3D_MARK",
-      "score": 19484.0,
-      "secondary_score": 1036.0,
-      "rank_no": 100,
-      "samples": 28815,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4850",
-        "source_name": "GeForce RTX 4060",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-8gb-518909",
-      "benchmark_type": "G3D_MARK",
-      "score": 19484.0,
-      "secondary_score": 1036.0,
-      "rank_no": 100,
-      "samples": 28815,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4850",
-        "source_name": "GeForce RTX 4060",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-4060-ti-16gb",
       "benchmark_type": "G3D_MARK",
       "score": 22546.0,
@@ -3221,214 +1205,6 @@
       },
       "match_method": "EXACT_CHIPSET_VRAM",
       "match_confidence": 1.0
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-471046",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-471064",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-471071",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-471098",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-472051",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-474222",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4060-ti-8gb-518911",
-      "benchmark_type": "G3D_MARK",
-      "score": 22596.0,
-      "secondary_score": 1093.0,
-      "rank_no": 70,
-      "samples": 15808,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4827",
-        "source_name": "GeForce RTX 4060 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-465812",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-465814",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-465815",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-465834",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-465837",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
     },
     {
       "hardware_id": "gpu-geforce-rtx-4070-12gb-465839",
@@ -3447,166 +1223,6 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-465860",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-474338",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-485925",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-496733",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-554558",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-12gb-570263",
-      "benchmark_type": "G3D_MARK",
-      "score": 26855.0,
-      "secondary_score": 1165.0,
-      "rank_no": 39,
-      "samples": 20798,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4795",
-        "source_name": "GeForce RTX 4070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-super-12gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 29939.0,
-      "secondary_score": 1193.0,
-      "rank_no": 22,
-      "samples": 15894,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4973",
-        "source_name": "GeForce RTX 4070 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-super-12gb-506102",
-      "benchmark_type": "G3D_MARK",
-      "score": 29939.0,
-      "secondary_score": 1193.0,
-      "rank_no": 22,
-      "samples": 15894,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4973",
-        "source_name": "GeForce RTX 4070 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-super-12gb-506104",
-      "benchmark_type": "G3D_MARK",
-      "score": 29939.0,
-      "secondary_score": 1193.0,
-      "rank_no": 22,
-      "samples": 15894,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4973",
-        "source_name": "GeForce RTX 4070 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-super-12gb-530372",
-      "benchmark_type": "G3D_MARK",
-      "score": 29939.0,
-      "secondary_score": 1193.0,
-      "rank_no": 22,
-      "samples": 15894,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4973",
-        "source_name": "GeForce RTX 4070 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-4070-super-12gb-567627",
       "benchmark_type": "G3D_MARK",
       "score": 29939.0,
@@ -3617,86 +1233,6 @@
         "name": "PassMark",
         "source_id": "4973",
         "source_name": "GeForce RTX 4070 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-12gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 31509.0,
-      "secondary_score": 1209.0,
-      "rank_no": 17,
-      "samples": 15497,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4699",
-        "source_name": "GeForce RTX 4070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-12gb-450948",
-      "benchmark_type": "G3D_MARK",
-      "score": 31509.0,
-      "secondary_score": 1209.0,
-      "rank_no": 17,
-      "samples": 15497,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4699",
-        "source_name": "GeForce RTX 4070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-12gb-450983",
-      "benchmark_type": "G3D_MARK",
-      "score": 31509.0,
-      "secondary_score": 1209.0,
-      "rank_no": 17,
-      "samples": 15497,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4699",
-        "source_name": "GeForce RTX 4070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-12gb-450985",
-      "benchmark_type": "G3D_MARK",
-      "score": 31509.0,
-      "secondary_score": 1209.0,
-      "rank_no": 17,
-      "samples": 15497,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4699",
-        "source_name": "GeForce RTX 4070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-12gb-451021",
-      "benchmark_type": "G3D_MARK",
-      "score": 31509.0,
-      "secondary_score": 1209.0,
-      "rank_no": 17,
-      "samples": 15497,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4699",
-        "source_name": "GeForce RTX 4070 Ti",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
@@ -3735,118 +1271,6 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-super-16gb-506109",
-      "benchmark_type": "G3D_MARK",
-      "score": 31841.0,
-      "secondary_score": 1246.0,
-      "rank_no": 16,
-      "samples": 10614,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4980",
-        "source_name": "GeForce RTX 4070 Ti SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4070-ti-super-16gb-508595",
-      "benchmark_type": "G3D_MARK",
-      "score": 31841.0,
-      "secondary_score": 1246.0,
-      "rank_no": 16,
-      "samples": 10614,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4980",
-        "source_name": "GeForce RTX 4070 Ti SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-441931",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443499",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443500",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443507",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443546",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-4080-16gb-443548",
       "benchmark_type": "G3D_MARK",
       "score": 34439.0,
@@ -3857,262 +1281,6 @@
         "name": "PassMark",
         "source_id": "4622",
         "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443701",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443702",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443703",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-443823",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-448266",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-458716",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-463439",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-473145",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-16gb-500007",
-      "benchmark_type": "G3D_MARK",
-      "score": 34439.0,
-      "secondary_score": 1251.0,
-      "rank_no": 6,
-      "samples": 11498,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4622",
-        "source_name": "GeForce RTX 4080",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-506036",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-506037",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-506073",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-506074",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-506111",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-506141",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4080-super-16gb-509414",
-      "benchmark_type": "G3D_MARK",
-      "score": 34208.0,
-      "secondary_score": 1278.0,
-      "rank_no": 7,
-      "samples": 10486,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4984",
-        "source_name": "GeForce RTX 4080 SUPER",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
@@ -4135,119 +1303,7 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-4090-24gb-436997",
-      "benchmark_type": "G3D_MARK",
-      "score": 38038.0,
-      "secondary_score": 1304.0,
-      "rank_no": 3,
-      "samples": 22622,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4606",
-        "source_name": "GeForce RTX 4090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-4090-24gb-511618",
-      "benchmark_type": "G3D_MARK",
-      "score": 38038.0,
-      "secondary_score": 1304.0,
-      "rank_no": 3,
-      "samples": 22622,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4606",
-        "source_name": "GeForce RTX 4090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-5050-8gb-591523",
-      "benchmark_type": "G3D_MARK",
-      "score": 16770.0,
-      "secondary_score": 1051.0,
-      "rank_no": 136,
-      "samples": 2922,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6668",
-        "source_name": "GeForce RTX 5050",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5050-8gb-591524",
-      "benchmark_type": "G3D_MARK",
-      "score": 16770.0,
-      "secondary_score": 1051.0,
-      "rank_no": 136,
-      "samples": 2922,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6668",
-        "source_name": "GeForce RTX 5050",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5050-8gb-591526",
-      "benchmark_type": "G3D_MARK",
-      "score": 16770.0,
-      "secondary_score": 1051.0,
-      "rank_no": 136,
-      "samples": 2922,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6668",
-        "source_name": "GeForce RTX 5050",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5050-8gb-591534",
-      "benchmark_type": "G3D_MARK",
-      "score": 16770.0,
-      "secondary_score": 1051.0,
-      "rank_no": 136,
-      "samples": 2922,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6668",
-        "source_name": "GeForce RTX 5050",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5050-8gb-591546",
-      "benchmark_type": "G3D_MARK",
-      "score": 16770.0,
-      "secondary_score": 1051.0,
-      "rank_no": 136,
-      "samples": 2922,
-      "source": {
-        "name": "PassMark",
-        "source_id": "6668",
-        "source_name": "GeForce RTX 5050",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5050-8gb-591548",
       "benchmark_type": "G3D_MARK",
       "score": 16770.0,
       "secondary_score": 1051.0,
@@ -4279,183 +1335,279 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-563950",
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-580371",
       "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
       "source": {
         "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
         "snapshot_date": "2026-10-05"
       },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-563952",
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-580376",
       "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
       "source": {
         "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
         "snapshot_date": "2026-10-05"
       },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-563953",
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-580387",
       "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
       "source": {
         "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
         "snapshot_date": "2026-10-05"
       },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-585389",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-585398",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-585408",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-604671",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-8gb-640030",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580299",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-16gb-580343",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580298",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580303",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580320",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580325",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-geforce-rtx-5060-ti-8gb-580338",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
     },
     {
       "hardware_id": "gpu-geforce-rtx-5070-12gb-563954",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564004",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564005",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564006",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564008",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564009",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564043",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564048",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564049",
       "benchmark_type": "G3D_MARK",
       "score": 28659.0,
       "secondary_score": 1289.0,
@@ -4503,119 +1655,7 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-564086",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-573485",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-573488",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-5070-12gb-573489",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-573493",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-579327",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-585433",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-585452",
       "benchmark_type": "G3D_MARK",
       "score": 28659.0,
       "secondary_score": 1289.0,
@@ -4663,54 +1703,6 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-617233",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-619804",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-12gb-643920",
-      "benchmark_type": "G3D_MARK",
-      "score": 28659.0,
-      "secondary_score": 1289.0,
-      "rank_no": 27,
-      "samples": 23518,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5940",
-        "source_name": "GeForce RTX 5070",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-5070-12gb-644510",
       "benchmark_type": "G3D_MARK",
       "score": 28659.0,
@@ -4743,262 +1735,6 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-563956",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-563957",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-563958",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-563960",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564010",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564011",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564012",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564013",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564014",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564015",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564052",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-564053",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-567607",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-569994",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-573520",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-578689",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
       "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-582137",
       "benchmark_type": "G3D_MARK",
       "score": 32330.0,
@@ -5015,240 +1751,64 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-585426",
+      "hardware_id": "gpu-geforce-rtx-5080-16gb",
       "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
+      "score": 35627.0,
+      "secondary_score": 1396.0,
+      "rank_no": 5,
+      "samples": 21130,
       "source": {
         "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
+        "source_id": "5721",
+        "source_name": "GeForce RTX 5080",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-585436",
+      "hardware_id": "gpu-geforce-rtx-5080-16gb-564023",
       "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
+      "score": 35627.0,
+      "secondary_score": 1396.0,
+      "rank_no": 5,
+      "samples": 21130,
       "source": {
         "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
+        "source_id": "5721",
+        "source_name": "GeForce RTX 5080",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-585453",
+      "hardware_id": "gpu-geforce-rtx-5080-16gb-564075",
       "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
+      "score": 35627.0,
+      "secondary_score": 1396.0,
+      "rank_no": 5,
+      "samples": 21130,
       "source": {
         "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
+        "source_id": "5721",
+        "source_name": "GeForce RTX 5080",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-590733",
+      "hardware_id": "gpu-geforce-rtx-5080-16gb-639534",
       "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
+      "score": 35627.0,
+      "secondary_score": 1396.0,
+      "rank_no": 5,
+      "samples": 21130,
       "source": {
         "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-593518",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-609176",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-610358",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-611057",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-616423",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5070-ti-16gb-633053",
-      "benchmark_type": "G3D_MARK",
-      "score": 32330.0,
-      "secondary_score": 1322.0,
-      "rank_no": 14,
-      "samples": 21860,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5878",
-        "source_name": "GeForce RTX 5070 Ti",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-563982",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-563983",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-563987",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-564029",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-564030",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
+        "source_id": "5721",
+        "source_name": "GeForce RTX 5080",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
@@ -5256,150 +1816,6 @@
     },
     {
       "hardware_id": "gpu-geforce-rtx-5090-32gb-564032",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-564076",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-564077",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-564078",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-564081",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-585445",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-585451",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-599000",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-607088",
-      "benchmark_type": "G3D_MARK",
-      "score": 39003.0,
-      "secondary_score": 1409.0,
-      "rank_no": 2,
-      "samples": 10867,
-      "source": {
-        "name": "PassMark",
-        "source_id": "5725",
-        "source_name": "GeForce RTX 5090",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-geforce-rtx-5090-32gb-630924",
       "benchmark_type": "G3D_MARK",
       "score": 39003.0,
       "secondary_score": 1409.0,
@@ -5431,80 +1847,16 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-radeon-rx-7700-xt-12gb-506438",
+      "hardware_id": "gpu-radeon-rx-7600-xt-16gb",
       "benchmark_type": "G3D_MARK",
-      "score": 22758.0,
-      "secondary_score": 1157.0,
-      "rank_no": 67,
-      "samples": 2954,
+      "score": 17347.0,
+      "secondary_score": 1026.0,
+      "rank_no": 125,
+      "samples": 2286,
       "source": {
         "name": "PassMark",
-        "source_id": "4919",
-        "source_name": "Radeon RX 7700 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7800-xt-16gb",
-      "benchmark_type": "G3D_MARK",
-      "score": 24468.0,
-      "secondary_score": 1195.0,
-      "rank_no": 55,
-      "samples": 11363,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4917",
-        "source_name": "Radeon RX 7800 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7800-xt-16gb-487795",
-      "benchmark_type": "G3D_MARK",
-      "score": 24468.0,
-      "secondary_score": 1195.0,
-      "rank_no": 55,
-      "samples": 11363,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4917",
-        "source_name": "Radeon RX 7800 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7800-xt-16gb-487901",
-      "benchmark_type": "G3D_MARK",
-      "score": 24468.0,
-      "secondary_score": 1195.0,
-      "rank_no": 55,
-      "samples": 11363,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4917",
-        "source_name": "Radeon RX 7800 XT",
-        "snapshot_date": "2026-10-05"
-      },
-      "match_method": "EXACT_CHIPSET",
-      "match_confidence": 0.95
-    },
-    {
-      "hardware_id": "gpu-radeon-rx-7800-xt-16gb-532552",
-      "benchmark_type": "G3D_MARK",
-      "score": 24468.0,
-      "secondary_score": 1195.0,
-      "rank_no": 55,
-      "samples": 11363,
-      "source": {
-        "name": "PassMark",
-        "source_id": "4917",
-        "source_name": "Radeon RX 7800 XT",
+        "source_id": "4982",
+        "source_name": "Radeon RX 7600 XT",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
@@ -5527,90 +1879,922 @@
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-radeon-rx-7800-xt-16gb-576700",
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb-587549",
       "benchmark_type": "G3D_MARK",
-      "score": 24468.0,
-      "secondary_score": 1195.0,
-      "rank_no": 55,
-      "samples": 11363,
+      "score": 20136.0,
+      "secondary_score": 1167.0,
+      "rank_no": 93,
+      "samples": 9206,
       "source": {
         "name": "PassMark",
-        "source_id": "4917",
-        "source_name": "Radeon RX 7800 XT",
+        "source_id": "5957",
+        "source_name": "Radeon RX 9060 XT 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb-587550",
+      "benchmark_type": "G3D_MARK",
+      "score": 20136.0,
+      "secondary_score": 1167.0,
+      "rank_no": 93,
+      "samples": 9206,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5957",
+        "source_name": "Radeon RX 9060 XT 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb-587604",
+      "benchmark_type": "G3D_MARK",
+      "score": 20136.0,
+      "secondary_score": 1167.0,
+      "rank_no": 93,
+      "samples": 9206,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5957",
+        "source_name": "Radeon RX 9060 XT 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb-595806",
+      "benchmark_type": "G3D_MARK",
+      "score": 20136.0,
+      "secondary_score": 1167.0,
+      "rank_no": 93,
+      "samples": 9206,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5957",
+        "source_name": "Radeon RX 9060 XT 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9060-xt-16gb-616697",
+      "benchmark_type": "G3D_MARK",
+      "score": 20136.0,
+      "secondary_score": 1167.0,
+      "rank_no": 93,
+      "samples": 9206,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5957",
+        "source_name": "Radeon RX 9060 XT 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9070-16gb-573265",
+      "benchmark_type": "G3D_MARK",
+      "score": 26919.0,
+      "secondary_score": 1310.0,
+      "rank_no": 38,
+      "samples": 18079,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5956",
+        "source_name": "Radeon RX 9070 XT",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
       "match_confidence": 0.95
     },
     {
-      "hardware_id": "gpu-radeon-rx-7900-xt-20gb",
+      "hardware_id": "gpu-radeon-rx-9070-gre-12gb-633003",
       "benchmark_type": "G3D_MARK",
-      "score": 31468.0,
-      "secondary_score": 1290.0,
-      "rank_no": 18,
-      "samples": 11696,
+      "score": 23473.0,
+      "secondary_score": 1251.0,
+      "rank_no": 59,
+      "samples": 190,
       "source": {
         "name": "PassMark",
-        "source_id": "4644",
-        "source_name": "Radeon RX 7900 XTX",
+        "source_id": "6421",
+        "source_name": "Radeon RX 9070 GRE",
         "snapshot_date": "2026-10-05"
       },
       "match_method": "EXACT_CHIPSET",
       "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9070-xt-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 26919.0,
+      "secondary_score": 1310.0,
+      "rank_no": 38,
+      "samples": 18079,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5956",
+        "source_name": "Radeon RX 9070 XT",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9070-xt-16gb-573240",
+      "benchmark_type": "G3D_MARK",
+      "score": 26919.0,
+      "secondary_score": 1310.0,
+      "rank_no": 38,
+      "samples": 18079,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5956",
+        "source_name": "Radeon RX 9070 XT",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "gpu-radeon-rx-9070-xt-16gb-573278",
+      "benchmark_type": "G3D_MARK",
+      "score": 26919.0,
+      "secondary_score": 1310.0,
+      "rank_no": 38,
+      "samples": 18079,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5956",
+        "source_name": "Radeon RX 9070 XT",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "storage-adata-legend-710-512-gb",
+      "benchmark_type": "DISKMARK",
+      "score": 16634.0,
+      "secondary_score": null,
+      "rank_no": 3718,
+      "samples": 2162,
+      "source": {
+        "name": "PassMark",
+        "source_id": "32038",
+        "source_name": "ADATA LEGEND 710 512GB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-adata-legend-860-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 38707.0,
+      "secondary_score": null,
+      "rank_no": 1065,
+      "samples": 375,
+      "source": {
+        "name": "PassMark",
+        "source_id": "40834",
+        "source_name": "ADATA LEGEND 860 2TB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-adata-legend-900-512-gb",
+      "benchmark_type": "DISKMARK",
+      "score": 30855.0,
+      "secondary_score": null,
+      "rank_no": 1659,
+      "samples": 294,
+      "source": {
+        "name": "PassMark",
+        "source_id": "36569",
+        "source_name": "ADATA LEGEND 900 512GB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-adata-ultimate-su650-1-tb-2-5",
+      "benchmark_type": "DISKMARK",
+      "score": 4076.0,
+      "secondary_score": null,
+      "rank_no": 7012,
+      "samples": 13,
+      "source": {
+        "name": "PassMark",
+        "source_id": "36474",
+        "source_name": "ADATA SU650",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_NO_CAPACITY",
+      "match_confidence": 0.7
+    },
+    {
+      "hardware_id": "storage-crucial-t700-w-heatsink-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 64813.0,
+      "secondary_score": null,
+      "rank_no": 143,
+      "samples": 553,
+      "source": {
+        "name": "PassMark",
+        "source_id": "34647",
+        "source_name": "Crucial T700 2TB SSD with heatsink",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-crucial-t705-w-heatsink-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 63505.0,
+      "secondary_score": null,
+      "rank_no": 154,
+      "samples": 483,
+      "source": {
+        "name": "PassMark",
+        "source_id": "37596",
+        "source_name": "Crucial T705 1TB SSD with heatsink",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-fanxiang-s101-2-tb-2-5",
+      "benchmark_type": "DISKMARK",
+      "score": 4246.0,
+      "secondary_score": null,
+      "rank_no": 6739,
+      "samples": 68,
+      "source": {
+        "name": "PassMark",
+        "source_id": "31841",
+        "source_name": "Fanxiang S101 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-fanxiang-s660-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 32607.0,
+      "secondary_score": null,
+      "rank_no": 1498,
+      "samples": 108,
+      "source": {
+        "name": "PassMark",
+        "source_id": "34462",
+        "source_name": "Fanxiang S660 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-kingston-nv3-1-tb-591379",
+      "benchmark_type": "DISKMARK",
+      "score": 36752.0,
+      "secondary_score": null,
+      "rank_no": 1218,
+      "samples": 20693,
+      "source": {
+        "name": "PassMark",
+        "source_id": "39611",
+        "source_name": "KINGSTON NV3 1TB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-kingston-nv3-500-gb",
+      "benchmark_type": "DISKMARK",
+      "score": 27947.0,
+      "secondary_score": null,
+      "rank_no": 1890,
+      "samples": 2670,
+      "source": {
+        "name": "PassMark",
+        "source_id": "39887",
+        "source_name": "KINGSTON NV3 500GB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-kingston-nv3-500-gb-591378",
+      "benchmark_type": "DISKMARK",
+      "score": 27947.0,
+      "secondary_score": null,
+      "rank_no": 1890,
+      "samples": 2670,
+      "source": {
+        "name": "PassMark",
+        "source_id": "39887",
+        "source_name": "KINGSTON NV3 500GB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-kioxia-exceria-plus-g3-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 29775.0,
+      "secondary_score": null,
+      "rank_no": 1752,
+      "samples": 486,
+      "source": {
+        "name": "PassMark",
+        "source_id": "36195",
+        "source_name": "KIOXIA-EXCERIA PLUS G3 SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_NO_CAPACITY",
+      "match_confidence": 0.7
+    },
+    {
+      "hardware_id": "storage-lexar-professional-nm1090-pro-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 79940.0,
+      "secondary_score": null,
+      "rank_no": 49,
+      "samples": 247,
+      "source": {
+        "name": "PassMark",
+        "source_id": "42831",
+        "source_name": "Lexar SSD NM1090 PRO 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-pny-cs2241-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 27912.0,
+      "secondary_score": null,
+      "rank_no": 1892,
+      "samples": 416,
+      "source": {
+        "name": "PassMark",
+        "source_id": "34286",
+        "source_name": "PNY CS2241 1TB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-samsung-870-evo-2-tb-2-5",
+      "benchmark_type": "DISKMARK",
+      "score": 4781.0,
+      "secondary_score": null,
+      "rank_no": 6264,
+      "samples": 1229,
+      "source": {
+        "name": "PassMark",
+        "source_id": "27911",
+        "source_name": "Samsung SSD 870 EVO 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-samsung-870-evo-4-tb-2-5",
+      "benchmark_type": "DISKMARK",
+      "score": 7096.0,
+      "secondary_score": null,
+      "rank_no": 5886,
+      "samples": 235,
+      "source": {
+        "name": "PassMark",
+        "source_id": "28275",
+        "source_name": "Samsung SSD 870 EVO 4TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-samsung-870-qvo-2-tb-2-5",
+      "benchmark_type": "DISKMARK",
+      "score": 3986.0,
+      "secondary_score": null,
+      "rank_no": 7230,
+      "samples": 820,
+      "source": {
+        "name": "PassMark",
+        "source_id": "26726",
+        "source_name": "Samsung SSD 870 QVO 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-samsung-970-evo-plus-500-gb",
+      "benchmark_type": "DISKMARK",
+      "score": 20199.0,
+      "secondary_score": null,
+      "rank_no": 2938,
+      "samples": 22758,
+      "source": {
+        "name": "PassMark",
+        "source_id": "22823",
+        "source_name": "Samsung SSD 970 EVO Plus 500GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-samsung-980-pro-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 41263.0,
+      "secondary_score": null,
+      "rank_no": 851,
+      "samples": 17683,
+      "source": {
+        "name": "PassMark",
+        "source_id": "27720",
+        "source_name": "Samsung SSD 980 PRO 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-samsung-990-evo-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 28121.0,
+      "secondary_score": null,
+      "rank_no": 1881,
+      "samples": 1547,
+      "source": {
+        "name": "PassMark",
+        "source_id": "37171",
+        "source_name": "Samsung SSD 990 EVO 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-western-digital-black-sn850-2-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 43220.0,
+      "secondary_score": null,
+      "rank_no": 705,
+      "samples": 2102,
+      "source": {
+        "name": "PassMark",
+        "source_id": "27349",
+        "source_name": "WD BLACK SN850 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-western-digital-green-sn350-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 21213.0,
+      "secondary_score": null,
+      "rank_no": 2677,
+      "samples": 2591,
+      "source": {
+        "name": "PassMark",
+        "source_id": "29655",
+        "source_name": "WD Green SN350 1TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-western-digital-wd-black-sn7100-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 47061.0,
+      "secondary_score": null,
+      "rank_no": 468,
+      "samples": 3270,
+      "source": {
+        "name": "PassMark",
+        "source_id": "41138",
+        "source_name": "WD BLACK SN7100 1TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-western-digital-wd-black-sn8100-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 82369.0,
+      "secondary_score": null,
+      "rank_no": 36,
+      "samples": 613,
+      "source": {
+        "name": "PassMark",
+        "source_id": "44340",
+        "source_name": "WD BLACK SN8100 1000GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-western-digital-wd-black-sn850p-for-ps5-1-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 44209.0,
+      "secondary_score": null,
+      "rank_no": 642,
+      "samples": 80,
+      "source": {
+        "name": "PassMark",
+        "source_id": "36274",
+        "source_name": "WD BLACK SN850P for PS5 1000GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-western-digital-wd-black-sn850x-w-heatsink-4-tb",
+      "benchmark_type": "DISKMARK",
+      "score": 51374.0,
+      "secondary_score": null,
+      "rank_no": 283,
+      "samples": 4062,
+      "source": {
+        "name": "PassMark",
+        "source_id": "31881",
+        "source_name": "WD BLACK SN850X 4TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "gpu-colorful-igame-rtx-5070-ultra-w-oc-12gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 28659.0,
+      "secondary_score": 1289.0,
+      "rank_no": 27,
+      "samples": 23518,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5940",
+        "source_name": "GeForce RTX 5070",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "gpu-colorful-zhanfu-rtx-5060-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-colorful-zhanfu-rtx-5060-8gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-galax-metal-master-rtx-5060-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-galax-sacred-blade-rtx-5060-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-galax-demon-blade-rtx-5060-8gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-gainward-chasing-wind-rtx-5060-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 22609.0,
+      "secondary_score": 1204.0,
+      "rank_no": 68,
+      "samples": 11942,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6160",
+        "source_name": "GeForce RTX 5060 Ti 16GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET_VRAM",
+      "match_confidence": 1.0
+    },
+    {
+      "hardware_id": "gpu-maxsun-terminator-rtx-5060-8gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 21885.0,
+      "secondary_score": 1162.0,
+      "rank_no": 78,
+      "samples": 4494,
+      "source": {
+        "name": "PassMark",
+        "source_id": "6441",
+        "source_name": "GeForce RTX 5060 Ti 8GB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "CHIPSET_AND_VRAM",
+      "match_confidence": 0.98
+    },
+    {
+      "hardware_id": "gpu-maxsun-icraft-rtx-5070-ti-16gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 32330.0,
+      "secondary_score": 1322.0,
+      "rank_no": 14,
+      "samples": 21860,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5878",
+        "source_name": "GeForce RTX 5070 Ti",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "gpu-maxsun-icraft-rtx-5070-12gb",
+      "benchmark_type": "G3D_MARK",
+      "score": 28659.0,
+      "secondary_score": 1289.0,
+      "rank_no": 27,
+      "samples": 23518,
+      "source": {
+        "name": "PassMark",
+        "source_id": "5940",
+        "source_name": "GeForce RTX 5070",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "EXACT_CHIPSET",
+      "match_confidence": 0.95
+    },
+    {
+      "hardware_id": "storage-zhi-tai-tiplus7100-2tb",
+      "benchmark_type": "DISKMARK",
+      "score": 48171.0,
+      "secondary_score": null,
+      "rank_no": 405,
+      "samples": 186,
+      "source": {
+        "name": "PassMark",
+        "source_id": "33359",
+        "source_name": "ZHITAI TiPlus7100 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-fanxiang-s500pro-2tb",
+      "benchmark_type": "DISKMARK",
+      "score": 20620.0,
+      "secondary_score": null,
+      "rank_no": 2835,
+      "samples": 238,
+      "source": {
+        "name": "PassMark",
+        "source_id": "32229",
+        "source_name": "Fanxiang S500 PRO 2TB SSD",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-biwin-nv7400-2tb",
+      "benchmark_type": "DISKMARK",
+      "score": 42426.0,
+      "secondary_score": null,
+      "rank_no": 768,
+      "samples": 59,
+      "source": {
+        "name": "PassMark",
+        "source_id": "40405",
+        "source_name": "BIWIN NV7400 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-zhi-tai-tiplus7100-1tb",
+      "benchmark_type": "DISKMARK",
+      "score": 46140.0,
+      "secondary_score": null,
+      "rank_no": 522,
+      "samples": 69,
+      "source": {
+        "name": "PassMark",
+        "source_id": "32835",
+        "source_name": "ZHITAI TiPlus7100 1TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-zhi-tai-tiplus7100s-2tb",
+      "benchmark_type": "DISKMARK",
+      "score": 51525.0,
+      "secondary_score": null,
+      "rank_no": 278,
+      "samples": 22,
+      "source": {
+        "name": "PassMark",
+        "source_id": "47620",
+        "source_name": "ZHITAI TiPlus7100s 2TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
+    },
+    {
+      "hardware_id": "storage-biwin-nv7400-1tb",
+      "benchmark_type": "DISKMARK",
+      "score": 41345.0,
+      "secondary_score": null,
+      "rank_no": 844,
+      "samples": 149,
+      "source": {
+        "name": "PassMark",
+        "source_id": "40303",
+        "source_name": "BIWIN NV7400 1TB",
+        "snapshot_date": "2026-10-05"
+      },
+      "match_method": "DISK_MODEL_TOKENS",
+      "match_confidence": 0.9
     }
   ],
   "unmatched": [
     {
-      "hardware_id": "gpu-arc-a310-4gb",
-      "model_name": "Arc A310 4GB"
+      "hardware_id": "storage-adata-legend-960-max-1-tb",
+      "model_name": "ADATA LEGEND 960 MAX 1 TB"
     },
     {
-      "hardware_id": "gpu-arc-a310-4gb-555927",
-      "model_name": "Arc A310 4GB"
+      "hardware_id": "storage-corsair-mp600-pro-lpx-1-tb",
+      "model_name": "Corsair MP600 PRO LPX 1 TB"
     },
     {
-      "hardware_id": "gpu-arc-a380-6gb",
-      "model_name": "Arc A380 6GB"
+      "hardware_id": "storage-crucial-p510-1-tb",
+      "model_name": "Crucial P510 1 TB"
     },
     {
-      "hardware_id": "gpu-arc-a380-6gb-469115",
-      "model_name": "Arc A380 6GB"
+      "hardware_id": "storage-seagate-barracuda-1-tb-3-5-7200-rpm-internal-hard-drive",
+      "model_name": "Seagate BarraCuda 1 TB 3.5\" 7200 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-a580-8gb",
-      "model_name": "Arc A580 8GB"
+      "hardware_id": "storage-seagate-barracuda-500-gb-2-5-5400-rpm-internal-hard-drive",
+      "model_name": "Seagate BarraCuda 500 GB 2.5\" 5400 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-a580-8gb-492546",
-      "model_name": "Arc A580 8GB"
+      "hardware_id": "storage-seagate-ironwolf-nas-4-tb-3-5-5400-rpm-internal-hard-drive",
+      "model_name": "Seagate IronWolf NAS 4 TB 3.5\" 5400 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-a750-8gb",
-      "model_name": "Arc A750 8GB"
+      "hardware_id": "storage-seagate-ironwolf-pro-28-tb-3-5-7200-rpm-internal-hard-drive",
+      "model_name": "Seagate IronWolf Pro 28 TB 3.5\" 7200 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-a750-8gb-469113",
-      "model_name": "Arc A750 8GB"
+      "hardware_id": "storage-seagate-ironwolf-pro-nas-8-tb-3-5-7200-rpm-internal-hard-drive",
+      "model_name": "Seagate IronWolf Pro NAS 8 TB 3.5\" 7200 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-a750-8gb-524720",
-      "model_name": "Arc A750 8GB"
+      "hardware_id": "storage-teamgroup-gx2-512-gb-2-5",
+      "model_name": "TEAMGROUP GX2 512 GB 2.5\""
     },
     {
-      "hardware_id": "gpu-arc-b570-10gb",
-      "model_name": "Arc B570 10GB"
+      "hardware_id": "storage-teamgroup-t-force-g50-1-tb",
+      "model_name": "TEAMGROUP T-FORCE G50 1 TB"
     },
     {
-      "hardware_id": "gpu-arc-b570-10gb-566409",
-      "model_name": "Arc B570 10GB"
+      "hardware_id": "storage-toshiba-l200-2-tb-2-5-5400-rpm-internal-hard-drive",
+      "model_name": "Toshiba L200 2 TB 2.5\" 5400 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-b580-12gb",
-      "model_name": "Arc B580 12GB"
+      "hardware_id": "storage-toshiba-n300-18-tb-3-5-7200-rpm-internal-hard-drive",
+      "model_name": "Toshiba N300 18 TB 3.5\" 7200 RPM Internal Hard Drive"
     },
     {
-      "hardware_id": "gpu-arc-b580-12gb-558723",
-      "model_name": "Arc B580 12GB"
+      "hardware_id": "storage-toshiba-p300-6-tb-3-5-5400-rpm-internal-hard-drive",
+      "model_name": "Toshiba P300 6 TB 3.5\" 5400 RPM Internal Hard Drive"
+    },
+    {
+      "hardware_id": "storage-western-digital-black-8-tb-3-5-7200-rpm-internal-hard-drive",
+      "model_name": "Western Digital Black 8 TB 3.5\" 7200 RPM Internal Hard Drive"
+    },
+    {
+      "hardware_id": "storage-western-digital-re-2-tb-3-5-7200-rpm-internal-hard-drive",
+      "model_name": "Western Digital RE 2 TB 3.5\" 7200 RPM Internal Hard Drive"
+    },
+    {
+      "hardware_id": "storage-western-digital-red-plus-2-tb-3-5-5400-rpm-internal-hard-drive",
+      "model_name": "Western Digital Red Plus 2 TB 3.5\" 5400 RPM Internal Hard Drive"
+    },
+    {
+      "hardware_id": "storage-western-digital-wd-black-8-tb-3-5-7200-rpm-internal-hard-drive-406866",
+      "model_name": "Western Digital WD_BLACK 8 TB 3.5\" 7200 RPM Internal Hard Drive"
+    },
+    {
+      "hardware_id": "storage-western-digital-wd-blue-4-tb-3-5-5400-rpm-internal-hard-drive",
+      "model_name": "Western Digital WD Blue 4 TB 3.5\" 5400 RPM Internal Hard Drive"
+    },
+    {
+      "hardware_id": "storage-kioxia-vd10-2tb",
+      "model_name": "VD10 2TB"
+    },
+    {
+      "hardware_id": "storage-kingbank-kp260-2tb",
+      "model_name": "KP260 2TB"
+    },
+    {
+      "hardware_id": "storage-kioxia-vd10-1tb",
+      "model_name": "VD10 1TB"
     }
   ]
 }
