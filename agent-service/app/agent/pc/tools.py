@@ -35,8 +35,11 @@ MAX_CATEGORY_CALLS_PER_TURN = 12
 MAX_SOLVE_CALLS_PER_TURN = 3
 # Architect 首次组装 + 两次修正各一次，配额留出余量
 MAX_COMPOSE_CALLS_PER_TURN = 3
+# 增量校验只检查已选核心组件，单轮配额由节点按 AGENT__ARCHITECT_MAX_PARTIAL_CHECKS 再收一层
+MAX_PARTIAL_CHECKS_PER_TURN = 4
 # 组装不遍历组合，但会落快照；超时仍按 30 秒兜底
 COMPOSE_TIMEOUT_SECONDS = 30
+PARTIAL_CHECK_TIMEOUT_SECONDS = 30
 
 # PC 业务错误 → (失败类型, 是否允许模型修正)
 _COMPOSE_FAILURES: dict[str, tuple[str, bool]] = {
@@ -269,3 +272,43 @@ async def validate_pc_build(
         "storage": storage,
     }
     return await _call_client(get_pc_client().validate(hardware_ids))
+
+
+@register_tool(
+    name="check_partial_compatibility",
+    description=(
+        "校验部分已选组件的兼容性，可在提交整机前发现冲突；"
+        "只跑依赖类别都已选的规则，UNKNOWN 表示尚未验证，不能当作通过。"
+    ),
+    timeout_seconds=PARTIAL_CHECK_TIMEOUT_SECONDS,
+    max_output_tokens=4000,
+    max_calls_per_turn=MAX_PARTIAL_CHECKS_PER_TURN,
+)
+async def check_partial_compatibility(
+    cpu: str | None = None,
+    motherboard: str | None = None,
+    memory: str | None = None,
+    gpu: str | None = None,
+    psu: str | None = None,
+    case: str | None = None,
+    cooler: str | None = None,
+    storage: str | None = None,
+) -> dict[str, object]:
+    """任意子集校验；至少传入一项，空集合不能伪装成「通过」。"""
+    components = {
+        category: hardware_id
+        for category, hardware_id in (
+            ("cpu", cpu),
+            ("motherboard", motherboard),
+            ("memory", memory),
+            ("gpu", gpu),
+            ("psu", psu),
+            ("case", case),
+            ("cooler", cooler),
+            ("storage", storage),
+        )
+        if hardware_id
+    }
+    if not components:
+        raise ToolExecutionError("增量校验至少需要一个已选组件")
+    return await _call_client(get_pc_client().validate_partial(components))

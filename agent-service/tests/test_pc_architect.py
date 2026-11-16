@@ -25,6 +25,7 @@ from app.agent.pc.renderer import render_failure_markdown
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildProposal,
+    BuildStrategy,
     SelectedComponent,
 )
 from app.agent.pc.status import (
@@ -76,6 +77,11 @@ def _proposal(overrides: dict[str, str] | None = None) -> BuildProposal:
             for category in REQUIRED_CATEGORIES
         ]
     )
+
+
+def _strategy() -> BuildStrategy:
+    """策略调用固定返回合法策略；本文件的断言只关心选型行为。"""
+    return BuildStrategy(strategy_id="BALANCED", rationale_summary="按均衡策略组装。")
 
 
 def _compose_build() -> dict[str, Any]:
@@ -139,8 +145,8 @@ class ArchitectModel:
         return AIMessage(content=REQUIREMENT_JSON)
 
     def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
-        del schema, include_raw
-        return _StructuredRunnable(self)
+        del include_raw
+        return _StructuredRunnable(self, schema)
 
     async def astream(
         self, messages: Any, config: Any = None, **_kwargs: Any
@@ -149,11 +155,16 @@ class ArchitectModel:
 
 
 class _StructuredRunnable:
-    def __init__(self, model: ArchitectModel) -> None:
+    """按 Schema 分派：策略调用不占用提案队列，也不计入选型调用次数。"""
+
+    def __init__(self, model: ArchitectModel, schema: Any) -> None:
         self._model = model
+        self._schema = schema
 
     async def ainvoke(self, messages: Any, config: Any = None) -> Any:
         del config
+        if self._schema is BuildStrategy:
+            return {"raw": AIMessage(content="{}"), "parsed": _strategy(), "parsing_error": None}
         self._model.structured_calls += 1
         human = next(
             (str(message.content) for message in messages if isinstance(message, HumanMessage)),

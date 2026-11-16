@@ -282,6 +282,8 @@ class AgentSettings(BaseModel):
     max_solve_retries: int = Field(default=1, ge=0, le=2)
     # PC 选型模式：llm 走 Build Architect（默认）；solver 为显式降级的确定性求解器
     pc_selection_mode: Literal["solver", "llm"] = "llm"
+    # 每回合允许的增量兼容性校验次数（0 表示关闭）；工具自身还有单轮配额兜底
+    architect_max_partial_checks: int = Field(default=2, ge=0, le=4)
     # 工具默认超时（秒）；单个工具可在注册时覆盖
     tool_timeout_seconds: float = Field(default=10.0, gt=0)
     # 工具失败后的重试次数；0 表示不重试

@@ -124,6 +124,93 @@ class RequirementExtraction(PCRequirements):
     """LLM 结构化输出的形状；与状态里的需求保持同一份 Schema。"""
 
 
+class StrategyId(StrEnum):
+    """配置策略标识；只决定解题方向，不决定具体型号。"""
+
+    GPU_FIRST = "GPU_FIRST"
+    CPU_FIRST = "CPU_FIRST"
+    BALANCED = "BALANCED"
+    QUIET = "QUIET"
+    POWER_EFFICIENT = "POWER_EFFICIENT"
+    UPGRADEABLE = "UPGRADEABLE"
+    VALUE = "VALUE"
+
+
+class BudgetTendency(StrEnum):
+    """类别预算倾向：只有方向，没有金额，避免被当成硬预算表。"""
+
+    HIGHER = "HIGHER"
+    BALANCED = "BALANCED"
+    LOWER = "LOWER"
+
+
+# Stage 2 不启用 Specialist：激活计划只允许为空或明确标注 deferred
+ACTIVATION_PLAN_DEFERRED = "deferred"
+
+
+class BudgetGuidance(BaseModel):
+    """单个类别的预算软倾向；金额一律由 Java 决定，模型不得给出预算数字。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: HardwareCategory
+    tendency: BudgetTendency
+    note: str = Field(default="", max_length=120)
+
+
+class ComponentPriority(BaseModel):
+    """组件优先关注点，例如「显存容量优先于频率」。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: HardwareCategory
+    focus: str = Field(min_length=1, max_length=120)
+
+
+class BuildStrategy(BaseModel):
+    """策略节点产物；属于软规划，不得覆盖用户硬约束与 Java 预算校验。
+
+    `budget_allocation_guidance` 只表达类别之间的取向（更高/均衡/更低），
+    禁止出现金额，也不能被 Architect 当成必须服从的硬预算。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    strategy_id: StrategyId
+    rationale_summary: str = Field(min_length=1, max_length=MAX_REASON_SUMMARY_LENGTH)
+    budget_allocation_guidance: list[BudgetGuidance] = Field(
+        default_factory=list, max_length=8
+    )
+    component_priorities: list[ComponentPriority] = Field(
+        default_factory=list, max_length=8
+    )
+    tradeoff_policy: list[str] = Field(default_factory=list, max_length=5)
+    retrieval_notes: list[str] = Field(default_factory=list, max_length=5)
+    activation_plan: str | None = Field(default=None, max_length=200)
+
+    @field_validator("activation_plan")
+    @classmethod
+    def _only_deferred_activation(cls, value: str | None) -> str | None:
+        """Stage 2 还没有 Specialist：只接受空值或 deferred，其他值视为非法输出。"""
+        if value is None:
+            return None
+        trimmed = value.strip()
+        if not trimmed:
+            return None
+        if trimmed.lower().startswith(ACTIVATION_PLAN_DEFERRED):
+            return ACTIVATION_PLAN_DEFERRED
+        raise ValueError("activation_plan 只允许为空或 deferred")
+
+    @model_validator(mode="after")
+    def _validate_unique_categories(self) -> "BuildStrategy":
+        """同一类别只允许一条倾向/优先点，重复会让策略自相矛盾。"""
+        for field_name in ("budget_allocation_guidance", "component_priorities"):
+            categories = [entry.category for entry in getattr(self, field_name)]
+            if len(set(categories)) != len(categories):
+                raise ValueError(f"{field_name} 存在重复类别")
+        return self
+
+
 class SelectedComponent(BaseModel):
     """Architect 提案里的单个组件。
 

@@ -55,10 +55,14 @@ from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildProposal,
     BuildScenario,
+    BuildStrategy,
+    ComponentPriority,
+    HardwareCategory,
     PCRequirements,
     Preference,
     RenderMode,
     RequirementExtraction,
+    StrategyId,
 )
 from app.agent.pc.state import PCConfigState
 from app.agent.pc.status import (
@@ -83,6 +87,8 @@ from app.agent.pc.status import (
     STATUS_SUCCESS,
     STATUS_UPSTREAM_ERROR,
     STATUS_VALIDATED,
+    STRATEGY_SOURCE_DEFAULT,
+    STRATEGY_SOURCE_MODEL,
 )
 from app.agent.registry import ToolExecutionError, get_governed_tool
 from app.core.config import get_settings
@@ -149,6 +155,21 @@ _PREFERENCE_KEYWORDS: tuple[tuple[Preference, tuple[str, ...]], ...] = (
 
 # Architect 修正上限：首次提案之外最多再修正两次，避免无限重选
 ARCHITECT_MAX_REPAIRS = 2
+# 增量校验覆盖的核心组件：插槽、内存代际、显卡供电等冲突都在这一组里交叉判定
+ARCHITECT_PARTIAL_CORE_CATEGORIES: tuple[HardwareCategory, ...] = (
+    HardwareCategory.CPU,
+    HardwareCategory.MOTHERBOARD,
+    HardwareCategory.MEMORY,
+    HardwareCategory.GPU,
+)
+# 模型不可用时的确定性默认策略；来源标记为 DEFAULT，不得伪装成模型产物
+DEFAULT_STRATEGY_RATIONALE = "未获得可用策略，按预算内性能与价格平衡的默认方向组装。"
+DEFAULT_STRATEGY_TRADEOFFS: tuple[str, ...] = (
+    "预算上限不可突破；出现冲突时优先保证核心性能，其次考虑静音与升级空间。",
+)
+# 部分校验状态：只有 FAIL 触发修正，UNKNOWN 只记录
+PARTIAL_STATUS_FAIL = "FAIL"
+PARTIAL_STATUS_UNKNOWN = "UNKNOWN"
 # 候选清单注入模型的摘要字段；与 `_candidate_summary` 的白名单保持一致
 _ARCHITECT_SPEC_FIELDS: tuple[tuple[str, str], ...] = (
     ("socket", "插槽"),
@@ -454,6 +475,54 @@ async def requirement_validator(state: PCConfigState) -> dict[str, Any]:
         "validation_result": {"status": "ok", "message": None, "missing_fields": []},
         "requirements": requirements.model_dump(),
         "workflow_status": STATUS_VALIDATED,
+    }
+
+
+def default_build_strategy() -> BuildStrategy:
+    """确定性默认策略；只在模型不可用或输出非法时使用。"""
+    return BuildStrategy(
+        strategy_id=StrategyId.BALANCED,
+        rationale_summary=DEFAULT_STRATEGY_RATIONALE,
+        component_priorities=[
+            ComponentPriority(category=HardwareCategory.CPU, focus="多核性能与平台扩展"),
+            ComponentPriority(category=HardwareCategory.GPU, focus="图形性能与显存容量"),
+        ],
+        tradeoff_policy=list(DEFAULT_STRATEGY_TRADEOFFS),
+    )
+
+
+async def build_strategist(
+    state: PCConfigState,
+    config: RunnableConfig,
+    *,
+    model: BaseChatModel | None,
+    agent_id: str,
+    strategist_prompt: str,
+) -> dict[str, Any]:
+    """制定配置策略；模型不可用或 Schema 非法时退化为默认策略，不阻断回合。"""
+    strategy = await invoke_model_structured(
+        model,
+        [
+            SystemMessage(content=strategist_prompt),
+            HumanMessage(content=_requirements_text(as_mapping(state.get("requirements")))),
+        ],
+        schema=BuildStrategy,
+        config=config,
+        agent_id=agent_id,
+        purpose="build_strategist",
+    )
+    if strategy is None:
+        # 兜底不阻断，但必须如实标记来源：默认策略不能伪装成模型产出
+        logger.warning("pc.strategy_defaulted", reason="model_unavailable_or_invalid")
+        fallback = default_build_strategy()
+        return {
+            "build_strategy": fallback.model_dump(mode="json"),
+            "strategy_source": STRATEGY_SOURCE_DEFAULT,
+        }
+    logger.info("pc.strategy_selected", strategy_id=strategy.strategy_id.value)
+    return {
+        "build_strategy": strategy.model_dump(mode="json"),
+        "strategy_source": STRATEGY_SOURCE_MODEL,
     }
 
 
@@ -868,7 +937,7 @@ def _architect_fen_text(value: Any) -> str:
     return "未设置"
 
 
-def _architect_requirements_text(requirements: dict[str, Any]) -> str:
+def _requirements_text(requirements: dict[str, Any]) -> str:
     """只给结构化需求，不把用户原文当成可覆盖系统规则的指令。"""
     preference = as_text(requirements.get("preference"), "未指定")
     render_mode = as_text(requirements.get("render_mode"), "未指定")
@@ -891,6 +960,22 @@ def _architect_requirements_text(requirements: dict[str, Any]) -> str:
 _QUALITY_DIRECTION_LABELS: dict[str, str] = {
     "increase": "提高（不低于目标值）",
     "decrease": "降低（不高于目标值）",
+}
+
+# 策略标识的中文说明只用于提示词可读性，不参与任何路由判断
+_STRATEGY_LABELS: dict[str, str] = {
+    "GPU_FIRST": "图形优先",
+    "CPU_FIRST": "处理器优先",
+    "BALANCED": "均衡",
+    "QUIET": "静音优先",
+    "POWER_EFFICIENT": "低功耗优先",
+    "UPGRADEABLE": "升级优先",
+    "VALUE": "性价比优先",
+}
+_STRATEGY_TENDENCY_LABELS: dict[str, str] = {
+    "HIGHER": "更充裕",
+    "BALANCED": "居中",
+    "LOWER": "更节制",
 }
 
 
@@ -996,9 +1081,65 @@ def _architect_repair_text(failure: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _categories_with_values(mapping: dict[str, str]) -> str:
+    """渲染「类别=值」列表；空映射返回空串，避免提示词出现空行。"""
+    return "；".join(f"{category}={value}" for category, value in mapping.items() if value)
+
+
+def _strategy_summary_lines(strategy: dict[str, Any]) -> list[str]:
+    raw_id = as_text(strategy.get("strategy_id"))
+    priorities = {
+        as_text(as_mapping(item).get("category")): as_text(as_mapping(item).get("focus"))
+        for item in as_list(strategy.get("component_priorities"))
+        if as_mapping(item)
+    }
+    tendencies = {
+        as_text(as_mapping(item).get("category")): _STRATEGY_TENDENCY_LABELS.get(
+            as_text(as_mapping(item).get("tendency")), ""
+        )
+        for item in as_list(strategy.get("budget_allocation_guidance"))
+        if as_mapping(item)
+    }
+    lines = [
+        f"- 策略：{raw_id}（{_STRATEGY_LABELS.get(raw_id, '未分类')}）",
+        f"- 方向说明：{as_text(strategy.get('rationale_summary'), '未提供')}",
+    ]
+    if priorities:
+        lines.append(f"- 组件关注点：{_categories_with_values(priorities)}")
+    if tendencies:
+        lines.append(
+            f"- 预算倾向（仅类别之间的软取向，不是预算表）：{_categories_with_values(tendencies)}"
+        )
+    policies = [as_text(item) for item in as_list(strategy.get("tradeoff_policy")) if as_text(item)]
+    if policies:
+        lines.append(f"- 权衡原则：{'；'.join(policies)}")
+    notes = [as_text(item) for item in as_list(strategy.get("retrieval_notes")) if as_text(item)]
+    if notes:
+        lines.append(f"- 补充关注点：{'；'.join(notes)}")
+    return lines
+
+
+def _strategy_text(state: PCConfigState) -> str:
+    """把策略摘要注入 Architect 上下文；预算倾向只给方向，不给金额。"""
+    strategy = as_mapping(state.get("build_strategy"))
+    if not strategy:
+        return ""
+    lines = ["## 配置策略（软规划）", *_strategy_summary_lines(strategy)]
+    if as_text(state.get("strategy_source")) == STRATEGY_SOURCE_DEFAULT:
+        lines.append("- 策略来源：模型未返回可用策略，当前为确定性默认策略（DEFAULT）。")
+    else:
+        lines.append("- 策略来源：模型产出（MODEL）。")
+    lines.append(
+        "- 约束：策略是软倾向，不得覆盖预算上限、用户硬约束与 Java 校验结果，"
+        "也不得据此推算或填入任何预算金额。"
+    )
+    return "\n".join(lines)
+
+
 def _architect_context(state: PCConfigState, failure: dict[str, Any]) -> str:
     sections = [
-        _architect_requirements_text(as_mapping(state.get("requirements"))),
+        _requirements_text(as_mapping(state.get("requirements"))),
+        _strategy_text(state),
         _architect_quality_feedback_text(as_mapping(state.get("quality_feedback"))),
         _architect_catalog_text(as_mapping(state.get("candidate_sets"))),
         _architect_repair_text(failure),
@@ -1035,10 +1176,30 @@ def _architect_failure(
     }
 
 
+@dataclass
+class _ArchitectSession:
+    """一次 Architect 节点执行的可变上下文，避免循环里传递大量参数。"""
+
+    requirements: dict[str, Any]
+    candidate_sets: dict[str, Any]
+    events: list[dict[str, Any]]
+    partial_reports: list[dict[str, Any]]
+    partial_checks: int
+    repair_count: int
+    max_partial_checks: int
+
+    def can_repair(self) -> bool:
+        """修正次数上限对所有失败类型统一生效。"""
+        return self.repair_count < ARCHITECT_MAX_REPAIRS
+
+    def bump_repair(self, failure: dict[str, Any]) -> dict[str, Any]:
+        self.repair_count += 1
+        return {**failure, "repair_attempt": self.repair_count}
+
+
 def _architect_failure_update(
     failure: dict[str, Any],
-    repair_count: int,
-    events: list[dict[str, Any]],
+    session: _ArchitectSession,
     proposal: BuildProposal | None,
 ) -> dict[str, Any]:
     """失败必须清空上一轮方案，禁止把未验证结果带到渲染与前端。"""
@@ -1048,9 +1209,11 @@ def _architect_failure_update(
         "build_result": None,
         "compatibility_report": None,
         "build_proposal": proposal.model_dump(mode="json") if proposal is not None else None,
-        "architect_repair_count": repair_count,
+        "architect_repair_count": session.repair_count,
+        "partial_compatibility_reports": session.partial_reports,
+        "partial_check_count": session.partial_checks,
         "selection_mode": SELECTION_MODE_LLM,
-        "tool_events": events,
+        "tool_events": session.events,
     }
 
 
@@ -1074,6 +1237,158 @@ def _proposal_hardware_args(proposal: BuildProposal) -> dict[str, Any]:
         component.category.value.lower(): component.hardware_id
         for component in proposal.selected_components
     }
+
+
+def _partial_check_args(proposal: BuildProposal) -> dict[str, str]:
+    """只提交核心组件：插槽、内存代际与显卡供电的依赖都落在这一组。"""
+    return {
+        component.category.value.lower(): component.hardware_id
+        for component in proposal.selected_components
+        if component.category in ARCHITECT_PARTIAL_CORE_CATEGORIES
+    }
+
+
+def _partial_unknown(rule_id: str) -> dict[str, Any]:
+    """校验不可用时如实返回 UNKNOWN；不能省略状态让调用方误判为通过。"""
+    return {
+        "overallStatus": PARTIAL_STATUS_UNKNOWN,
+        "checks": [
+            {
+                "ruleId": rule_id,
+                "status": PARTIAL_STATUS_UNKNOWN,
+                "componentIds": [],
+                "missingFields": [],
+            }
+        ],
+    }
+
+
+def _partial_report(data: dict[str, Any]) -> dict[str, Any] | None:
+    """裁剪 Java 响应：只保留规则标识、状态、关联组件与缺失字段。"""
+    overall = as_text(data.get("overallStatus")).upper()
+    if overall not in {"PASS", "WARNING", PARTIAL_STATUS_FAIL, PARTIAL_STATUS_UNKNOWN}:
+        return None
+    checks: list[dict[str, Any]] = []
+    for item in as_list(data.get("checks")):
+        check = as_mapping(item)
+        rule_id = as_text(check.get("ruleId"))
+        if not rule_id:
+            continue
+        checks.append(
+            {
+                "ruleId": rule_id,
+                "status": as_text(check.get("status")).upper(),
+                "componentIds": [
+                    as_text(raw) for raw in as_list(check.get("componentIds")) if as_text(raw)
+                ],
+                "missingFields": [
+                    as_text(raw) for raw in as_list(check.get("missingFields")) if as_text(raw)
+                ],
+            }
+        )
+    return {"overallStatus": overall, "checks": checks}
+
+
+async def _run_partial_check(
+    proposal: BuildProposal, events: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    """调用增量校验；返回 None 表示本次没有发生调用（不占用配额）。"""
+    args = _partial_check_args(proposal)
+    tool = get_governed_tool("check_partial_compatibility") if args else None
+    if tool is None:
+        logger.warning("pc.partial_check_unavailable", reason="tool_missing_or_no_components")
+        return None
+
+    events.append(_tool_start("check_partial_compatibility", dict(args)))
+    data, error = await _call_tool(tool, args)
+    if error is not None or data is None:
+        events.append(_tool_end("check_partial_compatibility", error or "校验失败"))
+        return _partial_unknown("partial_check_unavailable")
+    report = _partial_report(data)
+    if report is None:
+        events.append(_tool_end("check_partial_compatibility", "返回结构异常"))
+        return _partial_unknown("partial_check_invalid_payload")
+    events.append(
+        _tool_end("check_partial_compatibility", f"部分兼容性 {report['overallStatus']}")
+    )
+    return report
+
+
+def _failed_check_categories(
+    report: dict[str, Any], proposal: BuildProposal
+) -> tuple[list[str], list[str]]:
+    """把失败规则的组件标识映射成类别；返回 (类别, 规则标识)。"""
+    category_by_id = {
+        component.hardware_id.lower(): component.category.value
+        for component in proposal.selected_components
+    }
+    all_categories = {category.value for category in REQUIRED_CATEGORIES}
+    categories: list[str] = []
+    rule_ids: list[str] = []
+    for item in as_list(report.get("checks")):
+        check = as_mapping(item)
+        if as_text(check.get("status")) != PARTIAL_STATUS_FAIL:
+            continue
+        rule_id = as_text(check.get("ruleId"))
+        if rule_id and rule_id not in rule_ids:
+            rule_ids.append(rule_id)
+        for raw in as_list(check.get("componentIds")):
+            token = as_text(raw)
+            if not token:
+                continue
+            category = category_by_id.get(token.lower()) or (
+                token.upper() if token.upper() in all_categories else ""
+            )
+            if category and category not in categories:
+                categories.append(category)
+    return categories, rule_ids
+
+
+def _partial_failure(
+    report: dict[str, Any], proposal: BuildProposal, repair_count: int
+) -> dict[str, Any] | None:
+    """只有 FAIL 生成修正反馈；UNKNOWN 不得当作通过，也不强制重选。"""
+    if as_text(report.get("overallStatus")) != PARTIAL_STATUS_FAIL:
+        return None
+    categories, rule_ids = _failed_check_categories(report, proposal)
+    if not categories:
+        # 规则没给出可定位的组件：按本次检查范围处理，避免凭空点名其他类别
+        categories = [category.value for category in ARCHITECT_PARTIAL_CORE_CATEGORIES]
+    affected = set(categories)
+    hardware_ids = [
+        component.hardware_id
+        for component in proposal.selected_components
+        if component.category.value in affected
+    ]
+    return _architect_failure(
+        FAILURE_COMPATIBILITY_CONFLICT,
+        message="增量校验发现已选核心组件冲突：" + "、".join(rule_ids or ["compatibility_rules"]),
+        categories=categories,
+        hardware_ids=hardware_ids,
+        rule_ids=tuple(rule_ids) or ("compatibility_rules",),
+        preserve=[
+            category.value
+            for category in REQUIRED_CATEGORIES
+            if category.value not in affected
+        ],
+        repair_attempt=repair_count,
+    )
+
+
+async def _partial_gate(
+    proposal: BuildProposal, session: _ArchitectSession
+) -> dict[str, Any] | None:
+    """提交整机前的增量校验；返回 FAIL 修正反馈，其余情况返回 None 继续组装。"""
+    if session.partial_checks >= session.max_partial_checks:
+        return None
+    report = await _run_partial_check(proposal, session.events)
+    if report is None:
+        return None
+    session.partial_checks += 1
+    session.partial_reports.append(report)
+    if as_text(report.get("overallStatus")) == PARTIAL_STATUS_UNKNOWN:
+        logger.info("pc.partial_check_unknown", checked=len(session.partial_reports))
+    return _partial_failure(report, proposal, session.repair_count)
 
 
 def _normalize_compose_build(data: dict[str, Any]) -> dict[str, Any] | None:
@@ -1222,12 +1537,11 @@ def _architect_candidate_failure(
 def _architect_success_update(
     proposal: BuildProposal,
     build: dict[str, Any],
-    events: list[dict[str, Any]],
-    repair_count: int,
+    session: _ArchitectSession,
 ) -> dict[str, Any]:
     return {
         "workflow_status": STATUS_SUCCESS,
-        "tool_events": events,
+        "tool_events": session.events,
         "build_result": build,
         "build_failure": None,
         "compatibility_report": as_mapping(build.get("compatibilityReport")),
@@ -1237,9 +1551,24 @@ def _architect_success_update(
             "status": as_text(build.get("budgetStatus")),
         },
         "build_proposal": proposal.model_dump(mode="json"),
-        "architect_repair_count": repair_count,
+        "architect_repair_count": session.repair_count,
+        "partial_compatibility_reports": session.partial_reports,
+        "partial_check_count": session.partial_checks,
         "selection_mode": SELECTION_MODE_LLM,
     }
+
+
+def _architect_session(state: PCConfigState) -> _ArchitectSession:
+    return _ArchitectSession(
+        requirements=as_mapping(state.get("requirements")),
+        candidate_sets=as_mapping(state.get("candidate_sets")),
+        events=[],
+        # 增量校验与修正次数按回合累计：质量重解重入时也共享同一份上限
+        partial_reports=list(as_list(state.get("partial_compatibility_reports"))),
+        partial_checks=as_int(state.get("partial_check_count")),
+        repair_count=as_int(state.get("architect_repair_count")),
+        max_partial_checks=get_settings().agent.architect_max_partial_checks,
+    )
 
 
 async def build_architect(
@@ -1250,15 +1579,12 @@ async def build_architect(
     agent_id: str,
     architect_prompt: str,
 ) -> dict[str, Any]:
-    """LLM 选型：结构化提案 → 本地候选校验 → Java 组装 → 有限修正。
+    """LLM 选型：结构化提案 → 候选校验 → 增量校验 → Java 组装 → 有限修正。
 
     模型不可用或结构化输出失败时直接失败，绝不回退到旧求解器冒充 LLM 结果。
     """
-    requirements = as_mapping(state.get("requirements"))
-    candidate_sets = as_mapping(state.get("candidate_sets"))
-    repair_count = as_int(state.get("architect_repair_count"))
+    session = _architect_session(state)
     failure = as_mapping(state.get("build_failure"))
-    events: list[dict[str, Any]] = []
     last_proposal: BuildProposal | None = None
 
     while True:
@@ -1274,35 +1600,37 @@ async def build_architect(
             unavailable = _architect_failure(
                 FAILURE_MODEL_UNAVAILABLE,
                 message="模型未能返回符合 Schema 的选型提案。",
-                repair_attempt=repair_count,
+                repair_attempt=session.repair_count,
             )
-            return _architect_failure_update(
-                unavailable, repair_count, events, last_proposal
-            )
+            return _architect_failure_update(unavailable, session, last_proposal)
         last_proposal = proposal
 
-        invalid = _invalid_proposal_components(proposal, candidate_sets)
+        invalid = _invalid_proposal_components(proposal, session.candidate_sets)
         if invalid:
-            failure = _architect_candidate_failure(invalid, repair_count)
-            if repair_count >= ARCHITECT_MAX_REPAIRS:
-                return _architect_failure_update(failure, repair_count, events, proposal)
-            repair_count += 1
-            failure = {**failure, "repair_attempt": repair_count}
+            failure = _architect_candidate_failure(invalid, session.repair_count)
+            if not session.can_repair():
+                return _architect_failure_update(failure, session, proposal)
+            failure = session.bump_repair(failure)
             continue
 
-        outcome = await _compose_proposal(proposal, requirements, events)
+        # 增量校验只提前暴露核心组件冲突；整机校验仍由 compose 负责
+        partial_failure = await _partial_gate(proposal, session)
+        if partial_failure is not None:
+            if not session.can_repair():
+                return _architect_failure_update(partial_failure, session, proposal)
+            failure = session.bump_repair(partial_failure)
+            continue
+
+        outcome = await _compose_proposal(proposal, session.requirements, session.events)
         if outcome.build is not None:
-            return _architect_success_update(
-                proposal, outcome.build, events, repair_count
-            )
+            return _architect_success_update(proposal, outcome.build, session)
 
         failure = outcome.failure or _architect_failure(
             FAILURE_TOOL_ERROR, message="配置组装失败。"
         )
-        if not outcome.retryable or repair_count >= ARCHITECT_MAX_REPAIRS:
-            return _architect_failure_update(failure, repair_count, events, proposal)
-        repair_count += 1
-        failure = {**failure, "repair_attempt": repair_count}
+        if not outcome.retryable or not session.can_repair():
+            return _architect_failure_update(failure, session, proposal)
+        failure = session.bump_repair(failure)
 
 
 def _reason_context(state: PCConfigState) -> str:

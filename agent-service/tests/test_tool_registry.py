@@ -223,4 +223,5 @@ def test_registered_tool_names_are_stable() -> None:
         "solve_pc_build",
         "compose_pc_build",
         "validate_pc_build",
+        "check_partial_compatibility",
     ]

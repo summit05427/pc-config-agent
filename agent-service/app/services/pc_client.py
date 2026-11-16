@@ -28,6 +28,7 @@ PC_OFFERS_PATH = "/internal/v1/pc/offers"
 PC_SOLVE_PATH = "/internal/v1/pc/builds/solve"
 PC_COMPOSE_PATH = "/internal/v1/pc/builds/compose"
 PC_VALIDATE_PATH = "/internal/v1/pc/builds/validate"
+PC_VALIDATE_PARTIAL_PATH = "/internal/v1/pc/builds/validate-partial"
 PC_BUILD_PATH = "/internal/v1/pc/builds"
 
 # 求解要遍历候选组合，耗时明显高于普通查询；超时时间单独放宽
@@ -127,6 +128,12 @@ class PcApiClient:
 
     async def validate(self, hardware_ids: dict[str, str]) -> dict[str, object]:
         return await self._request("POST", PC_VALIDATE_PATH, json=hardware_ids)
+
+    async def validate_partial(self, components: dict[str, str]) -> dict[str, object]:
+        """增量校验：任意子集，最少一项；无需用户令牌，只跑依赖已选类别的规则。"""
+        return await self._request(
+            "POST", PC_VALIDATE_PARTIAL_PATH, json={"components": components}
+        )
 
     async def get_build(self, build_id: str, *, user_token: str) -> dict[str, object]:
         return await self._request(

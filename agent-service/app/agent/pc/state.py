@@ -21,6 +21,9 @@ class PCConfigState(TypedDict):
     # 流水线字段
     requirements: NotRequired[dict[str, Any] | None]
     validation_result: NotRequired[dict[str, Any] | None]
+    # 配置策略与来源（MODEL / DEFAULT）；DEFAULT 表示模型不可用后的确定性兜底
+    build_strategy: NotRequired[dict[str, Any] | None]
+    strategy_source: NotRequired[str | None]
     candidate_pool: NotRequired[dict[str, Any] | None]
     # 按类别保留的候选摘要；只含决策字段，不复制工具原始输出
     candidate_sets: NotRequired[dict[str, list[dict[str, Any]]]]
@@ -31,6 +34,9 @@ class PCConfigState(TypedDict):
     # LLM 选型产物与修正计数：仅在 `AGENT__PC_SELECTION_MODE=llm` 时写入
     build_proposal: NotRequired[dict[str, Any] | None]
     architect_repair_count: NotRequired[int]
+    # 提交整机前的增量校验：报告与已用次数（同一回合内累计，受配置上限约束）
+    partial_compatibility_reports: NotRequired[list[dict[str, Any]]]
+    partial_check_count: NotRequired[int]
     selection_mode: NotRequired[str]
     compatibility_report: NotRequired[dict[str, Any] | None]
     budget_report: NotRequired[dict[str, Any] | None]

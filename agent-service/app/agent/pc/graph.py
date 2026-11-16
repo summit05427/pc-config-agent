@@ -19,6 +19,7 @@ from app.agent.pc.node_tracing import trace_node
 from app.agent.pc.nodes import (
     build_architect,
     build_solver,
+    build_strategist,
     build_validator,
     candidate_retriever,
     requirement_parser,
@@ -45,10 +46,12 @@ from app.core.config import get_settings
 PARSER_PROMPT_NAME = "requirement-parser"
 GENERATOR_PROMPT_NAME = "response-generator"
 ARCHITECT_PROMPT_NAME = "build-architect"
+STRATEGIST_PROMPT_NAME = "build-strategist"
 
 NODE_REQUIREMENT_PARSER = "requirement_parser"
 NODE_REQUIREMENT_VALIDATOR = "requirement_validator"
 NODE_CLARIFICATION_GATE = "clarification_gate"
+NODE_BUILD_STRATEGIST = "build_strategist"
 NODE_CANDIDATE_RETRIEVER = "candidate_retriever"
 NODE_BUILD_SOLVER = "build_solver"
 NODE_BUILD_ARCHITECT = "build_architect"
@@ -61,6 +64,7 @@ PC_GRAPH_NODES: tuple[str, ...] = (
     NODE_REQUIREMENT_PARSER,
     NODE_REQUIREMENT_VALIDATOR,
     NODE_CLARIFICATION_GATE,
+    NODE_BUILD_STRATEGIST,
     NODE_CANDIDATE_RETRIEVER,
     NODE_BUILD_SOLVER,
     NODE_BUILD_ARCHITECT,
@@ -71,14 +75,19 @@ PC_GRAPH_NODES: tuple[str, ...] = (
 )
 
 
-def _route_after_validation(state: dict[str, Any]) -> str:
+def _route_after_validation(state: dict[str, Any], *, selection_mode: str) -> str:
     status = state.get("workflow_status")
     # 参数非法直接给失败文案；仅「缺槽位」进入 HITL 门控
     if status == STATUS_INVALID:
         return NODE_RESPONSE_GENERATOR
     if status == STATUS_CLARIFICATION:
         return NODE_CLARIFICATION_GATE
-    return NODE_CANDIDATE_RETRIEVER
+    # llm 模式在检索前先定策略；solver 模式保持原有顺序
+    return (
+        NODE_BUILD_STRATEGIST
+        if selection_mode == SELECTION_MODE_LLM
+        else NODE_CANDIDATE_RETRIEVER
+    )
 
 
 def _route_after_clarification_gate(state: dict[str, Any]) -> str:
@@ -147,6 +156,7 @@ def build_pc_graph(
     parser_prompt = load_prompt(PARSER_PROMPT_NAME)
     generator_prompt = load_prompt(GENERATOR_PROMPT_NAME)
     architect_prompt = load_pc_prompt(ARCHITECT_PROMPT_NAME)
+    strategist_prompt = load_pc_prompt(STRATEGIST_PROMPT_NAME)
 
     graph: StateGraph = StateGraph(PCConfigState)
     graph.add_node(
@@ -169,6 +179,19 @@ def build_pc_graph(
     graph.add_node(
         NODE_CLARIFICATION_GATE,
         trace_node(NODE_CLARIFICATION_GATE, clarification_gate, agent_id=profile.id),
+    )
+    graph.add_node(
+        NODE_BUILD_STRATEGIST,
+        trace_node(
+            NODE_BUILD_STRATEGIST,
+            partial(
+                build_strategist,
+                model=model,
+                agent_id=profile.id,
+                strategist_prompt=strategist_prompt,
+            ),
+            agent_id=profile.id,
+        ),
     )
     graph.add_node(
         NODE_CANDIDATE_RETRIEVER,
@@ -226,13 +249,15 @@ def build_pc_graph(
     graph.add_edge(NODE_REQUIREMENT_PARSER, NODE_REQUIREMENT_VALIDATOR)
     graph.add_conditional_edges(
         NODE_REQUIREMENT_VALIDATOR,
-        _route_after_validation,
+        partial(_route_after_validation, selection_mode=active_mode),
         {
             NODE_CLARIFICATION_GATE: NODE_CLARIFICATION_GATE,
             NODE_RESPONSE_GENERATOR: NODE_RESPONSE_GENERATOR,
+            NODE_BUILD_STRATEGIST: NODE_BUILD_STRATEGIST,
             NODE_CANDIDATE_RETRIEVER: NODE_CANDIDATE_RETRIEVER,
         },
     )
+    graph.add_edge(NODE_BUILD_STRATEGIST, NODE_CANDIDATE_RETRIEVER)
     graph.add_conditional_edges(
         NODE_CLARIFICATION_GATE,
         _route_after_clarification_gate,
