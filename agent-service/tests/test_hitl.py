@@ -49,6 +49,8 @@ def _graph(model: ScriptedModel | None = None):
         model=model,
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
+        # HITL 用例断言求解器路径的澄清/确认流程，固定 solver 避免默认值漂移
+        selection_mode="solver",
     )
 
 
@@ -215,17 +217,21 @@ async def test_interrupt_survives_graph_rebuild(
     thread_id = "hitl-restart"
 
     await _start(
-        build_pc_graph(model=None, profile=profile, checkpointer=saver),
+        build_pc_graph(
+            model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+        ),
         "帮我配台电脑",
         thread_id,
     )
     paused = await build_pc_graph(
-        model=None, profile=profile, checkpointer=saver
+        model=None, profile=profile, checkpointer=saver, selection_mode="solver"
     ).aget_state(_config(thread_id))
     assert len(paused.interrupts) == 1
 
     # 重新构图等价于新进程装配图：状态只来自 checkpoint，而非内存中的上一实例
-    rebuilt = build_pc_graph(model=None, profile=profile, checkpointer=saver)
+    rebuilt = build_pc_graph(
+        model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+    )
     await rebuilt.ainvoke(
         Command(
             resume={

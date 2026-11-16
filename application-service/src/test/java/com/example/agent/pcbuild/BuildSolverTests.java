@@ -1,6 +1,7 @@
 package com.example.agent.pcbuild;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.agent.pcbuild.application.BuildSolver;
 import com.example.agent.pcbuild.application.CompatibilityValidator;
@@ -54,6 +55,15 @@ class BuildSolverTests {
     // 容量过滤用例只关心「下限是否生效」；价格数据修正后大容量内存与显卡更接近真实市价，
     // 30,000 元已不足以覆盖完整八件套，这里放宽到不会触发预算剪枝的水平。
     private static final long CAPACITY_TEST_BUDGET_FEN = 6_000_000L;
+
+    /**
+     * 中端 CPU 跑分门槛：高于历史畸形方案中的 R5 5600（21,487）与全部入门型号，
+     * 用于确认 2 万元预算不会再选中最低档处理器。
+     */
+    private static final long MID_RANGE_CPU_SCORE = 30_000L;
+
+    /** CPU 价格至少占显卡价格的 15%，避免预算几乎全部推给显卡。 */
+    private static final long CPU_TO_GPU_PRICE_PERCENT = 15L;
 
     private final JsonHardwareCatalogRepository catalog =
             new JsonHardwareCatalogRepository(OBJECT_MAPPER);
@@ -227,6 +237,92 @@ class BuildSolverTests {
         assertThat(second.build().selection().idSignature())
                 .isEqualTo(first.build().selection().idSignature());
         assertThat(second.build().totalPriceFen()).isEqualTo(first.build().totalPriceFen());
+    }
+
+    @Test
+    void generousGeneralBudget_shouldNotPairEntryCpuWithFlagshipGpu() {
+        // 回归：候选池只保留「性能前 8 + 最便宜 4」时，2 万元预算曾给出
+        // R5 5600（769 元）+ RTX 5080（9,999 元）的畸形组合；按价格分桶补足中端 CPU 后，
+        // CPU 必须与显卡处于同一量级，而不是把预算几乎全部推给显卡。
+        SolveOutcome outcome = solve(new BuildRequirements(
+                GENEROUS_BUDGET_FEN, BuildScenario.BALANCED, null, null, false));
+
+        assertThat(outcome.isSolved()).isTrue();
+        BuildDraft build = outcome.build();
+        assertThat(build.totalPriceFen()).isLessThanOrEqualTo(GENEROUS_BUDGET_FEN);
+
+        long cpuPrice = build.offers().get(HardwareCategory.CPU).priceFen();
+        long gpuPrice = build.offers().get(HardwareCategory.GPU).priceFen();
+        assertThat(cpuPrice * 100).isGreaterThanOrEqualTo(gpuPrice * CPU_TO_GPU_PRICE_PERCENT);
+        assertThat(primaryScoreOf(build.selection().cpu()))
+                .isGreaterThanOrEqualTo(MID_RANGE_CPU_SCORE);
+    }
+
+    @Test
+    void generousGamingBudget_shouldStayWithinBudgetWithNonEntryCpu() {
+        SolveOutcome outcome = solve(new BuildRequirements(
+                GENEROUS_BUDGET_FEN, BuildScenario.GAMING, null, null, false));
+
+        assertThat(outcome.isSolved()).isTrue();
+        BuildDraft build = outcome.build();
+        assertThat(build.totalPriceFen()).isLessThanOrEqualTo(GENEROUS_BUDGET_FEN);
+        assertThat(build.compatibilityReport().hasFailure()).isFalse();
+
+        // CPU 不能是最低档：跑分需达到中端门槛，价格也要与显卡保持合理比例。
+        Hardware cpu = build.selection().cpu();
+        long cpuPrice = build.offers().get(HardwareCategory.CPU).priceFen();
+        long gpuPrice = build.offers().get(HardwareCategory.GPU).priceFen();
+        assertThat(primaryScoreOf(cpu)).isGreaterThanOrEqualTo(MID_RANGE_CPU_SCORE);
+        assertThat(cpuPrice * 100).isGreaterThanOrEqualTo(gpuPrice * CPU_TO_GPU_PRICE_PERCENT);
+    }
+
+    @Test
+    void officeScenario_shouldKeepOfficeWeightsInsteadOfFoldingToBalanced() {
+        // 回归：画像推导曾把 OFFICE 折叠成 BALANCED，办公场景 85/15 的权重被静默丢弃。
+        BuildRequirements requirements = new BuildRequirements(
+                GENEROUS_BUDGET_FEN, BuildScenario.OFFICE, null, null, false);
+
+        assertThat(requirements.scenario()).isEqualTo(BuildScenario.OFFICE);
+        assertThat(requirements.scenario().cpuWeight()).isEqualTo(85);
+        assertThat(requirements.scenario().gpuWeight()).isEqualTo(15);
+        assertThat(requirements.workloadProfile()).isEqualTo(WorkloadProfile.GENERAL);
+    }
+
+    @Test
+    void mediaScenario_shouldMapToMediaProfileAndWeights() {
+        BuildRequirements requirements = new BuildRequirements(
+                GENEROUS_BUDGET_FEN, BuildScenario.MEDIA, null, null, false);
+
+        assertThat(requirements.scenario()).isEqualTo(BuildScenario.MEDIA);
+        assertThat(requirements.workloadProfile()).isEqualTo(WorkloadProfile.MEDIA);
+        assertThat(requirements.scenario().cpuWeight()).isEqualTo(70);
+        assertThat(requirements.scenario().gpuWeight()).isEqualTo(30);
+    }
+
+    @Test
+    void invertedBudgetRange_shouldBeRejected() {
+        assertThatThrownBy(() -> new BuildRequirements(
+                GENEROUS_BUDGET_FEN, 3_000_000L, null, null, BuildScenario.BALANCED,
+                null, null, false, null, null, null, null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void qualityPriceConstraints_shouldShapeCpuAndGpuPools() {
+        long minCpuPriceFen = 200_000L;
+        long maxGpuPriceFen = 400_000L;
+        BuildRequirements requirements = new BuildRequirements(
+                GENEROUS_BUDGET_FEN, null, minCpuPriceFen, maxGpuPriceFen, BuildScenario.BALANCED,
+                null, null, false, null, null, null, null);
+
+        SolveOutcome outcome = solve(requirements);
+
+        assertThat(outcome.isSolved()).isTrue();
+        // 质量约束必须真正进入候选池，而不是只作为提示被忽略。
+        assertThat(outcome.build().offers().get(HardwareCategory.CPU).priceFen())
+                .isGreaterThanOrEqualTo(minCpuPriceFen);
+        assertThat(outcome.build().offers().get(HardwareCategory.GPU).priceFen())
+                .isLessThanOrEqualTo(maxGpuPriceFen);
     }
 
     @Test
@@ -564,6 +660,12 @@ class BuildSolverTests {
                 .findFirst()
                 .orElseThrow()
                 .reason();
+    }
+
+    private long primaryScoreOf(Hardware hardware) {
+        return benchmarks.findByHardwareId(hardware.hardwareId())
+                .map(Benchmark::scoreAsLong)
+                .orElse(0L);
     }
 
     private Benchmark gpuBenchmark(String hardwareId, double score) {

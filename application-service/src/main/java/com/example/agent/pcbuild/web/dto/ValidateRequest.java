@@ -9,7 +9,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * 兼容性校验请求。
+ * 八类硬件标识请求：兼容性校验与指定组合生成共用。
  *
  * <p>八个类别的 {@code hardware_id} 都必须提供；缺失时返回 400 {@code 40303}，
  * 不会用空位代替。</p>

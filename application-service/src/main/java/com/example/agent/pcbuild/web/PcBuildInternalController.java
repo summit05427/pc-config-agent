@@ -4,9 +4,13 @@ import com.example.agent.pcbuild.application.BuildResultFactory;
 import com.example.agent.pcbuild.application.BuildSolveService;
 import com.example.agent.pcbuild.application.InternalUserTokenResolver;
 import com.example.agent.pcbuild.application.SolveExecutionResult;
+import com.example.agent.pcbuild.domain.BuildResult;
 import com.example.agent.pcbuild.domain.CompatibilityReport;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
 import com.example.agent.pcbuild.web.dto.CompatibilityReportResponse;
+import com.example.agent.pcbuild.web.dto.ComposeRequest;
+import com.example.agent.pcbuild.web.dto.PartialValidateRequest;
+import com.example.agent.pcbuild.web.dto.PartialValidateResponse;
 import com.example.agent.pcbuild.web.dto.SolveRequest;
 import com.example.agent.pcbuild.web.dto.SolveResponse;
 import com.example.agent.pcbuild.web.dto.ValidateRequest;
@@ -65,6 +69,26 @@ public class PcBuildInternalController {
     }
 
     /**
+     * 按指定八类硬件生成方案并落快照。
+     *
+     * <p>价格由服务端从报价库取最低有效报价，逐件理由由服务端确定性生成，
+     * 调用方只提供硬件标识与可选预算上限。</p>
+     *
+     * @param request   八类硬件标识与可选预算上限
+     * @param userToken 用户访问令牌
+     * @return 已落库方案，结构与 solve 成功分支的 {@code build} 一致
+     */
+    @PostMapping("/compose")
+    public ApiResponse<BuildResultResponse> compose(
+            @Valid @RequestBody ComposeRequest request,
+            @RequestHeader(value = USER_TOKEN_HEADER, required = false) String userToken) {
+        UUID userId = userTokenResolver.requireUserId(userToken);
+        BuildResult result = buildSolveService.composeAndSnapshot(
+                userId, request.toHardwareIds(), request.budgetMaxFen());
+        return ApiResponse.success(buildResultFactory.toResponse(result));
+    }
+
+    /**
      * 校验指定配置的兼容性。
      *
      * @param request 八类硬件标识
@@ -76,6 +100,22 @@ public class PcBuildInternalController {
         return ApiResponse.success(new ValidateResponse(
                 !report.hasFailure(),
                 CompatibilityReportResponse.from(report)));
+    }
+
+    /**
+     * 部分校验：只校验已选组件之间的兼容性。
+     *
+     * <p>不落库、不要求 {@code X-User-Token}，与 {@code /validate} 一致；
+     * 与 {@code /validate} 的差别是允许任意子集，且只执行依赖组件已选全的规则。</p>
+     *
+     * @param request 任意子集的组件标识
+     * @return 部分校验结论
+     */
+    @PostMapping("/validate-partial")
+    public ApiResponse<PartialValidateResponse> validatePartial(
+            @Valid @RequestBody PartialValidateRequest request) {
+        CompatibilityReport report = buildSolveService.validatePartial(request.toHardwareIds());
+        return ApiResponse.success(PartialValidateResponse.from(report));
     }
 
     /**

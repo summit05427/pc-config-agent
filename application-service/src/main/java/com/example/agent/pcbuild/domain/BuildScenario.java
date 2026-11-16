@@ -14,6 +14,7 @@ public enum BuildScenario {
     PROGRAMMING(80, 20),
     WORKSTATION(60, 40),
     OFFICE(85, 15),
+    MEDIA(70, 30),
     BALANCED(50, 50),
     AI_INFERENCE(40, 60);
 
@@ -53,6 +54,7 @@ public enum BuildScenario {
             case "PROGRAMMING" -> PROGRAMMING;
             case "WORKSTATION" -> WORKSTATION;
             case "OFFICE" -> OFFICE;
+            case "MEDIA" -> MEDIA;
             case "BALANCED" -> BALANCED;
             case "AI_INFERENCE" -> AI_INFERENCE;
             default -> null;

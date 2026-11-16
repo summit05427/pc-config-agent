@@ -280,6 +280,8 @@ class AgentSettings(BaseModel):
     system_prompt: str = Field(default="pc-config-system", min_length=1, max_length=64)
     # 兼容性校验失败后最多自动重新求解的次数；0 表示不重试
     max_solve_retries: int = Field(default=1, ge=0, le=2)
+    # PC 选型模式：llm 走 Build Architect（默认）；solver 为显式降级的确定性求解器
+    pc_selection_mode: Literal["solver", "llm"] = "llm"
     # 工具默认超时（秒）；单个工具可在注册时覆盖
     tool_timeout_seconds: float = Field(default=10.0, gt=0)
     # 工具失败后的重试次数；0 表示不重试

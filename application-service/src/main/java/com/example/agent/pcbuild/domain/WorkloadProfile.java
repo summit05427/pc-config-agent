@@ -15,6 +15,7 @@ public enum WorkloadProfile {
     VIDEO_EDITING(55, 45, CandidateRanking.GPU_SCORE_FIRST),
     PROGRAMMING(80, 20, CandidateRanking.MULTICORE_FIRST),
     RENDERING(55, 45, CandidateRanking.BALANCED),
+    MEDIA(70, 30, CandidateRanking.BALANCED),
     AI_INFERENCE(40, 60, CandidateRanking.VRAM_FIRST);
 
     /** 候选排序策略；所有策略最终都以 {@code hardwareId} 升序兜底保证确定性。 */
@@ -67,6 +68,7 @@ public enum WorkloadProfile {
             case "VIDEO_EDITING", "CREATIVE" -> VIDEO_EDITING;
             case "PROGRAMMING" -> PROGRAMMING;
             case "RENDERING", "WORKSTATION" -> RENDERING;
+            case "MEDIA" -> MEDIA;
             case "AI_INFERENCE" -> AI_INFERENCE;
             default -> null;
         };
@@ -96,6 +98,7 @@ public enum WorkloadProfile {
             case GAMING -> BuildScenario.GAMING;
             case VIDEO_EDITING -> BuildScenario.CREATIVE;
             case PROGRAMMING -> BuildScenario.PROGRAMMING;
+            case MEDIA -> BuildScenario.MEDIA;
             case AI_INFERENCE -> BuildScenario.AI_INFERENCE;
             case RENDERING -> BuildScenario.CREATIVE;
         };

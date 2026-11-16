@@ -6,15 +6,46 @@
 
 from typing import Any
 
+import structlog
+
+from app.agent.pc.status import (
+    FAILURE_BUDGET_EXCEEDED,
+    FAILURE_CANDIDATE_NOT_IN_POOL,
+    FAILURE_COMPATIBILITY_CONFLICT,
+    FAILURE_OFFER_UNAVAILABLE,
+    FAILURE_USER_TOKEN_MISSING,
+)
 from app.agent.registry import ToolExecutionError, register_tool
 from app.agent.tool_context import get_current_tool_turn
-from app.services.control_plane import ControlPlaneError
+from app.services.control_plane import (
+    PC_BUDGET_EXCEEDED,
+    PC_BUILD_INCOMPATIBLE,
+    PC_BUILD_INCOMPLETE,
+    PC_OFFER_UNAVAILABLE,
+    PC_USER_TOKEN_INVALID,
+    ControlPlaneError,
+)
 from app.services.pc_client import get_pc_client
+
+logger = structlog.get_logger(__name__)
 
 # 查询类工具一轮最多覆盖 8 个类别，留出重试余量
 MAX_CATEGORY_CALLS_PER_TURN = 12
 # 求解在兼容性失败后允许自动重解一次，配额留出余量
 MAX_SOLVE_CALLS_PER_TURN = 3
+# Architect 首次组装 + 两次修正各一次，配额留出余量
+MAX_COMPOSE_CALLS_PER_TURN = 3
+# 组装不遍历组合，但会落快照；超时仍按 30 秒兜底
+COMPOSE_TIMEOUT_SECONDS = 30
+
+# PC 业务错误 → (失败类型, 是否允许模型修正)
+_COMPOSE_FAILURES: dict[str, tuple[str, bool]] = {
+    PC_USER_TOKEN_INVALID: (FAILURE_USER_TOKEN_MISSING, False),
+    PC_BUILD_INCOMPLETE: (FAILURE_CANDIDATE_NOT_IN_POOL, True),
+    PC_OFFER_UNAVAILABLE: (FAILURE_OFFER_UNAVAILABLE, True),
+    PC_BUILD_INCOMPATIBLE: (FAILURE_COMPATIBILITY_CONFLICT, True),
+    PC_BUDGET_EXCEEDED: (FAILURE_BUDGET_EXCEEDED, True),
+}
 
 
 def _require_user_token() -> str:
@@ -31,6 +62,13 @@ async def _call_client(operation: Any) -> dict[str, object]:
     try:
         return await operation
     except ControlPlaneError as exc:
+        # 对外仍是统一安全文案；日志保留可判定的上游错误码，便于定位 400/429/5xx
+        logger.warning(
+            "pc.upstream_error",
+            code=exc.code,
+            status_code=exc.status_code,
+            error_message=exc.message,
+        )
         raise ToolExecutionError("配置数据暂时不可用，请稍后重试") from exc
 
 
@@ -87,12 +125,15 @@ async def get_verified_offers(
 @register_tool(
     name="solve_pc_build",
     description="按预算与场景求解一套完整的八类硬件配置；无解时返回结构化失败原因。",
-    timeout_seconds=25,
+    # 候选池按平台分组后，运行时候选组合明显变多：Java 性能基线在中等预算 GAMING 场景
+    # 实测单次求解约 29 秒（BuildSolverBenchmarkTests 场景 A），25 秒会在真实请求上误判超时。
+    timeout_seconds=60,
     max_output_tokens=8000,
     max_calls_per_turn=MAX_SOLVE_CALLS_PER_TURN,
     is_read_only=False,
 )
 async def solve_pc_build(
+    budget_min_fen: int | None = None,
     budget_max_fen: int | None = None,
     scenario: str = "BALANCED",
     preference: str | None = None,
@@ -100,9 +141,16 @@ async def solve_pc_build(
     min_memory_gb: int | None = None,
     min_storage_gb: int | None = None,
     require_verified_offers: bool = False,
+    min_cpu_price_fen: int | None = None,
+    max_gpu_price_fen: int | None = None,
 ) -> dict[str, object]:
-    """求解配置；预算单位为整数分，`preference` 为空时由 Java 按性能总分排序。"""
+    """求解配置；预算单位为整数分，上下限分别表达区间与开区间。
+
+    `min_cpu_price_fen` / `max_gpu_price_fen` 是质量评审给出的可选约束，
+    用于避免低端 CPU 搭配旗舰显卡或办公场景过度购买独显。
+    """
     request: dict[str, object] = {
+        "budgetMinFen": budget_min_fen,
         "budgetMaxFen": budget_max_fen,
         "scenario": scenario,
         "preference": preference,
@@ -110,10 +158,86 @@ async def solve_pc_build(
         "minMemoryGb": min_memory_gb,
         "minStorageGb": min_storage_gb,
         "requireVerifiedOffers": require_verified_offers,
+        "minCpuPriceFen": min_cpu_price_fen,
+        "maxGpuPriceFen": max_gpu_price_fen,
     }
     return await _call_client(
         get_pc_client().solve(request, user_token=_require_user_token())
     )
+
+
+@register_tool(
+    name="compose_pc_build",
+    description=(
+        "按指定的八类硬件生成并保存一套配置方案；只能使用候选清单中的硬件 ID。"
+        "失败时返回结构化失败类型，供选型修正使用。"
+    ),
+    timeout_seconds=COMPOSE_TIMEOUT_SECONDS,
+    max_output_tokens=8000,
+    max_calls_per_turn=MAX_COMPOSE_CALLS_PER_TURN,
+    is_read_only=False,
+)
+async def compose_pc_build(
+    cpu: str,
+    motherboard: str,
+    memory: str,
+    gpu: str,
+    psu: str,
+    case: str,
+    cooler: str,
+    storage: str,
+    budget_max_fen: int | None = None,
+) -> dict[str, object]:
+    """组装指定配置；业务失败不抛错，返回 `composed=false` 与失败原因。
+
+    Java 侧的 40307/40308/40309 属于可修正的业务失败，必须保留失败类型；
+    缺少用户令牌与其余上游异常不进入修正，直接按失败处理。
+    """
+    turn = get_current_tool_turn()
+    user_token = turn.user_token if turn is not None else None
+    if not user_token:
+        return _compose_failure(
+            FAILURE_USER_TOKEN_MISSING,
+            "缺少用户身份，无法生成配置，请重新登录后再试",
+            retryable=False,
+        )
+
+    request: dict[str, object] = {
+        "components": {
+            "cpu": cpu,
+            "motherboard": motherboard,
+            "memory": memory,
+            "gpu": gpu,
+            "psu": psu,
+            "case": case,
+            "cooler": cooler,
+            "storage": storage,
+        },
+        "budgetMaxFen": budget_max_fen,
+    }
+    try:
+        build = await get_pc_client().compose(request, user_token=user_token)
+    except ControlPlaneError as exc:
+        mapped = _COMPOSE_FAILURES.get(exc.code)
+        if mapped is None:
+            # 上游不可用或未知错误：交给节点按工具异常处理，不伪造业务失败原因
+            logger.warning(
+                "pc.compose_upstream_error",
+                code=exc.code,
+                status_code=exc.status_code,
+            )
+            raise ToolExecutionError("配置数据暂时不可用，请稍后重试") from exc
+        reason, is_retryable = mapped
+        return _compose_failure(reason, exc.message, retryable=is_retryable)
+    return {"composed": True, "build": build}
+
+
+def _compose_failure(reason: str, message: str, *, retryable: bool) -> dict[str, object]:
+    """统一的业务失败载荷；`retryable` 决定节点是否进入修正。"""
+    return {
+        "composed": False,
+        "failure": {"reason": reason, "message": message, "retryable": retryable},
+    }
 
 
 @register_tool(

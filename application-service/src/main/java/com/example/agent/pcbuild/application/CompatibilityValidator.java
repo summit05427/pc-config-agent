@@ -6,6 +6,7 @@ import com.example.agent.pcbuild.domain.CompatibilityRule;
 import com.example.agent.pcbuild.domain.CompatibilityStatus;
 import com.example.agent.pcbuild.domain.ExternalPower;
 import com.example.agent.pcbuild.domain.Hardware;
+import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.domain.HardwareSelection;
 import com.example.agent.pcbuild.domain.HardwareSpecifications;
 import java.util.ArrayList;
@@ -61,6 +62,30 @@ public class CompatibilityValidator {
     }
 
     /**
+     * 部分校验：只执行依赖类别全部已选的规则。
+     *
+     * <p>与 {@link #validate(HardwareSelection)} 共用同一套规则实现，只是把「组件未选」
+     * 从结论里剔除——未选类别不代表字段缺失，判成 {@code UNKNOWN} 会产生误导性结论。
+     * 已执行规则内部仍遵循同一约定：字段缺失返回 {@code UNKNOWN}，绝不折算 {@code PASS}。
+     * 没有任何规则可执行时，{@link CompatibilityReport#aggregate(List)} 返回 {@code UNKNOWN}。</p>
+     *
+     * @param selection 任意子集的硬件组合，至少包含一个组件
+     * @return 部分兼容性报告，只含已执行规则
+     */
+    public CompatibilityReport validatePartial(HardwareSelection selection) {
+        List<CompatibilityCheck> checks = new ArrayList<>();
+        for (CompatibilityRule rule : CompatibilityRule.values()) {
+            if (rule.appliesTo(selection)) {
+                checks.add(check(rule, selection));
+            }
+        }
+        return new CompatibilityReport(
+                CompatibilityReport.RULE_VERSION,
+                CompatibilityReport.aggregate(checks),
+                checks);
+    }
+
+    /**
      * 校验单条规则，供求解器在增量剪枝时复用同一套判断。
      *
      * @param rule      规则
@@ -96,8 +121,15 @@ public class CompatibilityValidator {
         Integer moduleCount = memory.specifications().moduleCount();
         Integer memorySlots = motherboard.specifications().memorySlots();
         if (moduleCount == null || memorySlots == null) {
+            List<String> missingFields = new ArrayList<>();
+            if (moduleCount == null) {
+                missingFields.add(field(HardwareCategory.MEMORY, "module_count"));
+            }
+            if (memorySlots == null) {
+                missingFields.add(field(HardwareCategory.MOTHERBOARD, "memory_slots"));
+            }
             return result(rule, CompatibilityStatus.UNKNOWN,
-                    "内存条数或主板内存插槽数缺失", memory, motherboard);
+                    "内存条数或主板内存插槽数缺失", missingFields, memory, motherboard);
         }
         if (moduleCount > memorySlots) {
             return result(rule, CompatibilityStatus.FAIL,
@@ -119,7 +151,15 @@ public class CompatibilityValidator {
         String cpuSocket = cpu.specifications().socket();
         String boardSocket = motherboard.specifications().socket();
         if (isBlank(cpuSocket) || isBlank(boardSocket)) {
-            return result(rule, CompatibilityStatus.UNKNOWN, "CPU 或主板缺少 socket 字段", cpu, motherboard);
+            List<String> missingFields = new ArrayList<>();
+            if (isBlank(cpuSocket)) {
+                missingFields.add(field(HardwareCategory.CPU, "socket"));
+            }
+            if (isBlank(boardSocket)) {
+                missingFields.add(field(HardwareCategory.MOTHERBOARD, "socket"));
+            }
+            return result(rule, CompatibilityStatus.UNKNOWN, "CPU 或主板缺少 socket 字段",
+                    missingFields, cpu, motherboard);
         }
         if (equalsIgnoreCase(cpuSocket, boardSocket)) {
             return result(rule, CompatibilityStatus.PASS,
@@ -139,8 +179,15 @@ public class CompatibilityValidator {
         String boardType = motherboard.specifications().memoryType();
         String memoryType = memory.specifications().memoryType();
         if (isBlank(boardType) || isBlank(memoryType)) {
+            List<String> missingFields = new ArrayList<>();
+            if (isBlank(boardType)) {
+                missingFields.add(field(HardwareCategory.MOTHERBOARD, "memory_type"));
+            }
+            if (isBlank(memoryType)) {
+                missingFields.add(field(HardwareCategory.MEMORY, "memory_type"));
+            }
             return result(rule, CompatibilityStatus.UNKNOWN, "主板或内存缺少内存类型字段",
-                    motherboard, memory);
+                    missingFields, motherboard, memory);
         }
         if (equalsIgnoreCase(boardType, memoryType)) {
             return result(rule, CompatibilityStatus.PASS,
@@ -160,8 +207,15 @@ public class CompatibilityValidator {
         String boardFormFactor = motherboard.specifications().formFactor();
         List<String> supported = pcCase.specifications().supportedMainboardFormFactors();
         if (isBlank(boardFormFactor) || supported == null || supported.isEmpty()) {
+            List<String> missingFields = new ArrayList<>();
+            if (isBlank(boardFormFactor)) {
+                missingFields.add(field(HardwareCategory.MOTHERBOARD, "form_factor"));
+            }
+            if (supported == null || supported.isEmpty()) {
+                missingFields.add(field(HardwareCategory.CASE, "supported_mainboard_form_factors"));
+            }
             return result(rule, CompatibilityStatus.UNKNOWN, "主板板型或机箱支持板型缺失",
-                    motherboard, pcCase);
+                    missingFields, motherboard, pcCase);
         }
         boolean isSupported = supported.stream()
                 .filter(Objects::nonNull)
@@ -185,7 +239,15 @@ public class CompatibilityValidator {
         Integer gpuLength = gpu.specifications().lengthMm();
         Integer maxLength = pcCase.specifications().maxGpuLengthMm();
         if (gpuLength == null || maxLength == null) {
-            return result(rule, CompatibilityStatus.UNKNOWN, "显卡长度或机箱限长缺失", gpu, pcCase);
+            List<String> missingFields = new ArrayList<>();
+            if (gpuLength == null) {
+                missingFields.add(field(HardwareCategory.GPU, "length_mm"));
+            }
+            if (maxLength == null) {
+                missingFields.add(field(HardwareCategory.CASE, "max_gpu_length_mm"));
+            }
+            return result(rule, CompatibilityStatus.UNKNOWN, "显卡长度或机箱限长缺失",
+                    missingFields, gpu, pcCase);
         }
         if (gpuLength <= maxLength) {
             return result(rule, CompatibilityStatus.PASS,
@@ -205,8 +267,15 @@ public class CompatibilityValidator {
         String cpuSocket = cpu.specifications().socket();
         List<String> supportedSockets = cooler.specifications().supportedSockets();
         if (isBlank(cpuSocket) || supportedSockets == null || supportedSockets.isEmpty()) {
+            List<String> missingFields = new ArrayList<>();
+            if (isBlank(cpuSocket)) {
+                missingFields.add(field(HardwareCategory.CPU, "socket"));
+            }
+            if (supportedSockets == null || supportedSockets.isEmpty()) {
+                missingFields.add(field(HardwareCategory.COOLER, "supported_sockets"));
+            }
             return result(rule, CompatibilityStatus.UNKNOWN, "CPU 插槽或散热器支持列表缺失",
-                    cooler, cpu);
+                    missingFields, cooler, cpu);
         }
         boolean isSupported = supportedSockets.stream()
                 .filter(Objects::nonNull)
@@ -256,17 +325,34 @@ public class CompatibilityValidator {
         Integer wattage = psu.specifications().wattageW();
         ExternalPower externalPower = gpu.specifications().externalPower();
         if (cpuTdp == null || gpuTdp == null || wattage == null) {
+            List<String> missingFields = new ArrayList<>();
+            if (cpuTdp == null) {
+                missingFields.add(field(HardwareCategory.CPU, "tdp_w"));
+            }
+            if (gpuTdp == null) {
+                missingFields.add(field(HardwareCategory.GPU, "tdp_w"));
+            }
+            if (wattage == null) {
+                missingFields.add(field(HardwareCategory.PSU, "wattage_w"));
+            }
             return result(rule, CompatibilityStatus.UNKNOWN, "CPU TDP、显卡 TDP 或电源功率缺失",
-                    cpu, gpu, psu);
+                    missingFields, cpu, gpu, psu);
         }
         if (externalPower == null || isBlank(externalPower.connectorType())
                 || externalPower.count() == null || externalPower.count() <= 0) {
-            return result(rule, CompatibilityStatus.UNKNOWN, "显卡外接供电接口信息缺失", cpu, gpu, psu);
+            return result(rule, CompatibilityStatus.UNKNOWN, "显卡外接供电接口信息缺失",
+                    List.of(field(HardwareCategory.GPU, "external_power")), cpu, gpu, psu);
         }
         Integer provided = availableConnectorCount(psu.specifications(), externalPower.connectorType());
         if (provided == null) {
+            String connectorField = connectorCountField(externalPower.connectorType());
+            // 无法识别的接口类型没有对应字段可补，仍指向显卡的外接供电声明。
+            List<String> missingFields = connectorField == null
+                    ? List.of(field(HardwareCategory.GPU, "external_power"))
+                    : List.of(connectorField);
             return result(rule, CompatibilityStatus.UNKNOWN,
-                    "电源未提供 " + externalPower.connectorType() + " 接口数量", cpu, gpu, psu);
+                    "电源未提供 " + externalPower.connectorType() + " 接口数量",
+                    missingFields, cpu, gpu, psu);
         }
         if (provided < externalPower.count()) {
             return result(rule, CompatibilityStatus.FAIL,
@@ -299,7 +385,8 @@ public class CompatibilityValidator {
         String interfaceType = storage.specifications().interfaceType();
         String formFactor = storage.specifications().formFactor();
         if (isBlank(interfaceType)) {
-            return result(rule, CompatibilityStatus.UNKNOWN, "存储接口类型缺失", motherboard, storage);
+            return result(rule, CompatibilityStatus.UNKNOWN, "存储接口类型缺失",
+                    List.of(field(HardwareCategory.STORAGE, "interface")), motherboard, storage);
         }
         String normalized = interfaceType.toUpperCase(Locale.ROOT);
         boolean isM2 = normalized.contains(INTERFACE_M2)
@@ -307,7 +394,9 @@ public class CompatibilityValidator {
         if (isM2) {
             Integer m2Slots = motherboard.specifications().m2SlotCount();
             if (m2Slots == null) {
-                return result(rule, CompatibilityStatus.UNKNOWN, "主板缺少 M.2 插槽数量", motherboard, storage);
+                return result(rule, CompatibilityStatus.UNKNOWN, "主板缺少 M.2 插槽数量",
+                        List.of(field(HardwareCategory.MOTHERBOARD, "m2_slot_count")),
+                        motherboard, storage);
             }
             if (m2Slots >= 1) {
                 return result(rule, CompatibilityStatus.PASS,
@@ -318,7 +407,9 @@ public class CompatibilityValidator {
         if (normalized.contains(INTERFACE_SATA)) {
             Integer sataPorts = motherboard.specifications().sataPorts();
             if (sataPorts == null) {
-                return result(rule, CompatibilityStatus.UNKNOWN, "主板缺少 SATA 接口数量", motherboard, storage);
+                return result(rule, CompatibilityStatus.UNKNOWN, "主板缺少 SATA 接口数量",
+                        List.of(field(HardwareCategory.MOTHERBOARD, "sata_ports")),
+                        motherboard, storage);
             }
             if (sataPorts >= 1) {
                 return result(rule, CompatibilityStatus.PASS,
@@ -327,7 +418,24 @@ public class CompatibilityValidator {
             return result(rule, CompatibilityStatus.FAIL, "主板没有 SATA 接口", motherboard, storage);
         }
         return result(rule, CompatibilityStatus.UNKNOWN,
-                "无法识别的存储接口类型: " + interfaceType, motherboard, storage);
+                "无法识别的存储接口类型: " + interfaceType,
+                List.of(field(HardwareCategory.STORAGE, "interface")), motherboard, storage);
+    }
+
+    /**
+     * 电源接口数量字段名；节点类型不在支持列表内时返回 {@code null}。
+     *
+     * @param connectorType 显卡外接供电接口类型
+     * @return 缺失时可供调用方补齐的字段名，或 {@code null}
+     */
+    private String connectorCountField(String connectorType) {
+        if (CONNECTOR_12VHPWR.equalsIgnoreCase(connectorType)) {
+            return field(HardwareCategory.PSU, "pcie_12vhpwr_count");
+        }
+        if (CONNECTOR_8PIN.equalsIgnoreCase(connectorType)) {
+            return field(HardwareCategory.PSU, "pcie_8pin_count");
+        }
+        return null;
     }
 
     private Integer availableConnectorCount(HardwareSpecifications psu, String connectorType) {
@@ -345,6 +453,21 @@ public class CompatibilityValidator {
             CompatibilityStatus status,
             String message,
             Hardware... hardware) {
+        return result(rule, status, message, List.of(), hardware);
+    }
+
+    /**
+     * 组装规则结论。
+     *
+     * @param missingFields 导致 {@code UNKNOWN} 的缺失字段，格式 {@code 类别.字段}；
+     *                      组件未选时传空列表，不要把「未选」说成「字段缺失」
+     */
+    private CompatibilityCheck result(
+            CompatibilityRule rule,
+            CompatibilityStatus status,
+            String message,
+            List<String> missingFields,
+            Hardware... hardware) {
         List<String> hardwareIds = new ArrayList<>();
         for (Hardware item : hardware) {
             if (item != null) {
@@ -352,7 +475,16 @@ public class CompatibilityValidator {
             }
         }
         return new CompatibilityCheck(
-                rule.ruleId(), rule.displayName(), status, rule.riskLevel(), message, hardwareIds);
+                rule.ruleId(), rule.displayName(), status, rule.riskLevel(), message,
+                hardwareIds, missingFields);
+    }
+
+    /**
+     * 缺失字段的统一命名：{@code 类别.字段}，字段名与 {@code catalog.json} 的
+     * {@code specifications} 键一致，便于调用方直接回填。
+     */
+    private static String field(HardwareCategory category, String fieldName) {
+        return category.code() + "." + fieldName;
     }
 
     private static boolean equalsIgnoreCase(String left, String right) {

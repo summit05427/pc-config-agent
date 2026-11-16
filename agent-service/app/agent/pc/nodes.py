@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import structlog
@@ -19,9 +21,15 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
+from langgraph.config import get_stream_writer
 
 from app.agent.pc.hitl import build_compatibility_question
-from app.agent.pc.llm import extract_json_object, invoke_model_text
+from app.agent.pc.llm import (
+    extract_json_object,
+    invoke_model_structured,
+    invoke_model_text,
+    stream_model_text,
+)
 from app.agent.pc.openui_renderer import render_build_openui
 from app.agent.pc.output_guard import (
     check_build_output,
@@ -37,12 +45,15 @@ from app.agent.pc.renderer import (
     as_text,
     build_frontend_payload,
     format_fen,
+    has_demo_price,
+    has_observed_price,
     overall_compatibility,
     render_build_markdown,
     render_failure_markdown,
 )
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
+    BuildProposal,
     BuildScenario,
     PCRequirements,
     Preference,
@@ -51,6 +62,16 @@ from app.agent.pc.schemas import (
 )
 from app.agent.pc.state import PCConfigState
 from app.agent.pc.status import (
+    FAILURE_BUDGET_EXCEEDED,
+    FAILURE_CANDIDATE_NOT_IN_POOL,
+    FAILURE_COMPATIBILITY_CONFLICT,
+    FAILURE_MODEL_UNAVAILABLE,
+    FAILURE_OFFER_UNAVAILABLE,
+    FAILURE_OUTPUT_TRUNCATED,
+    FAILURE_TOOL_ERROR,
+    FAILURE_USER_TOKEN_MISSING,
+    SELECTION_MODE_LLM,
+    STATUS_ARCHITECT_FAILED,
     STATUS_CLARIFICATION,
     STATUS_COMPATIBILITY_FAILED,
     STATUS_INVALID,
@@ -68,9 +89,35 @@ from app.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
 
+# 自定义流事件：`turn.py` 按 kind 映射成 reasoning / token，不新增 SSE 事件类型
+STREAM_KIND_REASONING = "reasoning"
+STREAM_KIND_TOKEN = "token"
+# 正文字符分片上限：只影响首屏节奏，拼接后必须与最终正文逐字一致
+STREAM_CHUNK_CHARS = 240
+
+# 候选摘要上限：CPU/GPU 需要横向比较，其余类别只保留定位够用的条目
+MAX_CANDIDATE_ITEMS_DEFAULT = 10
+MAX_CANDIDATE_ITEMS_BY_CATEGORY: dict[str, int] = {"CPU": 20, "GPU": 20}
+# 摘要字段白名单：键为 State 中的规范名，值为工具输出里的候选字段名。
+# Java 规格用 snake_case 且 TDP 字段名为 `tdp_w`，State 统一成 `tdp_watt`。
+_KEY_SPEC_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("socket", ("socket",)),
+    ("memory_type", ("memory_type",)),
+    ("form_factor", ("form_factor",)),
+    ("tdp_watt", ("tdp_watt", "tdp_w")),
+    ("vram_gb", ("vram_gb",)),
+    ("length_mm", ("length_mm",)),
+    ("capacity_gb", ("capacity_gb",)),
+)
+
 # 兜底解析：模型不可用时仍要能从「8000 元、打游戏」得到可用需求
 _YUAN_PATTERN = re.compile(r"(\d+)\s*(?:元|块|人民币)")
 _WAN_PATTERN = re.compile(r"(\d+)(?:\.(\d+))?\s*(?:万|w|W)")
+# 预算区间与开区间：两条正则都优先于单值匹配，避免「12000–20000」只取到 20000
+_BUDGET_RANGE_PATTERN = re.compile(
+    r"(\d+)\s*(?:元|块)?\s*(?:-|–|—|~|～|至|到)\s*(\d+)\s*(?:元|块|人民币)"
+)
+_BUDGET_ABOVE_PATTERN = re.compile(r"(\d+)\s*(?:元|块|人民币)?\s*(?:以上|起|往上|起步)")
 # 新用途值优先命中；旧值只在前述规则都未命中时兜底
 _SCENARIO_KEYWORDS: tuple[tuple[BuildScenario, tuple[str, ...]], ...] = (
     (BuildScenario.RENDERING, ("渲染",)),
@@ -81,6 +128,7 @@ _SCENARIO_KEYWORDS: tuple[tuple[BuildScenario, tuple[str, ...]], ...] = (
         ("编程", "写代码", "开发", "编译", "容器", "docker", "虚拟机"),
     ),
     (BuildScenario.GAMING, ("游戏", "打游戏", "电竞", "3A", "网游")),
+    (BuildScenario.MEDIA, ("影音", "htpc", "家庭影院", "客厅", "媒体中心")),
     (BuildScenario.GENERAL, ("综合", "日常使用")),
     (BuildScenario.CREATIVE, ("创作", "设计", "建模")),
     (BuildScenario.OFFICE, ("办公", "文档", "上网", "网课", "轻办公")),
@@ -98,6 +146,30 @@ _PREFERENCE_KEYWORDS: tuple[tuple[Preference, tuple[str, ...]], ...] = (
     ),
     (Preference.VALUE, ("性价比", "便宜点", "够用就行", "别太贵", "省钱")),
 )
+
+# Architect 修正上限：首次提案之外最多再修正两次，避免无限重选
+ARCHITECT_MAX_REPAIRS = 2
+# 候选清单注入模型的摘要字段；与 `_candidate_summary` 的白名单保持一致
+_ARCHITECT_SPEC_FIELDS: tuple[tuple[str, str], ...] = (
+    ("socket", "插槽"),
+    ("memory_type", "内存类型"),
+    ("form_factor", "板型"),
+    ("tdp_watt", "TDP(W)"),
+    ("vram_gb", "显存GB"),
+    ("length_mm", "长度MM"),
+    ("capacity_gb", "容量GB"),
+)
+# 结构化失败类型 → 被违反的规则标识，供修正提示使用
+_FAILURE_RULE_IDS: dict[str, tuple[str, ...]] = {
+    FAILURE_CANDIDATE_NOT_IN_POOL: ("candidate_id_membership",),
+    FAILURE_OFFER_UNAVAILABLE: ("offer_available",),
+    FAILURE_COMPATIBILITY_CONFLICT: ("compatibility_rules",),
+    FAILURE_BUDGET_EXCEEDED: ("budget_max",),
+    FAILURE_USER_TOKEN_MISSING: ("user_token",),
+    FAILURE_TOOL_ERROR: ("compose_available",),
+    FAILURE_OUTPUT_TRUNCATED: ("compose_output_complete",),
+    FAILURE_MODEL_UNAVAILABLE: ("structured_output",),
+}
 
 
 def _last_human_text(state: PCConfigState) -> str:
@@ -165,16 +237,8 @@ def _apply_preference(requirements: PCRequirements, text: str) -> PCRequirements
 
 
 def fallback_requirements(text: str) -> PCRequirements:
-    """确定性兜底解析；覆盖预算、用途与「只接受核验价」三类关键信号。"""
-    budget_fen: int | None = None
-    wan_match = _WAN_PATTERN.search(text)
-    yuan_match = _YUAN_PATTERN.search(text)
-    if wan_match:
-        budget_fen = _fen_from_yuan_text(
-            wan_match.group(1), wan_match.group(2), wan=True
-        )
-    elif yuan_match:
-        budget_fen = _fen_from_yuan_text(yuan_match.group(1))
+    """确定性兜底解析；覆盖预算区间、用途与「只接受核验价」三类关键信号。"""
+    budget_min_fen, budget_max_fen = _parse_budget(text)
 
     scenario = BuildScenario.BALANCED
     scenario_explicit = False
@@ -186,12 +250,14 @@ def fallback_requirements(text: str) -> PCRequirements:
 
     require_verified = any(keyword in text for keyword in _VERIFIED_KEYWORDS)
     missing: list[str] = []
-    if budget_fen is None:
+    if budget_min_fen is None and budget_max_fen is None:
         missing.append("budget_max_fen")
     if not scenario_explicit:
         missing.append("scenario")
 
-    needs_clarification = budget_fen is None and not scenario_explicit
+    needs_clarification = (
+        budget_min_fen is None and budget_max_fen is None and not scenario_explicit
+    )
     question = None
     if needs_clarification:
         question = (
@@ -200,7 +266,8 @@ def fallback_requirements(text: str) -> PCRequirements:
         )
 
     requirements = PCRequirements(
-        budget_max_fen=budget_fen,
+        budget_min_fen=budget_min_fen,
+        budget_max_fen=budget_max_fen,
         scenario=scenario,
         scenario_explicit=scenario_explicit,
         require_verified_offers=require_verified,
@@ -209,6 +276,28 @@ def fallback_requirements(text: str) -> PCRequirements:
         missing_fields=missing,
     )
     return _apply_preference(_apply_render_mode(requirements, text), text)
+
+
+def _parse_budget(text: str) -> tuple[int | None, int | None]:
+    """解析预算区间、开区间与单值；区间必须同时保留上下限。
+
+    「12000–20000 元」不能只取 20000，「20000 元以上」也不能被当成上限 20000。
+    """
+    range_match = _BUDGET_RANGE_PATTERN.search(text)
+    if range_match:
+        first = _fen_from_yuan_text(range_match.group(1))
+        second = _fen_from_yuan_text(range_match.group(2))
+        return min(first, second), max(first, second)
+    above_match = _BUDGET_ABOVE_PATTERN.search(text)
+    if above_match:
+        return _fen_from_yuan_text(above_match.group(1)), None
+    wan_match = _WAN_PATTERN.search(text)
+    if wan_match:
+        return None, _fen_from_yuan_text(wan_match.group(1), wan_match.group(2), wan=True)
+    yuan_match = _YUAN_PATTERN.search(text)
+    if yuan_match:
+        return None, _fen_from_yuan_text(yuan_match.group(1))
+    return None, None
 
 
 async def requirement_parser(
@@ -237,7 +326,28 @@ async def requirement_parser(
     # 模型可能臆测渲染方式与偏好，最终以用户原文中的明确措辞为准
     requirements = _apply_render_mode(requirements, user_text)
     requirements = _apply_preference(requirements, user_text)
-    return {"requirements": requirements.model_dump(), "workflow_status": "parsed"}
+    # 只记录结构化字段，不记录用户原文：用于复盘预算、场景与偏好是否解析正确
+    logger.info(
+        "pc.requirements_parsed",
+        budget_min_fen=requirements.budget_min_fen,
+        budget_max_fen=requirements.budget_max_fen,
+        scenario=requirements.scenario.value,
+        scenario_explicit=requirements.scenario_explicit,
+        preference=requirements.preference.value if requirements.preference else None,
+        min_memory_gb=requirements.min_memory_gb,
+        min_storage_gb=requirements.min_storage_gb,
+        needs_clarification=requirements.needs_clarification,
+    )
+    return {
+        "requirements": requirements.model_dump(),
+        # 质量评审是单轮状态：新回合必须清空，避免上一轮的约束与提示串到下一轮
+        "quality_review": None,
+        "quality_notice": None,
+        "quality_constraints": None,
+        "quality_feedback": None,
+        "quality_retry_count": 0,
+        "workflow_status": "parsed",
+    }
 
 
 def _parse_requirements(text: str | None) -> PCRequirements | None:
@@ -362,6 +472,13 @@ async def _call_tool(
     try:
         raw = await tool.ainvoke(args)
     except ToolExecutionError as exc:
+        # 文案本身是安全的用户提示，但必须留日志，否则上游故障无法定位
+        logger.warning(
+            "pc.tool_failed",
+            tool=tool.name,
+            error_type="tool_execution",
+            message=str(exc),
+        )
         return None, str(exc)
     except Exception:
         logger.warning("pc.tool_failed", tool=tool.name, error_type="unexpected")
@@ -399,6 +516,8 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
     counts: dict[str, int] = {}
     catalog_version = ""
     missing: list[str] = []
+    candidate_sets: dict[str, list[dict[str, Any]]] = {}
+    truncated: dict[str, int] = {}
     upstream_failed = False
     for (category, _), result in zip(requests, results, strict=True):
         if isinstance(result, BaseException):
@@ -410,9 +529,19 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
             upstream_failed = True
             events.append(_tool_end("search_hardware_candidates", error or "查询失败"))
             continue
-        total = as_int(data.get("total"), len(as_list(data.get("list"))))
+        items, items_error = _candidate_items(data)
+        if items is None:
+            # `list` 存在但不是对象数组：如实标记上游异常，不能当成「没有候选」继续
+            upstream_failed = True
+            events.append(_tool_end("search_hardware_candidates", items_error or "查询失败"))
+            continue
+        total = as_int(data.get("total"), len(items))
         counts[category.value] = total
         catalog_version = as_text(data.get("catalogVersion"), catalog_version)
+        summaries, dropped = _summarize_candidates(category.value, items)
+        candidate_sets[category.value] = summaries
+        if dropped:
+            truncated[category.value] = dropped
         events.append(
             _tool_end(
                 "search_hardware_candidates",
@@ -426,6 +555,8 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
         return {
             "workflow_status": STATUS_UPSTREAM_ERROR,
             "tool_events": events,
+            "candidate_sets": candidate_sets,
+            "candidate_truncated": truncated,
             "candidate_pool": {
                 "catalog_version": catalog_version,
                 "category_counts": counts,
@@ -436,6 +567,8 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
         return {
             "workflow_status": STATUS_NO_CANDIDATES,
             "tool_events": events,
+            "candidate_sets": candidate_sets,
+            "candidate_truncated": truncated,
             "candidate_pool": {
                 "catalog_version": catalog_version,
                 "category_counts": counts,
@@ -447,6 +580,8 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
     return {
         "workflow_status": STATUS_RETRIEVED,
         "tool_events": events,
+        "candidate_sets": candidate_sets,
+        "candidate_truncated": truncated,
         "candidate_pool": {
             "catalog_version": catalog_version,
             "category_counts": counts,
@@ -455,6 +590,48 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
             "offer_summary": offer_summary,
         },
     }
+
+
+def _candidate_items(data: dict[str, Any]) -> tuple[list[dict[str, Any]] | None, str | None]:
+    """校验候选数组形状；`list` 存在但不是对象数组时按上游结构异常处理。"""
+    raw_items = data.get("list")
+    if raw_items is None:
+        return [], None
+    if not isinstance(raw_items, list) or any(not isinstance(item, dict) for item in raw_items):
+        return None, "配置数据格式异常"
+    return raw_items, None
+
+
+def _candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
+    """按白名单生成候选摘要；型号文本、链接与整段规格都不进入 State。"""
+    specifications = as_mapping(item.get("specifications"))
+    summary: dict[str, Any] = {
+        "hardware_id": as_text(item.get("hardwareId")),
+        "display_name": as_text(item.get("displayName"), as_text(item.get("modelName"))),
+    }
+    for output_key, source_keys in _KEY_SPEC_FIELDS:
+        for source_key in source_keys:
+            value = specifications.get(source_key)
+            if isinstance(value, (str, int)) and not isinstance(value, bool):
+                summary[output_key] = value
+                break
+    price_fen = item.get("priceFen")
+    if isinstance(price_fen, int) and not isinstance(price_fen, bool):
+        summary["price_fen"] = price_fen
+    summary["data_quality_status"] = as_text(item.get("dataQualityStatus"))
+    summary["lifecycle_status"] = as_text(item.get("lifecycleStatus"))
+    summary["missing_fields"] = [
+        field for field in (as_text(raw) for raw in as_list(item.get("missingFields"))) if field
+    ]
+    return summary
+
+
+def _summarize_candidates(
+    category: str, items: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], int]:
+    """按工具返回顺序截断；返回 (摘要列表, 被丢弃条数)。"""
+    limit = MAX_CANDIDATE_ITEMS_BY_CATEGORY.get(category, MAX_CANDIDATE_ITEMS_DEFAULT)
+    return [_candidate_summary(item) for item in items[:limit]], max(0, len(items) - limit)
 
 
 def _decode_tool_result(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
@@ -540,7 +717,10 @@ async def build_solver(state: PCConfigState) -> dict[str, Any]:
     retry_count = as_int(state.get("retry_count"))
     # 失败重解只放宽软偏好（是否只接受核验价），预算与兼容性约束保持不变
     require_verified = False if retry_count > 0 else requirements.require_verified_offers
+    # 质量评审给出的约束只在本次图内生效，不写入用户需求，也不落库
+    quality_constraints = as_mapping(state.get("quality_constraints"))
     args = {
+        "budget_min_fen": requirements.budget_min_fen,
         "budget_max_fen": requirements.budget_max_fen,
         "scenario": requirements.scenario.value,
         "preference": requirements.preference.value if requirements.preference else None,
@@ -548,6 +728,8 @@ async def build_solver(state: PCConfigState) -> dict[str, Any]:
         "min_memory_gb": requirements.min_memory_gb,
         "min_storage_gb": requirements.min_storage_gb,
         "require_verified_offers": require_verified,
+        "min_cpu_price_fen": quality_constraints.get("minCpuPriceFen"),
+        "max_gpu_price_fen": quality_constraints.get("maxGpuPriceFen"),
     }
     events = [_tool_start("solve_pc_build", args)]
     tool = get_governed_tool("solve_pc_build")
@@ -680,6 +862,449 @@ def _hardware_ids(build: dict[str, Any]) -> dict[str, str] | None:
     return ids if required <= set(ids) else None
 
 
+def _architect_fen_text(value: Any) -> str:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return format_fen(value)
+    return "未设置"
+
+
+def _architect_requirements_text(requirements: dict[str, Any]) -> str:
+    """只给结构化需求，不把用户原文当成可覆盖系统规则的指令。"""
+    preference = as_text(requirements.get("preference"), "未指定")
+    render_mode = as_text(requirements.get("render_mode"), "未指定")
+    return "\n".join(
+        [
+            "## 用户需求",
+            f"- 预算下限：{_architect_fen_text(requirements.get('budget_min_fen'))}",
+            f"- 预算上限：{_architect_fen_text(requirements.get('budget_max_fen'))}",
+            f"- 用途：{as_text(requirements.get('scenario'), 'BALANCED')}",
+            f"- 选型偏好：{preference}",
+            f"- 渲染方式：{render_mode}",
+            f"- 最低内存：{requirements.get('min_memory_gb') or '未指定'} GB",
+            f"- 最低存储：{requirements.get('min_storage_gb') or '未指定'} GB",
+            f"- 只接受核验报价：{'是' if requirements.get('require_verified_offers') else '否'}",
+        ]
+    )
+
+
+# 质量反馈的修正方向只有两种；渲染成中文，避免模型把字段名当成可执行指令
+_QUALITY_DIRECTION_LABELS: dict[str, str] = {
+    "increase": "提高（不低于目标值）",
+    "decrease": "降低（不高于目标值）",
+}
+
+
+def _category_labels(raw: Any) -> str:
+    """把类别代码渲染成中文标签；未知值原样保留，避免丢失定位信息。"""
+    labels = [
+        CATEGORY_LABELS.get(category, category)
+        for category in (as_text(item) for item in as_list(raw))
+        if category
+    ]
+    return "、".join(labels)
+
+
+def _architect_quality_feedback_text(feedback: dict[str, Any]) -> str:
+    """把质量评审的结构化发现翻译成换件要求；不出现求解器字段名与原始参数。"""
+    findings = [as_mapping(item) for item in as_list(feedback.get("findings"))]
+    if not findings:
+        return ""
+    lines = [
+        "## 上一轮质量评审（必须据此修正）",
+        f"- 失败类型：{as_text(feedback.get('failure_type'))}",
+    ]
+    for entry in findings:
+        direction = as_text(entry.get("direction"))
+        lines.append(
+            f"- 问题：{as_text(entry.get('issue'))}"
+            f"；受影响类别：{_category_labels(entry.get('affected_categories'))}"
+            f"；当前值：{format_fen(as_int(entry.get('current_value_fen')))}"
+            f"；目标值：{format_fen(as_int(entry.get('target_value_fen')))}"
+            f"；方向：{_QUALITY_DIRECTION_LABELS.get(direction, direction or '未指定')}"
+        )
+    preserve = _category_labels(feedback.get("must_preserve_categories"))
+    if preserve:
+        lines.append(f"- 必须保持不变：{preserve}")
+    allowed = _category_labels(feedback.get("allowed_changes"))
+    if allowed:
+        lines.append(f"- 允许修改：{allowed}")
+    lines.append(f"- 质量重解次数：{as_int(feedback.get('repair_attempt'))}")
+    return "\n".join(lines)
+
+
+def _architect_candidate_line(summary: dict[str, Any]) -> str:
+    fields = [
+        f"ID={as_text(summary.get('hardware_id'), '缺失')}",
+        f"名称={as_text(summary.get('display_name'), '未提供')}",
+    ]
+    price = summary.get("price_fen")
+    if isinstance(price, int) and not isinstance(price, bool) and price > 0:
+        fields.append(f"价格={format_fen(price)}")
+    else:
+        fields.append("价格=未提供")
+    for key, label in _ARCHITECT_SPEC_FIELDS:
+        value = summary.get(key)
+        if isinstance(value, (str, int)) and not isinstance(value, bool) and value != "":
+            fields.append(f"{label}={value}")
+    if as_text(summary.get("data_quality_status")):
+        fields.append(f"数据质量={as_text(summary.get('data_quality_status'))}")
+    if as_text(summary.get("lifecycle_status")):
+        fields.append(f"生命周期={as_text(summary.get('lifecycle_status'))}")
+    missing = [as_text(item) for item in as_list(summary.get("missing_fields"))]
+    if missing:
+        fields.append(f"缺失字段={','.join(missing)}")
+    return "- " + " | ".join(fields)
+
+
+def _architect_catalog_text(candidate_sets: dict[str, Any]) -> str:
+    """按类别注入紧凑候选清单：只放摘要字段，并要求只能从中选择 ID。"""
+    lines = ["## 候选清单（只能选择以下硬件 ID，禁止编造）"]
+    for category in REQUIRED_CATEGORIES:
+        summaries = as_list(candidate_sets.get(category.value))
+        lines.append(f"### {CATEGORY_LABELS[category.value]}（{category.value}）")
+        if not summaries:
+            lines.append("- 无候选；不得为该类别虚构硬件")
+            continue
+        lines.extend(_architect_candidate_line(as_mapping(item)) for item in summaries)
+    return "\n".join(lines)
+
+
+def _architect_repair_text(failure: dict[str, Any]) -> str:
+    if not failure:
+        return ""
+    failure_type = as_text(failure.get("failure_type"), as_text(failure.get("reason"), "UNKNOWN"))
+    lines = [
+        "## 上一轮失败（必须据此修正）",
+        f"- 失败类型：{failure_type}",
+    ]
+    for key, label in (
+        ("affected_categories", "受影响类别"),
+        ("affected_hardware_ids", "受影响硬件"),
+        ("violated_rule_ids", "违反规则"),
+        ("authoritative_error_details", "服务端错误"),
+        ("must_preserve_categories", "必须保持不变"),
+        ("allowed_changes", "允许修改"),
+    ):
+        raw = failure.get(key)
+        if isinstance(raw, list):
+            text = "、".join(as_text(item) for item in raw if as_text(item))
+        else:
+            text = as_text(raw)
+        if text:
+            lines.append(f"- {label}：{text}")
+    lines.append(f"- 已用修正次数：{as_int(failure.get('repair_attempt'))}/{ARCHITECT_MAX_REPAIRS}")
+    return "\n".join(lines)
+
+
+def _architect_context(state: PCConfigState, failure: dict[str, Any]) -> str:
+    sections = [
+        _architect_requirements_text(as_mapping(state.get("requirements"))),
+        _architect_quality_feedback_text(as_mapping(state.get("quality_feedback"))),
+        _architect_catalog_text(as_mapping(state.get("candidate_sets"))),
+        _architect_repair_text(failure),
+    ]
+    return "\n\n".join(section for section in sections if section)
+
+
+def _architect_failure(
+    failure_type: str,
+    *,
+    message: str,
+    categories: list[str] | None = None,
+    hardware_ids: list[str] | None = None,
+    rule_ids: tuple[str, ...] | None = None,
+    preserve: list[str] | None = None,
+    repair_attempt: int = 0,
+) -> dict[str, Any]:
+    """按方案 §12.2 的形状描述失败；没有服务端明细时不编造受影响类别。"""
+    affected = list(categories or [])
+    keep = list(preserve or [])
+    all_categories = [category.value for category in REQUIRED_CATEGORIES]
+    allowed = [item for item in all_categories if item not in set(keep)]
+    return {
+        # `reason` 兼容现有失败文案的结构，`failure_type` 是修正闭环的正式字段
+        "reason": failure_type,
+        "failure_type": failure_type,
+        "affected_categories": affected,
+        "affected_hardware_ids": list(hardware_ids or []),
+        "violated_rule_ids": list(rule_ids or _FAILURE_RULE_IDS.get(failure_type, ())),
+        "authoritative_error_details": message,
+        "must_preserve_categories": keep,
+        "allowed_changes": allowed,
+        "repair_attempt": repair_attempt,
+    }
+
+
+def _architect_failure_update(
+    failure: dict[str, Any],
+    repair_count: int,
+    events: list[dict[str, Any]],
+    proposal: BuildProposal | None,
+) -> dict[str, Any]:
+    """失败必须清空上一轮方案，禁止把未验证结果带到渲染与前端。"""
+    return {
+        "workflow_status": STATUS_ARCHITECT_FAILED,
+        "build_failure": failure,
+        "build_result": None,
+        "compatibility_report": None,
+        "build_proposal": proposal.model_dump(mode="json") if proposal is not None else None,
+        "architect_repair_count": repair_count,
+        "selection_mode": SELECTION_MODE_LLM,
+        "tool_events": events,
+    }
+
+
+def _invalid_proposal_components(
+    proposal: BuildProposal, candidate_sets: dict[str, Any]
+) -> list[tuple[str, str]]:
+    """ID 存在性校验必须独立于 Schema：越界提案不能交给 Java。"""
+    invalid: list[tuple[str, str]] = []
+    for component in proposal.selected_components:
+        allowed = {
+            as_text(as_mapping(item).get("hardware_id"))
+            for item in as_list(candidate_sets.get(component.category.value))
+        }
+        if component.hardware_id not in allowed:
+            invalid.append((component.category.value, component.hardware_id))
+    return invalid
+
+
+def _proposal_hardware_args(proposal: BuildProposal) -> dict[str, Any]:
+    return {
+        component.category.value.lower(): component.hardware_id
+        for component in proposal.selected_components
+    }
+
+
+def _normalize_compose_build(data: dict[str, Any]) -> dict[str, Any] | None:
+    """把 compose 响应归一成与 solve 成功分支一致的 build 字典。"""
+    build = as_mapping(data.get("build"))
+    components = [as_mapping(item) for item in as_list(build.get("components"))]
+    components = [item for item in components if item]
+    categories = {as_text(item.get("category")) for item in components}
+    required = {category.value for category in REQUIRED_CATEGORIES}
+    if not build or len(components) != len(REQUIRED_CATEGORIES) or categories != required:
+        return None
+    normalized = dict(build)
+    normalized["components"] = components
+    normalized["compatibilityReport"] = as_mapping(build.get("compatibilityReport"))
+    return normalized
+
+
+@dataclass(frozen=True)
+class _ComposeOutcome:
+    """一次组装调用的结果；`retryable` 决定是否进入修正。"""
+
+    build: dict[str, Any] | None
+    failure: dict[str, Any] | None
+    retryable: bool
+
+
+def _compose_args(
+    proposal: BuildProposal, requirements: dict[str, Any]
+) -> dict[str, Any]:
+    args = _proposal_hardware_args(proposal)
+    budget_max = requirements.get("budget_max_fen")
+    args["budget_max_fen"] = (
+        budget_max
+        if isinstance(budget_max, int) and not isinstance(budget_max, bool) and budget_max > 0
+        else None
+    )
+    return args
+
+
+async def _compose_proposal(
+    proposal: BuildProposal,
+    requirements: dict[str, Any],
+    events: list[dict[str, Any]],
+) -> _ComposeOutcome:
+    args = _compose_args(proposal, requirements)
+    events.append(_tool_start("compose_pc_build", args))
+    tool = get_governed_tool("compose_pc_build")
+    if tool is None:
+        events.append(_tool_end("compose_pc_build", "工具未注册"))
+        return _ComposeOutcome(
+            None,
+            _architect_failure(FAILURE_TOOL_ERROR, message="配置组装工具未注册。"),
+            False,
+        )
+
+    data, error = await _call_tool(tool, args)
+    if error is not None or data is None:
+        events.append(_tool_end("compose_pc_build", error or "组装失败"))
+        return _ComposeOutcome(
+            None,
+            _architect_failure(FAILURE_TOOL_ERROR, message=error or "配置组装失败。"),
+            True,
+        )
+    return _compose_payload_outcome(data, events)
+
+
+def _compose_payload_outcome(
+    data: dict[str, Any], events: list[dict[str, Any]]
+) -> _ComposeOutcome:
+    """解释治理层返回的载荷；业务失败与结构异常必须区分是否可修正。"""
+    if data.get("_truncated") is True:
+        events.append(_tool_end("compose_pc_build", "结果被截断"))
+        return _ComposeOutcome(
+            None,
+            _architect_failure(
+                FAILURE_OUTPUT_TRUNCATED,
+                message="组装结果被治理层截断，无法作为完整方案使用。",
+            ),
+            False,
+        )
+    if data.get("composed") is False:
+        failure_payload = as_mapping(data.get("failure"))
+        reason = as_text(failure_payload.get("reason"), FAILURE_TOOL_ERROR)
+        message = as_text(failure_payload.get("message"), "服务端未能生成配置。")
+        retryable = failure_payload.get("retryable") is not False
+        events.append(_tool_end("compose_pc_build", message))
+        return _ComposeOutcome(None, _architect_failure(reason, message=message), retryable)
+
+    build = _normalize_compose_build(data)
+    if build is None:
+        events.append(_tool_end("compose_pc_build", "返回结构异常"))
+        return _ComposeOutcome(
+            None,
+            _architect_failure(
+                FAILURE_TOOL_ERROR,
+                message="组装结果缺少八类组件或兼容性报告。",
+            ),
+            False,
+        )
+    events.append(
+        _tool_end("compose_pc_build", f"总价 {format_fen(as_int(build.get('totalPriceFen')))}")
+    )
+    return _ComposeOutcome(build, None, True)
+
+
+async def _request_architect_proposal(
+    state: PCConfigState,
+    failure: dict[str, Any],
+    config: RunnableConfig,
+    *,
+    model: BaseChatModel | None,
+    agent_id: str,
+    architect_prompt: str,
+) -> BuildProposal | None:
+    return await invoke_model_structured(
+        model,
+        [
+            SystemMessage(content=architect_prompt),
+            HumanMessage(content=_architect_context(state, failure)),
+        ],
+        schema=BuildProposal,
+        config=config,
+        agent_id=agent_id,
+        purpose="build_architect",
+    )
+
+
+def _architect_candidate_failure(
+    invalid: list[tuple[str, str]], repair_count: int
+) -> dict[str, Any]:
+    invalid_categories = sorted({category for category, _ in invalid})
+    return _architect_failure(
+        FAILURE_CANDIDATE_NOT_IN_POOL,
+        message="提案中的硬件 ID 不在本轮候选清单内。",
+        categories=invalid_categories,
+        hardware_ids=[hardware_id for _, hardware_id in invalid],
+        preserve=[
+            category.value
+            for category in REQUIRED_CATEGORIES
+            if category.value not in invalid_categories
+        ],
+        repair_attempt=repair_count,
+    )
+
+
+def _architect_success_update(
+    proposal: BuildProposal,
+    build: dict[str, Any],
+    events: list[dict[str, Any]],
+    repair_count: int,
+) -> dict[str, Any]:
+    return {
+        "workflow_status": STATUS_SUCCESS,
+        "tool_events": events,
+        "build_result": build,
+        "build_failure": None,
+        "compatibility_report": as_mapping(build.get("compatibilityReport")),
+        "budget_report": {
+            "budget_max_fen": build.get("budgetMaxFen"),
+            "total_price_fen": as_int(build.get("totalPriceFen")),
+            "status": as_text(build.get("budgetStatus")),
+        },
+        "build_proposal": proposal.model_dump(mode="json"),
+        "architect_repair_count": repair_count,
+        "selection_mode": SELECTION_MODE_LLM,
+    }
+
+
+async def build_architect(
+    state: PCConfigState,
+    config: RunnableConfig,
+    *,
+    model: BaseChatModel | None,
+    agent_id: str,
+    architect_prompt: str,
+) -> dict[str, Any]:
+    """LLM 选型：结构化提案 → 本地候选校验 → Java 组装 → 有限修正。
+
+    模型不可用或结构化输出失败时直接失败，绝不回退到旧求解器冒充 LLM 结果。
+    """
+    requirements = as_mapping(state.get("requirements"))
+    candidate_sets = as_mapping(state.get("candidate_sets"))
+    repair_count = as_int(state.get("architect_repair_count"))
+    failure = as_mapping(state.get("build_failure"))
+    events: list[dict[str, Any]] = []
+    last_proposal: BuildProposal | None = None
+
+    while True:
+        proposal = await _request_architect_proposal(
+            state,
+            failure,
+            config,
+            model=model,
+            agent_id=agent_id,
+            architect_prompt=architect_prompt,
+        )
+        if proposal is None:
+            unavailable = _architect_failure(
+                FAILURE_MODEL_UNAVAILABLE,
+                message="模型未能返回符合 Schema 的选型提案。",
+                repair_attempt=repair_count,
+            )
+            return _architect_failure_update(
+                unavailable, repair_count, events, last_proposal
+            )
+        last_proposal = proposal
+
+        invalid = _invalid_proposal_components(proposal, candidate_sets)
+        if invalid:
+            failure = _architect_candidate_failure(invalid, repair_count)
+            if repair_count >= ARCHITECT_MAX_REPAIRS:
+                return _architect_failure_update(failure, repair_count, events, proposal)
+            repair_count += 1
+            failure = {**failure, "repair_attempt": repair_count}
+            continue
+
+        outcome = await _compose_proposal(proposal, requirements, events)
+        if outcome.build is not None:
+            return _architect_success_update(
+                proposal, outcome.build, events, repair_count
+            )
+
+        failure = outcome.failure or _architect_failure(
+            FAILURE_TOOL_ERROR, message="配置组装失败。"
+        )
+        if not outcome.retryable or repair_count >= ARCHITECT_MAX_REPAIRS:
+            return _architect_failure_update(failure, repair_count, events, proposal)
+        repair_count += 1
+        failure = {**failure, "repair_attempt": repair_count}
+
+
 def _reason_context(state: PCConfigState) -> str:
     """只把结构性结论交给模型，不提供型号、价格与链接。"""
     build = as_mapping(state.get("build_result"))
@@ -728,9 +1353,35 @@ def _deterministic_reason(state: PCConfigState) -> str:
     reason = reasons.get(scenario, reasons["BALANCED"]) + _preference_reason(state)
     if overall == "UNKNOWN":
         reason += "机箱散热高度等少数规格尚未验证，装机前请再次确认。"
-    if as_int(build.get("demoOfferCount")) > 0:
+    if has_demo_price(build):
         reason += "当前方案包含演示价格，请以商品页实时信息为准。"
+    elif has_observed_price(build):
+        reason += "当前方案价格为平台检索参考价，未经人工核验，请以商品页实时信息为准。"
     return reason
+
+
+def _stream_emitter() -> Callable[[dict[str, Any]], None]:
+    """取 LangGraph 自定义流写入器；节点被单测直接调用时退化为空实现。"""
+    try:
+        writer = get_stream_writer()
+    except RuntimeError:
+        return lambda _payload: None
+    return writer
+
+
+def _chunk_body(body: str, limit: int = STREAM_CHUNK_CHARS) -> list[str]:
+    """按行合并成不超过 `limit` 的块；`"".join(结果)` 必须与 `body` 完全一致。"""
+    chunks: list[str] = []
+    current = ""
+    for line in body.splitlines(keepends=True):
+        if current and len(current) + len(line) > limit:
+            chunks.append(current)
+            current = line
+        else:
+            current += line
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 async def response_generator(
@@ -742,12 +1393,14 @@ async def response_generator(
     system_prompt: str,
     generator_prompt: str,
 ) -> dict[str, Any]:
-    """写最终正文；模型只生成推荐说明，Markdown 由代码确定性渲染。"""
+    """写最终正文：思考内容实时下发，正文在校验通过后按块下发。"""
+    emit = _stream_emitter()
     status = as_text(state.get("workflow_status"))
     if status != STATUS_SUCCESS:
-        return {
-            "messages": [AIMessage(content=render_failure_markdown(state))],
-        }
+        body = render_failure_markdown(state)
+        for piece in _chunk_body(body):
+            emit({"kind": STREAM_KIND_TOKEN, "text": piece})
+        return {"messages": [AIMessage(content=body)]}
 
     build = as_mapping(state.get("build_result"))
     reason = await _generate_reason(
@@ -757,6 +1410,7 @@ async def response_generator(
         agent_id=agent_id,
         system_prompt=system_prompt,
         generator_prompt=generator_prompt,
+        on_reasoning=lambda text: emit({"kind": STREAM_KIND_REASONING, "text": text}),
     )
     reason = reason or _deterministic_reason(state)
     body = _render_success(build, reason)
@@ -771,6 +1425,14 @@ async def response_generator(
         record_violations(violations, agent_id=agent_id)
         reason = _deterministic_reason(state)
         body = _render_success(build, reason) + render_guard_notice(violations)
+    # 模型文案必须整段通过校验后才下发：命中数字或型号时整段替换，不能先流后改。
+    # 正文必须等思考结束后再下发，保证用户先看到思考过程，再看到最终结果
+    quality_notice = as_text(state.get("quality_notice"))
+    if quality_notice:
+        # 质量提示放在自检之后追加：它描述的是取舍事实，不参与兼容性文案断言
+        body = f"{body}\n\n> 质量提示：{quality_notice}"
+    for piece in _chunk_body(body):
+        emit({"kind": STREAM_KIND_TOKEN, "text": piece})
     return {
         "messages": [AIMessage(content=body)],
         "build_result": build,
@@ -794,10 +1456,11 @@ async def _generate_reason(
     agent_id: str,
     system_prompt: str,
     generator_prompt: str,
+    on_reasoning: Callable[[str], None] | None = None,
 ) -> str | None:
     if model is None:
         return None
-    text = await invoke_model_text(
+    text = await stream_model_text(
         model,
         [
             SystemMessage(content=f"{system_prompt}\n\n{generator_prompt}"),
@@ -806,6 +1469,7 @@ async def _generate_reason(
         config=config,
         agent_id=agent_id,
         purpose="response_generator",
+        on_reasoning=on_reasoning,
     )
     return sanitize_reason(text, as_mapping(state.get("build_result")))
 

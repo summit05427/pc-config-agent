@@ -107,6 +107,9 @@ public final class BuildExplanations {
                     + BuildScoring.VRAM_BONUS_CAP_GB + "GB）；CPU 权重 "
                     + requirements.scenario().cpuWeight() + "%。";
             case RENDERING -> renderingSummary(requirements);
+            case MEDIA -> "该方案按影音/HTPC 画像评分：CPU 权重 "
+                    + requirements.scenario().cpuWeight() + "%，显卡权重 "
+                    + requirements.scenario().gpuWeight() + "%，按性能与价格平衡选择。";
             case GENERAL -> "该方案按通用画像评分：CPU/GPU 权重 "
                     + requirements.scenario().cpuWeight() + "/" + requirements.scenario().gpuWeight()
                     + "，按性能与价格平衡选择。";
@@ -184,6 +187,7 @@ public final class BuildExplanations {
             case VIDEO_EDITING -> "VIDEO_EDITING 画像候选池按 PassMark 主分降序取前 12。";
             case AI_INFERENCE -> "AI_INFERENCE 画像候选池按 PassMark 主分降序取前 12。";
             case RENDERING -> "RENDERING 画像候选池按 PassMark 主分降序取前 12。";
+            case MEDIA -> "MEDIA 画像候选池按 PassMark 主分降序，并结合价格分档保留中端型号。";
             case GENERAL -> "GENERAL 画像候选池按 PassMark 主分降序取前 12。";
         };
         return ordering + "本方案 CPU 权重 " + requirements.scenario().cpuWeight() + "%。";
@@ -200,6 +204,7 @@ public final class BuildExplanations {
             case GAMING -> "GAMING 画像显卡候选按图形分降序取前 12。";
             case PROGRAMMING -> "PROGRAMMING 画像显卡候选按图形分降序取前 12。";
             case RENDERING -> "RENDERING 画像显卡候选按图形分降序取前 12。";
+            case MEDIA -> "MEDIA 画像显卡候选按图形分降序，并结合价格分档保留中端型号。";
             case GENERAL -> "GENERAL 画像显卡候选按图形分降序取前 12。";
         };
         return ordering + "本方案 GPU 权重 " + requirements.scenario().gpuWeight() + "%。";

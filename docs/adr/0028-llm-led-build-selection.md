@@ -6,7 +6,7 @@
 | 决策日期 | 2026-11-16 |
 | 相关 | [ADR 0027](./0027-pc-config-decisions.md) §1、[重构方案](../planning/pc-config-agent-refactor-plan-v1.md)、[PC 配置术语](../pc-config/glossary.md) |
 
-过渡期：本决策推翻 [PC 配置术语](../pc-config/glossary.md) 中「求解器不允许 LLM 选择最终 SKU」的表述；在 Stage 1 质量门禁通过前，线上默认路径仍是求解器。
+过渡期：本决策推翻 [PC 配置术语](../pc-config/glossary.md) 中「求解器不允许 LLM 选择最终 SKU」的表述。`AGENT__PC_SELECTION_MODE` 默认 `llm`；设为 `solver` 可显式回到确定性求解器路径，两条路径不得在同一次回合内混用或互相冒充。
 
 ## 背景
 

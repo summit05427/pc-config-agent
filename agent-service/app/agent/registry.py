@@ -323,6 +323,8 @@ async def _invoke_with_governance(spec: ToolSpec, arguments: dict[str, Any]) -> 
                 tool=tool_name,
                 attempt=attempt + 1,
                 error_type=type(exc).__name__,
+                # 工具异常文本面向模型生成，不含令牌与内网地址；保留它才能区分身份缺失与上游失败
+                error_message=str(exc)[:200],
             )
         else:
             TOOL_CALLS_TOTAL.labels(tool=tool_name, status=TOOL_STATUS_SUCCESS).inc()

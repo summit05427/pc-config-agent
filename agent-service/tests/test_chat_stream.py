@@ -754,6 +754,10 @@ class _PcModel:
     async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
         return AIMessage(content=next(self._responses))
 
+    async def astream(self, messages: Any, config: Any = None, **_kwargs: Any) -> Any:
+        """说明节点走流式调用；测试只关心最终正文与用量记录。"""
+        yield AIMessageChunk(content=next(self._responses))
+
 
 class _PcTool:
     def __init__(self, name: str, handler: Any) -> None:
@@ -837,6 +841,8 @@ def _pc_agent() -> Any:
         model=_PcModel(),
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
+        # 本文件覆盖 SSE 与用量旁路，固定走确定性求解器，避免受默认选型模式影响
+        selection_mode="solver",
     )
 
 

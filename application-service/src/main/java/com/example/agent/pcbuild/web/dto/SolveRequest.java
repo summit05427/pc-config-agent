@@ -15,6 +15,9 @@ import jakarta.validation.constraints.Pattern;
  * 求解请求。
  *
  * @param budgetMaxFen          预算上限，单位人民币分；为空表示无硬预算
+ * @param budgetMinFen          预算下限，单位人民币分；为空表示用户只给了上限
+ * @param minCpuPriceFen        CPU 价格下限，单位人民币分；质量评审带约束重解时使用
+ * @param maxGpuPriceFen        GPU 价格上限，单位人民币分；质量评审带约束重解时使用
  * @param scenario              场景，默认 {@code BALANCED}
  * @param minMemoryGb           最低内存容量
  * @param minStorageGb          最低存储容量
@@ -26,10 +29,19 @@ public record SolveRequest(
         @Min(value = 0, message = "预算不能为负")
         Long budgetMaxFen,
 
-        @Pattern(regexp = "(?i)GAMING|VIDEO_EDITING|CREATIVE|PROGRAMMING|WORKSTATION|OFFICE"
+        @Min(value = 0, message = "预算下限不能为负")
+        Long budgetMinFen,
+
+        @Min(value = 0, message = "CPU 价格下限不能为负")
+        Long minCpuPriceFen,
+
+        @Min(value = 0, message = "GPU 价格上限不能为负")
+        Long maxGpuPriceFen,
+
+        @Pattern(regexp = "(?i)GAMING|VIDEO_EDITING|CREATIVE|PROGRAMMING|WORKSTATION|OFFICE|MEDIA"
                 + "|GENERAL|GENERAL_USE|BALANCED|RENDERING|AI_INFERENCE",
                 message = "场景仅支持 GAMING/VIDEO_EDITING/CREATIVE/PROGRAMMING/WORKSTATION/OFFICE"
-                        + "/GENERAL/GENERAL_USE/BALANCED/RENDERING/AI_INFERENCE")
+                        + "/MEDIA/GENERAL/GENERAL_USE/BALANCED/RENDERING/AI_INFERENCE")
         String scenario,
 
         @Min(value = 1, message = "内存容量至少 1GB")
@@ -50,7 +62,10 @@ public record SolveRequest(
     /** 场景非法时面向调用方的统一提示。 */
     private static final String SCENARIO_MESSAGE =
             "场景仅支持 GAMING/VIDEO_EDITING/CREATIVE/PROGRAMMING/WORKSTATION/OFFICE"
-                    + "/GENERAL/GENERAL_USE/BALANCED/RENDERING/AI_INFERENCE";
+                    + "/MEDIA/GENERAL/GENERAL_USE/BALANCED/RENDERING/AI_INFERENCE";
+
+    /** 预算区间非法时面向调用方的统一提示。 */
+    private static final String BUDGET_RANGE_MESSAGE = "预算下限不能大于预算上限";
 
     /** 渲染模式非法时面向调用方的统一提示。 */
     private static final String RENDER_MODE_MESSAGE = "渲染模式仅支持 CPU/GPU/BOTH";
@@ -62,9 +77,13 @@ public record SolveRequest(
      * 转换为领域需求。
      *
      * @return 领域需求
-     * @throws BusinessException 场景、渲染模式或选型偏好无法识别时 400 {@code 40304}
+     * @throws BusinessException 场景、渲染模式、选型偏好无法识别或预算区间倒置时 400 {@code 40304}
      */
     public BuildRequirements toRequirements() {
+        // 区间倒置属于用户输入错误，必须在契约层转成 400，不能让构造器抛出未捕获异常。
+        if (budgetMinFen != null && budgetMaxFen != null && budgetMinFen > budgetMaxFen) {
+            throw new BusinessException(PcBuildErrorCode.REQUIREMENT_INVALID, BUDGET_RANGE_MESSAGE);
+        }
         BuildScenario parsedScenario = BuildScenario.parse(scenario);
         if (scenario != null && !scenario.isBlank() && parsedScenario == null) {
             throw new BusinessException(PcBuildErrorCode.REQUIREMENT_INVALID, SCENARIO_MESSAGE);
@@ -81,6 +100,9 @@ public record SolveRequest(
         WorkloadProfile workloadProfile = WorkloadProfile.parse(scenario);
         return new BuildRequirements(
                 budgetMaxFen,
+                budgetMinFen,
+                minCpuPriceFen,
+                maxGpuPriceFen,
                 parsedScenario == null ? BuildRequirements.DEFAULT_SCENARIO : parsedScenario,
                 minMemoryGb,
                 minStorageGb,

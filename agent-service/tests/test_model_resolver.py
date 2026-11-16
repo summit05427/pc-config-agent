@@ -275,8 +275,8 @@ async def test_model_key_without_provider_prefix_is_returned_as_is() -> None:
     assert runtime.model_key == "gpt-4o-mini"
 
 
-async def test_control_plane_unavailable_degrades_to_default() -> None:
-    """控制面不可达时 Auto/Managed 显式降级，而不是让整条对话失败。"""
+async def test_control_plane_unavailable_fails_auto_resolution() -> None:
+    """控制面不可达时 Auto/Managed 必须显式失败，不得静默退回进程默认模型。"""
     client = FakeClient(
         error=ControlPlaneError(
             control_plane.CONTROL_PLANE_UNAVAILABLE,
@@ -286,16 +286,18 @@ async def test_control_plane_unavailable_degrades_to_default() -> None:
         )
     )
 
-    result = await resolve_runtime(
-        user_id="u-1",
-        thread_id="t-1",
-        user_token="user-token",
-        requested_model=None,
-        settings=_settings(),
-        client=client,
-    )
+    with pytest.raises(AppError) as exc_info:
+        await resolve_runtime(
+            user_id="u-1",
+            thread_id="t-1",
+            user_token="user-token",
+            requested_model=None,
+            settings=_settings(),
+            client=client,
+        )
 
-    assert result is None
+    assert exc_info.value.code == control_plane.CONTROL_PLANE_UNAVAILABLE
+    assert exc_info.value.status_code == 503
 
 
 async def test_control_plane_unavailable_does_not_degrade_explicit_model() -> None:

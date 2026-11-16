@@ -112,6 +112,20 @@ class _ReasoningGraph(_RecordingGraph):
         }
 
 
+class _CustomStreamGraph(_RecordingGraph):
+    """custom 模式：节点主动下发思考与正文分片，最终消息不得重复下发。"""
+
+    async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
+        yield "custom", {"kind": "reasoning", "text": "先分析"}
+        yield "custom", {"kind": "token", "text": "你"}
+        yield "custom", {"kind": "token", "text": "好"}
+        # 未声明的 kind 必须忽略，避免内部负载泄漏到客户端
+        yield "custom", {"kind": "internal", "text": "忽略"}
+        yield "updates", {
+            "response_generator": {"messages": [AIMessage(content="你好")]}
+        }
+
+
 class _BuildGraph(_RecordingGraph):
     """成功路径：最终状态带结构化配置，done 事件需要附带卡片。"""
 
@@ -338,6 +352,33 @@ async def test_reasoning_is_buffered_with_tokens() -> None:
         reset_hooks()
 
     assert [event.type for event in events] == ["reasoning", "token", "done"]
+
+
+async def test_run_turn_maps_custom_stream_and_deduplicates() -> None:
+    """custom 分片映射为 reasoning/token；与最终消息一致时不得重复下发。"""
+    events = [event async for event in run_turn(_request(_CustomStreamGraph()), TurnOutcome())]
+
+    assert [event.type for event in events] == ["reasoning", "token", "token", "done"]
+    assert events[0].data == {"text": "先分析"}
+    assert "".join(event.data["text"] for event in events[1:3]) == "你好"
+
+
+async def test_custom_stream_is_buffered_until_node_update() -> None:
+    """阻断型钩子通过前，custom 分片同样要缓冲到节点返回后再放行。"""
+
+    async def pass_guard(_: HookContext) -> None:
+        return None
+
+    reset_hooks()
+    register_hook(HookPoint.AFTER_MODEL, blocking=True, name="test.pass")(pass_guard)
+    try:
+        events = [
+            event async for event in run_turn(_request(_CustomStreamGraph()), TurnOutcome())
+        ]
+    finally:
+        reset_hooks()
+
+    assert [event.type for event in events] == ["reasoning", "token", "token", "done"]
 
 
 async def test_run_turn_ignores_blocked_stream_end_hook() -> None:

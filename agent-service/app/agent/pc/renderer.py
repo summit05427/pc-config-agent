@@ -12,7 +12,16 @@ from typing import Any
 from app.agent.pc.schemas import REQUIRED_CATEGORIES
 from app.agent.pc.status import (
     EMPTY_CANDIDATES_MESSAGE,
+    FAILURE_BUDGET_EXCEEDED,
+    FAILURE_CANDIDATE_NOT_IN_POOL,
+    FAILURE_COMPATIBILITY_CONFLICT,
+    FAILURE_MODEL_UNAVAILABLE,
+    FAILURE_OFFER_UNAVAILABLE,
+    FAILURE_OUTPUT_TRUNCATED,
+    FAILURE_TOOL_ERROR,
+    FAILURE_USER_TOKEN_MISSING,
     STATUS_ABORTED,
+    STATUS_ARCHITECT_FAILED,
     STATUS_CLARIFICATION,
     STATUS_COMPATIBILITY_FAILED,
     STATUS_INVALID,
@@ -23,8 +32,15 @@ from app.agent.pc.status import (
 )
 
 MOCK_PRICE_SOURCE = "MOCK_DEMO"
+OBSERVED_PRICE_SOURCE = "PLATFORM_OBSERVED"
+OBSERVED_ONLY_DATA_STATUS = "PLATFORM_OBSERVED_ONLY"
 DEMO_PRICE_NOTICE = (
     "> **价格说明：当前方案包含演示价格，非真实在售，不能作为已核验报价使用。**"
+)
+# 平台观测价是真实在售商品的检索价，与占位演示价不同，不能合并成同一句提示
+OBSERVED_PRICE_NOTICE = (
+    "> **价格说明：当前方案价格为电商平台检索到的参考价，未经人工核验；"
+    "其中估算条目可能与实际售价有偏差，下单前请以商品页为准。**"
 )
 
 CATEGORY_LABELS: dict[str, str] = {
@@ -93,17 +109,34 @@ def format_fen(amount_fen: int) -> str:
     return f"{sign}¥{yuan:,}.{fen:02d}"
 
 
+def _price_sources(build: dict[str, Any]) -> list[str]:
+    return [
+        as_text(as_mapping(component).get("priceSource"))
+        for component in as_list(build.get("components"))
+    ]
+
+
 def has_demo_price(build: dict[str, Any]) -> bool:
-    """只要存在演示价，最终输出就必须显式提示，不能被说成已核验。"""
-    if as_int(build.get("demoOfferCount")) > 0:
+    """只有占位演示价才触发「非真实在售」提示。
+
+    平台观测价同样是未核验价，但商品真实在售，语义不同。Java 的
+    `demoOfferCount` 统计的是「非 OWNER_VERIFIED」，会把观测价一起计入，
+    因此只在逐件来源缺失（历史快照）时用它兜底。
+    """
+    sources = _price_sources(build)
+    if MOCK_PRICE_SOURCE in sources:
         return True
-    for component in as_list(build.get("components")):
-        item = as_mapping(component)
-        if item.get("priceSource") == MOCK_PRICE_SOURCE:
-            return True
-        if item.get("priceSource") and item.get("verifiedPrice") is False:
-            return True
-    return False
+    return not any(sources) and as_int(build.get("demoOfferCount")) > 0
+
+
+def has_observed_price(build: dict[str, Any]) -> bool:
+    """存在平台观测/估算价时为真；一旦同时含演示价，交给演示价提示处理。"""
+    if has_demo_price(build):
+        return False
+    return (
+        as_text(build.get("offerDataStatus")) == OBSERVED_ONLY_DATA_STATUS
+        or OBSERVED_PRICE_SOURCE in _price_sources(build)
+    )
 
 
 def safe_url(value: Any) -> str | None:
@@ -145,8 +178,12 @@ def overall_compatibility(report: dict[str, Any]) -> str:
     return "PASS"
 
 
-def _demo_notice(build: dict[str, Any]) -> list[str]:
-    return [DEMO_PRICE_NOTICE, ""] if has_demo_price(build) else []
+def _price_notice(build: dict[str, Any]) -> str | None:
+    if has_demo_price(build):
+        return DEMO_PRICE_NOTICE
+    if has_observed_price(build):
+        return OBSERVED_PRICE_NOTICE
+    return None
 
 
 def _requirements_line(build: dict[str, Any]) -> str:
@@ -156,6 +193,120 @@ def _requirements_line(build: dict[str, Any]) -> str:
     if isinstance(budget, int) and not isinstance(budget, bool):
         return f"场景：{scenario}；预算上限：{format_fen(budget)}"
     return f"场景：{scenario}；预算上限：未设置"
+
+
+def _selected_components(build: dict[str, Any]) -> list[dict[str, Any]]:
+    """只保留真正有选型的类别，避免把空位当成「已配置」。"""
+    return [
+        item for item in build_components_in_order(build) if as_text(item.get("modelName"))
+    ]
+
+
+def _core_budget_line(build: dict[str, Any], total: int) -> str | None:
+    """核心计算部件占比：用真实金额计算，不做「性能强弱」这类无法从数据证明的判断。"""
+    if total <= 0:
+        return None
+    core_categories = {"CPU", "GPU"}
+    core_total = sum(
+        as_int(item.get("priceFen"))
+        for item in _selected_components(build)
+        if as_text(item.get("category")) in core_categories
+    )
+    if core_total <= 0:
+        return None
+    percent = round(core_total * 100 / total)
+    return (
+        f"预算分配：CPU 与显卡合计 {format_fen(core_total)}，占总价 {percent}%，"
+        "其余预算覆盖主板、内存、硬盘、电源、散热与机箱。"
+    )
+
+
+def _selection_line(build: dict[str, Any]) -> str | None:
+    """核心部件的确定性选型说明：型号/规格/跑分全部来自 Java 结果。"""
+    parts: list[str] = []
+    for item in _selected_components(build):
+        category = as_text(item.get("category"))
+        if category not in {"CPU", "GPU"}:
+            continue
+        label = CATEGORY_LABELS[category]
+        model = as_text(item.get("modelName"))
+        spec = as_text(item.get("specSummary"))
+        benchmark = _benchmark_text(item)
+        detail = f"规格 {spec}" if spec else ""
+        if benchmark != "—":
+            detail = f"{detail}；{benchmark}" if detail else benchmark
+        parts.append(f"{label}选用「{model}」" + (f"（{detail}）" if detail else ""))
+    if not parts:
+        return None
+    return "核心部件：" + "；".join(parts) + "。"
+
+
+def recommendation_overview(build: dict[str, Any]) -> str:
+    """
+    生成配置清单前的确定性推荐总览。
+
+    为什么由代码生成：优越性必须能落到可核验的事实（预算占比、选型规格、跑分、
+    兼容性结论、价格口径）。这些值只能来自 Java 结构化结果，交给模型复述会产生
+    虚构风险，因此这里逐条拼装，模型只补充不含数字的定性说明。
+    """
+    requirements = as_mapping(build.get("requirements"))
+    scenario = SCENARIO_LABELS.get(as_text(requirements.get("scenario")), "均衡")
+    total = as_int(build.get("totalPriceFen"))
+    budget_max = as_int(build.get("budgetMaxFen"))
+    budget_status = as_text(build.get("budgetStatus"))
+    components = _selected_components(build)
+    report = as_mapping(build.get("compatibilityReport"))
+
+    lines = ["### 为什么推荐这套配置", ""]
+    if budget_max > 0:
+        delta = budget_max - total
+        if delta >= 0:
+            conclusion = f"预算内，剩余 {format_fen(delta)}"
+        else:
+            conclusion = f"超出预算 {format_fen(-delta)}"
+        lines.append(
+            f"- **场景与预算**：面向「{scenario}」场景，整机总价 {format_fen(total)}，"
+            f"预算上限 {format_fen(budget_max)}，结论为{conclusion}。"
+        )
+    else:
+        lines.append(
+            f"- **场景与预算**：面向「{scenario}」场景，整机总价 {format_fen(total)}，"
+            "未设置预算上限。"
+        )
+
+    core_line = _core_budget_line(build, total)
+    if core_line:
+        lines.append(f"- {core_line}")
+
+    selection_line = _selection_line(build)
+    if selection_line:
+        lines.append(f"- {selection_line}")
+
+    if components:
+        labels = "、".join(
+            CATEGORY_LABELS.get(as_text(item.get("category")), "未知") for item in components
+        )
+        lines.append(
+            f"- **整机完整性**：已覆盖 {len(components)} 个类别（{labels}），"
+            "无需单独补齐配件。"
+        )
+
+    overall = overall_compatibility(report)
+    compatibility = f"- **兼容性**：平台校验整体结论为「{_compatibility_label(overall)}」"
+    if overall != "PASS":
+        compatibility += "，装机前请按提示复核未验证项"
+    compatibility += "。"
+    lines.append(compatibility)
+
+    if has_demo_price(build):
+        lines.append("- **价格口径**：当前包含演示价格，不能作为已核验报价使用。")
+    elif has_observed_price(build):
+        lines.append("- **价格口径**：当前为平台检索参考价，未经人工核验，下单前请以商品页为准。")
+
+    if budget_status == "OVER_BUDGET":
+        lines.append("- **调整建议**：若需要压回预算，可优先下调显卡或存储容量，其余部件保持不变。")
+
+    return "\n".join(lines)
 
 
 def _component_row(item: dict[str, Any]) -> str:
@@ -188,10 +339,23 @@ def build_components_in_order(build: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def markdown_intro(build: dict[str, Any]) -> str:
+    """`render_build_markdown` 中位于模型文案之前的确定性部分。
+
+    单独暴露给流式生成：这部分只依赖 Java 结构化结果，可以在模型生成前先下发。
+    """
+    notice = _price_notice(build)
+    overview = recommendation_overview(build)
+    return f"{notice}\n\n{overview}" if notice else overview
+
+
 def render_build_markdown(build: dict[str, Any], reason_summary: str) -> str:
     """把 Java 的结构化结果渲染成确定性 Markdown。"""
-    lines: list[str] = []
-    lines.extend(_demo_notice(build))
+    notice = _price_notice(build)
+    # 推荐理由必须先于清单出现：用户需要先理解「为什么是这套」，再核对具体型号与价格
+    lines: list[str] = [markdown_intro(build), ""]
+    if reason_summary:
+        lines.extend([f"**推荐说明：**{reason_summary}", ""])
     lines.append("## 推荐配置")
     lines.append("")
     lines.append(_requirements_line(build))
@@ -208,12 +372,9 @@ def render_build_markdown(build: dict[str, Any], reason_summary: str) -> str:
     )
     lines.append("")
     lines.extend(_compatibility_section(as_mapping(build.get("compatibilityReport"))))
-    if reason_summary:
+    if notice:
         lines.append("")
-        lines.append(f"**推荐说明：**{reason_summary}")
-    if has_demo_price(build):
-        lines.append("")
-        lines.append(DEMO_PRICE_NOTICE)
+        lines.append(notice)
     lines.append("")
     lines.append(
         "价格与库存为查询时快照，下单前请以商品页实时信息为准。"
@@ -360,6 +521,9 @@ def render_failure_markdown(state: Mapping[str, Any]) -> str:
         failure = as_mapping(state.get("build_failure"))
         return _render_solve_failure(failure)
 
+    if status == STATUS_ARCHITECT_FAILED:
+        return _render_architect_failure(as_mapping(state.get("build_failure")))
+
     if status == STATUS_COMPATIBILITY_FAILED:
         report = as_mapping(state.get("compatibility_report"))
         lines = ["## 暂时没有找到兼容的配置", ""]
@@ -374,6 +538,33 @@ def render_failure_markdown(state: Mapping[str, Any]) -> str:
         return "已按你的选择终止本轮方案。你可以调整预算或用途后重新提问。"
 
     return UPSTREAM_ERROR_MESSAGE
+
+
+ARCHITECT_FAILURE_MESSAGES: dict[str, str] = {
+    FAILURE_BUDGET_EXCEEDED: "所选配置超出预算上限，未生成推荐方案。",
+    FAILURE_OFFER_UNAVAILABLE: "所选硬件缺少可用报价，未生成推荐方案。",
+    FAILURE_COMPATIBILITY_CONFLICT: "所选硬件存在兼容性冲突，未生成推荐方案。",
+    FAILURE_CANDIDATE_NOT_IN_POOL: "选型未通过候选校验，未能生成可用方案。",
+    FAILURE_MODEL_UNAVAILABLE: "选型模型未能返回可用方案，本次未生成推荐配置。",
+    FAILURE_USER_TOKEN_MISSING: "缺少用户身份，无法生成配置，请重新登录后再试。",
+    FAILURE_OUTPUT_TRUNCATED: "配置结果不完整，未能生成推荐方案。",
+    FAILURE_TOOL_ERROR: UPSTREAM_ERROR_MESSAGE,
+}
+
+
+def _render_architect_failure(failure: dict[str, Any]) -> str:
+    """LLM 选型失败必须有明确文案；绝不把未验证提案渲染成推荐结果。"""
+    failure_type = as_text(
+        failure.get("failure_type"), as_text(failure.get("reason"), "UNKNOWN")
+    )
+    message = ARCHITECT_FAILURE_MESSAGES.get(
+        failure_type, "本次未能生成通过验证的配置，请稍后重试。"
+    )
+    lines = ["## 暂时没有生成可用配置", "", message]
+    detail = as_text(failure.get("authoritative_error_details"))
+    if detail and detail not in message:
+        lines.extend(["", f"说明：{detail}"])
+    return "\n".join(lines)
 
 
 def _render_solve_failure(failure: dict[str, Any]) -> str:

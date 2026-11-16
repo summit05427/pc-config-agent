@@ -9,5 +9,6 @@ import java.util.List;
  * @param total          条数
  * @param list           数据
  */
-public record HardwareListResponse(String catalogVersion, int total, List<HardwareResponse> list) {
+public record HardwareListResponse(
+        String catalogVersion, int total, List<HardwareCandidateResponse> list) {
 }

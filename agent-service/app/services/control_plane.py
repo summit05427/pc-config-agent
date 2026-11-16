@@ -37,6 +37,12 @@ LEASE_NOT_BYOK = "lease_not_byok"
 CREDENTIAL_REJECTED = "credential_rejected"
 # 幂等键被同一用户用于不同请求：属于调用方错误，不能重试，也不允许降级
 IDEMPOTENCY_CONFLICT = "idempotency_conflict"
+# PC 组装失败必须可区分：全收敛成 upstream_error 会让修正逻辑无法判断是否可重试
+PC_BUILD_INCOMPLETE = "pc_build_incomplete"
+PC_USER_TOKEN_INVALID = "pc_user_token_invalid"
+PC_OFFER_UNAVAILABLE = "pc_offer_unavailable"
+PC_BUILD_INCOMPATIBLE = "pc_build_incompatible"
+PC_BUDGET_EXCEEDED = "pc_budget_exceeded"
 
 # Java ModelErrorCode 数字码（application-service/.../ModelErrorCode.java）
 JAVA_QUOTA_EXCEEDED = 40201
@@ -49,6 +55,22 @@ JAVA_LEASE_NOT_BYOK = 40218
 JAVA_CREDENTIAL_REJECTED = 40219
 JAVA_IDEMPOTENCY_CONFLICT = 40220
 JAVA_DEPENDENCY_UNAVAILABLE = 50001
+
+# PC 构建内部接口错误码（application-service PcBuildErrorCode）
+JAVA_PC_BUILD_INCOMPLETE = 40303
+JAVA_PC_USER_TOKEN_INVALID = 40306
+JAVA_PC_OFFER_UNAVAILABLE = 40307
+JAVA_PC_BUILD_INCOMPATIBLE = 40308
+JAVA_PC_BUDGET_EXCEEDED = 40309
+
+# Java 数字码 → (Agent 字符串码, 对外状态码, 安全文案)
+_PC_ERROR_CODES: dict[int, tuple[str, int, str]] = {
+    JAVA_PC_BUILD_INCOMPLETE: (PC_BUILD_INCOMPLETE, 400, "配置必须包含八个硬件类别"),
+    JAVA_PC_USER_TOKEN_INVALID: (PC_USER_TOKEN_INVALID, 401, "缺少或无效的用户访问令牌"),
+    JAVA_PC_OFFER_UNAVAILABLE: (PC_OFFER_UNAVAILABLE, 409, "所选硬件缺少可用报价"),
+    JAVA_PC_BUILD_INCOMPATIBLE: (PC_BUILD_INCOMPATIBLE, 422, "所选硬件存在兼容性冲突"),
+    JAVA_PC_BUDGET_EXCEEDED: (PC_BUDGET_EXCEEDED, 422, "配置总价超过预算上限"),
+}
 
 SERVICE_TOKEN_PATH = "/internal/v1/auth/service-token"
 MODEL_TASKS_PATH = "/internal/v1/model-tasks"
@@ -214,6 +236,11 @@ def _map_error(status_code: int, payload: dict[str, Any]) -> ControlPlaneError:
         return ControlPlaneError(
             IDEMPOTENCY_CONFLICT, 409, "幂等键已用于其他请求，请重新发起", is_retryable=False
         )
+    # PC 组装错误保留业务语义：修正逻辑据此决定「换选型」还是「直接失败」
+    pc_error = _PC_ERROR_CODES.get(java_code) if isinstance(java_code, int) else None
+    if pc_error is not None:
+        code, status, message = pc_error
+        return ControlPlaneError(code, status, message, is_retryable=retryable)
     if java_code == JAVA_CREDENTIAL_VERIFY_FAILED:
         # 远程验证失败属上游不可用；用户可稍后重试验证
         return ControlPlaneError(

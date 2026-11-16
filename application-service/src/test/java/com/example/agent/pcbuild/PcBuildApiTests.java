@@ -64,6 +64,8 @@ class PcBuildApiTests {
 
     private static final String VALIDATE_PATH = "/internal/v1/pc/builds/validate";
 
+    private static final String VALIDATE_PARTIAL_PATH = "/internal/v1/pc/builds/validate-partial";
+
     private static final String BUILDS_PATH = "/internal/v1/pc/builds";
 
     private static final String USER_TOKEN_HEADER = "X-User-Token";
@@ -126,7 +128,10 @@ class PcBuildApiTests {
                         .header(HttpHeaders.AUTHORIZATION, bearer))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(gpuTotal))
-                .andExpect(jsonPath("$.data.list[*].category", not(empty())));
+                .andExpect(jsonPath("$.data.list[*].category", not(empty())))
+                // 决策字段：最低可用报价与兼容性关键字段缺失项
+                .andExpect(jsonPath("$.data.list[0].priceFen").isNumber())
+                .andExpect(jsonPath("$.data.list[0].missingFields").isArray());
 
         mockMvc.perform(get(CANDIDATES_PATH)
                         .param("category", "UNKNOWN")
@@ -205,6 +210,61 @@ class PcBuildApiTests {
                         .header(HttpHeaders.AUTHORIZATION, bearerToken())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cpu\":\"cpu-amd-ryzen-7-9800x3d\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void validatePartial_shouldRunOnlyRulesCoveredBySelectedComponents() throws Exception {
+        // 只选 CPU + 主板：只有 cpu_socket_motherboard 可判定，其余规则不执行；
+        // 不携带 X-User-Token，与 /validate 一致。
+        mockMvc.perform(post(VALIDATE_PARTIAL_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"components": {
+                                  "cpu": "cpu-amd-ryzen-7-9800x3d",
+                                  "motherboard": "motherboard-msi-mag-b850m-mortar-wifi"
+                                }}
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0))
+                .andExpect(jsonPath("$.data.overallStatus").value("PASS"))
+                .andExpect(jsonPath("$.data.checks.length()").value(1))
+                .andExpect(jsonPath("$.data.checks[0].ruleId").value("cpu_socket_motherboard"))
+                .andExpect(jsonPath("$.data.checks[0].status").value("PASS"))
+                .andExpect(jsonPath("$.data.checks[0].componentIds.length()").value(2))
+                .andExpect(jsonPath("$.data.checks[0].missingFields").isEmpty());
+    }
+
+    @Test
+    void validatePartial_shouldRejectEmptyUnknownOrBlankComponents() throws Exception {
+        String bearer = bearerToken();
+        // 完全没有组件
+        mockMvc.perform(post(VALIDATE_PARTIAL_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":{}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40303));
+        // 未知键
+        mockMvc.perform(post(VALIDATE_PARTIAL_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":{\"apu\":\"cpu-amd-ryzen-7-9800x3d\"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40303));
+        // 空值
+        mockMvc.perform(post(VALIDATE_PARTIAL_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"components\":{\"cpu\":\"  \"}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(40303));
+        // components 缺失
+        mockMvc.perform(post(VALIDATE_PARTIAL_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, bearer)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
                 .andExpect(status().isBadRequest());
     }
 

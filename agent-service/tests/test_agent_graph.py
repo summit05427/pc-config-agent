@@ -6,10 +6,11 @@
 from __future__ import annotations
 
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 
 from app.agent import graph as graph_module
@@ -17,6 +18,7 @@ from app.agent import pc as pc_package  # noqa: F401  确保包可导入
 from app.agent.pc import nodes as nodes_module
 from app.agent.pc.graph import PC_GRAPH_NODES, build_pc_graph
 from app.agent.pc.nodes import build_result_payload
+from app.agent.pc.renderer import OBSERVED_PRICE_NOTICE, render_build_markdown
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildScenario,
@@ -40,6 +42,16 @@ class ScriptedModel:
     async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
         self.calls.append(list(messages))
         return AIMessage(content=next(self._responses))
+
+    async def astream(
+        self, messages: Any, config: Any = None, **_kwargs: Any
+    ) -> AsyncIterator[AIMessageChunk]:
+        """说明节点走流式调用：先给思考分片，再给正文分片。"""
+        self.calls.append(list(messages))
+        yield AIMessageChunk(
+            content="", additional_kwargs={"reasoning_content": "先比较取舍。"}
+        )
+        yield AIMessageChunk(content=next(self._responses))
 
 
 class FakeTool:
@@ -236,6 +248,8 @@ def _graph(model: ScriptedModel | None = None):
         model=model,
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
+        # 求解器流水线回归：显式指定 solver，默认模式变化不影响这些断言
+        selection_mode="solver",
     )
 
 
@@ -289,6 +303,62 @@ async def test_success_path_renders_deterministic_markdown(
     assert payload is not None
     assert len(payload["components"]) == len(REQUIRED_CATEGORIES)
     assert payload["total_price_fen"] == result["build_result"]["totalPriceFen"]
+
+
+async def test_streams_reasoning_and_chunks_final_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """成功路径以 custom 流下发思考与正文分片，拼接结果必须等于最终消息。"""
+    _install_tools(monkeypatch)
+    model = ScriptedModel(
+        [
+            json.dumps(
+                {
+                    "budget_max_fen": 1_000_000,
+                    "scenario": "GAMING",
+                    "scenario_explicit": True,
+                }
+            ),
+            "这套配置在预算内优先保证了游戏性能与散热余量。",
+        ]
+    )
+    agent = _graph(model)
+    events = [
+        event
+        async for event in agent.astream(
+            {"messages": [HumanMessage("预算一万元，打游戏")], "use_history": True},
+            {"configurable": {"thread_id": "stream"}},
+            stream_mode=["messages", "updates", "custom"],
+        )
+    ]
+    custom = [payload for mode, payload in events if mode == "custom"]
+    final = next(
+        message.content
+        for mode, update in events
+        if mode == "updates" and "response_generator" in update
+        for message in update["response_generator"]["messages"]
+    )
+
+    kinds = [payload["kind"] for payload in custom]
+    # 思考必须先于正文：用户先看到思考过程，思考结束后才出现最终结果
+    assert kinds.index("reasoning") < kinds.index("token")
+    assert len([p for p in custom if p["kind"] == "token"]) > 1
+    assert "".join(p["text"] for p in custom if p["kind"] == "token") == final
+
+
+async def test_platform_observed_prices_are_not_reported_as_demo() -> None:
+    """平台观测价是真实在售参考价，不能沿用演示价文案。"""
+    build = _build()
+    build["offerDataStatus"] = "PLATFORM_OBSERVED_ONLY"
+    # Java 的 demoOfferCount 把「非 OWNER_VERIFIED」都计入，这里刻意保留以验证不误判
+    build["demoOfferCount"] = 8
+    for component in build["components"]:
+        component["priceSource"] = "PLATFORM_OBSERVED"
+
+    content = render_build_markdown(build, "推荐说明。")
+
+    assert "演示价格" not in content
+    assert OBSERVED_PRICE_NOTICE in content
 
 
 async def test_model_reason_with_digits_is_rejected(
@@ -401,6 +471,29 @@ async def test_fallback_parser_when_model_is_none(monkeypatch: pytest.MonkeyPatc
     assert result["requirements"]["budget_max_fen"] == 800_000
     assert result["requirements"]["scenario"] == "GAMING"
     assert result["workflow_status"] == "success"
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_min", "expected_max", "expected_scenario"),
+    [
+        ("预算：12000–20000 元", 1_200_000, 2_000_000, BuildScenario.BALANCED),
+        ("预算：20000 元以上", 2_000_000, None, BuildScenario.BALANCED),
+        ("6000 元办公和网课，安静优先", None, 600_000, BuildScenario.OFFICE),
+        ("20000 元家庭影音 / HTPC", None, 2_000_000, BuildScenario.MEDIA),
+        ("1.5 万元打游戏", None, 1_500_000, BuildScenario.GAMING),
+    ],
+)
+def test_fallback_budget_keeps_range_and_open_ended_semantics(
+    text: str,
+    expected_min: int | None,
+    expected_max: int | None,
+    expected_scenario: BuildScenario,
+) -> None:
+    requirements = nodes_module.fallback_requirements(text)
+
+    assert requirements.budget_min_fen == expected_min
+    assert requirements.budget_max_fen == expected_max
+    assert requirements.scenario is expected_scenario
 
 
 @pytest.mark.parametrize(

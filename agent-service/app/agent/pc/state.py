@@ -22,12 +22,28 @@ class PCConfigState(TypedDict):
     requirements: NotRequired[dict[str, Any] | None]
     validation_result: NotRequired[dict[str, Any] | None]
     candidate_pool: NotRequired[dict[str, Any] | None]
+    # 按类别保留的候选摘要；只含决策字段，不复制工具原始输出
+    candidate_sets: NotRequired[dict[str, list[dict[str, Any]]]]
+    # 因单类上限被截断的条数；只记录实际发生截断的类别
+    candidate_truncated: NotRequired[dict[str, int]]
     build_result: NotRequired[dict[str, Any] | None]
     build_failure: NotRequired[dict[str, Any] | None]
+    # LLM 选型产物与修正计数：仅在 `AGENT__PC_SELECTION_MODE=llm` 时写入
+    build_proposal: NotRequired[dict[str, Any] | None]
+    architect_repair_count: NotRequired[int]
+    selection_mode: NotRequired[str]
     compatibility_report: NotRequired[dict[str, Any] | None]
     budget_report: NotRequired[dict[str, Any] | None]
     reason_summary: NotRequired[str | None]
     retry_count: NotRequired[int]
+    # 质量评审：问题列表、可下发提示与重解约束（仅图内流转）
+    quality_review: NotRequired[dict[str, Any] | None]
+    quality_notice: NotRequired[str | None]
+    # solver 模式的重解参数；llm 模式不写入，避免把求解器价格门槛当成模型约束
+    quality_constraints: NotRequired[dict[str, Any] | None]
+    # llm 模式的结构化质量反馈：失败类型、逐项发现与必须保持不变的类别
+    quality_feedback: NotRequired[dict[str, Any] | None]
+    quality_retry_count: NotRequired[int]
     workflow_status: NotRequired[str]
     # 节点不直接发 SSE：统一累积事件，由 turn.py 翻译成 tool_call / tool_result
     tool_events: NotRequired[Annotated[list[dict[str, Any]], lambda left, right: left + right]]

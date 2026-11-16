@@ -1,14 +1,15 @@
 package com.example.agent.pcbuild.web;
 
 import com.example.agent.pcbuild.application.BenchmarkQueryService;
+import com.example.agent.pcbuild.application.HardwareCandidateService;
 import com.example.agent.pcbuild.application.HardwareCatalogService;
 import com.example.agent.pcbuild.application.OfferQueryService;
 import com.example.agent.pcbuild.domain.Benchmark;
-import com.example.agent.pcbuild.domain.Hardware;
 import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.domain.Offer;
 import com.example.agent.pcbuild.web.dto.BenchmarkListResponse;
 import com.example.agent.pcbuild.web.dto.BenchmarkResponse;
+import com.example.agent.pcbuild.web.dto.HardwareCandidateResponse;
 import com.example.agent.pcbuild.web.dto.HardwareListResponse;
 import com.example.agent.pcbuild.web.dto.HardwareResponse;
 import com.example.agent.pcbuild.web.dto.OfferListResponse;
@@ -37,12 +38,17 @@ public class PcHardwareInternalController {
 
     private final HardwareCatalogService hardwareCatalogService;
 
+    private final HardwareCandidateService hardwareCandidateService;
+
     private final BenchmarkQueryService benchmarkQueryService;
 
     private final OfferQueryService offerQueryService;
 
     /**
      * 查询候选硬件。
+     *
+     * <p>每条候选附带最低可用报价与兼容性关键字段缺失项，取价口径与求解器一致；
+     * 一次请求只读一份报价索引，不在候选循环里逐条查库。</p>
      *
      * @param category 类别过滤，可选
      * @return 候选列表
@@ -51,10 +57,12 @@ public class PcHardwareInternalController {
     public ApiResponse<HardwareListResponse> candidates(
             @RequestParam(required = false) String category) {
         HardwareCategory parsedCategory = parseCategory(category);
-        List<Hardware> hardware = hardwareCatalogService.listCandidates(parsedCategory);
-        List<HardwareResponse> list = hardware.stream().map(HardwareResponse::from).toList();
+        List<HardwareCandidateResponse> list = hardwareCandidateService
+                .listCandidates(parsedCategory).stream()
+                .map(HardwareCandidateResponse::from)
+                .toList();
         return ApiResponse.success(new HardwareListResponse(
-                hardwareCatalogService.catalogVersion(), list.size(), list));
+                hardwareCandidateService.catalogVersion(), list.size(), list));
     }
 
     /**

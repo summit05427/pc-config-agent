@@ -62,8 +62,14 @@ def test_default_tool_specs_are_stable() -> None:
         "get_benchmark_data",
         "get_verified_offers",
         "solve_pc_build",
+        "compose_pc_build",
         "validate_pc_build",
     ]
+
+    compose_spec = get_tool_spec("compose_pc_build")
+    assert compose_spec is not None
+    assert compose_spec.timeout_seconds == 30.0
+    assert compose_spec.is_read_only is False
 
     search_spec = get_tool_spec("search_hardware_candidates")
     assert search_spec is not None
@@ -73,5 +79,5 @@ def test_default_tool_specs_are_stable() -> None:
 
     solve_spec = get_tool_spec("solve_pc_build")
     assert solve_spec is not None
-    assert solve_spec.timeout_seconds == 25.0
+    assert solve_spec.timeout_seconds == 60.0
     assert solve_spec.is_read_only is False

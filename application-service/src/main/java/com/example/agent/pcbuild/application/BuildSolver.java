@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +56,39 @@ public class BuildSolver {
      * 因此预算场景必须同时保留价格最低的一批候选，给搜索提供「降级到可负担」的出口。</p>
      */
     private static final int BUDGET_PRICE_TIER_QUOTA = 4;
+
+    /**
+     * CPU/GPU 价格分桶上界，单位分（1000 / 2000 / 4000 / 8000 元）；最后一档为开放式桶。
+     *
+     * <p>「性能前 N + 最低价 M」只在两端取样，中间价位段（1000–4000 元）整段缺失，
+     * 求解器只能在高价旗舰与入门型号之间二选一，于是出现「低价 CPU + 旗舰 GPU」的畸形组合。
+     * 按价格分桶补足后，每个价位段都有按画像排序的候选，搜索能在预算内找到均衡搭配。</p>
+     */
+    private static final long[] PRICE_BUCKET_UPPER_BOUNDS_FEN = {
+        100_000L, 200_000L, 400_000L, 800_000L
+    };
+
+    /** 每个价格分桶按画像排序保留的候选数。 */
+    private static final int PRICE_BUCKET_CANDIDATE_QUOTA = 2;
+
+    /**
+     * 内存按内存类型分组后每组的候选上限。
+     *
+     * <p>若按全库价格取前 N，低价 DDR4 会占满整池，DDR5 平台在搜索阶段必然失配；
+     * 分组后每种类型都有配额，任何被保留的主板平台都能找到配套内存。</p>
+     */
+    private static final int MEMORY_TYPE_CANDIDATE_LIMIT = 8;
+
+    /**
+     * 主板按 (socket, memoryType) 平台分组后每组的候选上限。
+     *
+     * <p>主板同样是多代平台并存：只保留最便宜的若干条会让低价平台独占比率，
+     * 高价平台的 CPU/内存组合进不了搜索。按平台分组保证每类平台都有可负担的主板。</p>
+     */
+    private static final int MOTHERBOARD_PLATFORM_CANDIDATE_LIMIT = 6;
+
+    /** 分组键中缺失字段的占位符，保证所有「无法判定」的候选落在同一组。 */
+    private static final String UNKNOWN_GROUP_KEY = "\u0000UNKNOWN";
 
     /** 性价比换算系数，用于避免浮点除法。 */
     private static final long VALUE_SCALE = 1_000_000L;
@@ -163,7 +197,13 @@ public class BuildSolver {
         }
 
         if (context.bestSelection != null) {
-            return SolveOutcome.solved(toDraft(context.bestSelection, context, catalogVersion, offerDataStatus));
+            return SolveOutcome.solved(toDraft(
+                    context.requirements,
+                    context.bestSelection,
+                    context.offersByHardware,
+                    context.benchmarkIndex,
+                    catalogVersion,
+                    offerDataStatus));
         }
         if (requirements.hasBudget() && minimumRequiredBudgetFen != Long.MAX_VALUE) {
             return SolveOutcome.failed(new SolveFailure(
@@ -254,6 +294,10 @@ public class BuildSolver {
      * <p>过滤只剔除「校验器确定会判 FAIL」的候选：字段缺失时校验器返回 {@code UNKNOWN}，
      * 因此缺失 socket / memory_type / supported_sockets 的候选必须保留，避免把可能可行的组合提前排除。</p>
      *
+     * <p>截断按类别分别处理：内存按内存类型、主板按 (socket, memoryType) 平台分组保留配额，
+     * CPU/GPU 在「性能前 8 + 最低价 4」之外再按价格分桶补足中端型号。全库统一取前 N
+     * 会让低价平台独占比率，其他平台在搜索阶段整池失配。</p>
+     *
      * @param rawPools     按类别收集、尚未排序截断的候选
      * @param requirements 求解需求，排序策略取自 {@link BuildRequirements#workloadProfile()}
      * @param keepPriceTiers 是否在 CPU/GPU 池中额外保留最低价候选，预算场景必须为 {@code true}
@@ -268,7 +312,9 @@ public class BuildSolver {
         Map<HardwareCategory, List<Candidate>> pools = new LinkedHashMap<>();
 
         List<Candidate> cpuPool = sortedTruncated(HardwareCategory.CPU,
-                rawPools.getOrDefault(HardwareCategory.CPU, List.of()), profile, keepPriceTiers);
+                filterByQualityPrice(HardwareCategory.CPU,
+                        rawPools.getOrDefault(HardwareCategory.CPU, List.of()), requirements),
+                profile, keepPriceTiers);
         pools.put(HardwareCategory.CPU, cpuPool);
 
         List<Candidate> motherboardPool = sortedTruncated(HardwareCategory.MOTHERBOARD,
@@ -281,7 +327,9 @@ public class BuildSolver {
                         motherboardPool),
                 profile, keepPriceTiers));
         List<Candidate> gpuPool = sortedTruncated(HardwareCategory.GPU,
-                rawPools.getOrDefault(HardwareCategory.GPU, List.of()), profile, keepPriceTiers);
+                filterByQualityPrice(HardwareCategory.GPU,
+                        rawPools.getOrDefault(HardwareCategory.GPU, List.of()), requirements),
+                profile, keepPriceTiers);
         pools.put(HardwareCategory.GPU, gpuPool);
         pools.put(HardwareCategory.PSU, sortedTruncated(HardwareCategory.PSU,
                 rawPools.getOrDefault(HardwareCategory.PSU, List.of()), profile, keepPriceTiers));
@@ -304,10 +352,42 @@ public class BuildSolver {
     }
 
     /**
-     * 按画像策略排序后截断到类别上限，控制搜索空间。
+     * 按质量约束裁剪 CPU/GPU 候选：CPU 保留价格不低于下限的型号，GPU 保留价格不高于上限的型号。
      *
-     * <p>有预算时 CPU/GPU 额外保留价格最低的一批候选：若只取性能前 N，真实价格下的
-     * 入门/中端型号永远进不了池，中端预算会被误判为不可行。</p>
+     * <p>约束来自 Agent 质量评审的「带约束重解」，只为修正 CPU/GPU 价格失衡与办公场景显卡超支。
+     * 约束把整类候选筛空时退回原候选，避免提示性约束把本可求解的问题变成
+     * {@code NO_CANDIDATES}——质量问题是可降级的，可解性是不可降级的。</p>
+     *
+     * @param category     类别，仅 CPU/GPU 生效
+     * @param candidates   原始候选
+     * @param requirements 需求，提供价格约束
+     * @return 裁剪后的候选；无约束或被筛空时返回原候选
+     */
+    private List<Candidate> filterByQualityPrice(
+            HardwareCategory category, List<Candidate> candidates, BuildRequirements requirements) {
+
+        Long bound = switch (category) {
+            case CPU -> requirements.minCpuPriceFen();
+            case GPU -> requirements.maxGpuPriceFen();
+            default -> null;
+        };
+        if (bound == null) {
+            return candidates;
+        }
+        boolean isLowerBound = category == HardwareCategory.CPU;
+        List<Candidate> filtered = candidates.stream()
+                .filter(candidate -> isLowerBound
+                        ? candidate.offer().priceFen() >= bound
+                        : candidate.offer().priceFen() <= bound)
+                .toList();
+        return filtered.isEmpty() ? candidates : filtered;
+    }
+
+    /**
+     * 按类别策略排序后截断，控制搜索空间。
+     *
+     * <p>CPU/GPU 走「性能 + 价格」双端取样，内存与主板按平台分组保留配额，
+     * 其余类别仍按画像排序取前 {@link #COMPONENT_CANDIDATE_LIMIT} 条。</p>
      */
     private List<Candidate> sortedTruncated(
             HardwareCategory category,
@@ -315,51 +395,144 @@ public class BuildSolver {
             WorkloadProfile profile,
             boolean keepPriceTiers) {
 
-        List<Candidate> sorted = new ArrayList<>(candidates);
-        sorted.sort(candidateOrder(category, profile));
-        int limit = category == HardwareCategory.CPU || category == HardwareCategory.GPU
-                ? PERFORMANCE_CANDIDATE_LIMIT
-                : COMPONENT_CANDIDATE_LIMIT;
-        if (!keepPriceTiers
-                || (category != HardwareCategory.CPU && category != HardwareCategory.GPU)
-                || sorted.size() <= limit) {
-            return List.copyOf(sorted.subList(0, Math.min(limit, sorted.size())));
-        }
-        return selectPerformanceAndCheapest(candidates, sorted, limit);
+        Comparator<Candidate> order = candidateOrder(category, profile);
+        return switch (category) {
+            case CPU, GPU -> performancePool(candidates, order, keepPriceTiers);
+            case MEMORY -> cheapestPerGroup(
+                    candidates, order, MEMORY_TYPE_CANDIDATE_LIMIT, BuildSolver::memoryTypeKey);
+            case MOTHERBOARD -> cheapestPerGroup(
+                    candidates, order, MOTHERBOARD_PLATFORM_CANDIDATE_LIMIT,
+                    BuildSolver::platformKey);
+            default -> topCandidates(candidates, order, COMPONENT_CANDIDATE_LIMIT);
+        };
     }
 
     /**
-     * 选取「性能前 N」与「价格最低 M」的并集，两类合计不超过 {@code limit}。
+     * CPU/GPU 候选池：性能前 8 + 最低价 4；预算场景再按价格分桶补足中端候选。
      *
-     * <p>数量不变（仍为 {@code limit}），因此不会放大搜索空间；只是把被高价段挤掉的
-     * 可负担候选补回池中。结果按性能序排列，价格档位按价格升序追加。</p>
+     * <p>分桶只补充尚未入选的候选，按硬件 ID 去重，且每桶总数不超过
+     * {@link #PRICE_BUCKET_CANDIDATE_QUOTA}，避免候选池无限制膨胀。</p>
      */
-    private List<Candidate> selectPerformanceAndCheapest(
-            List<Candidate> candidates, List<Candidate> sortedByPerformance, int limit) {
+    private List<Candidate> performancePool(
+            List<Candidate> candidates,
+            Comparator<Candidate> order,
+            boolean keepPriceTiers) {
 
-        int cheapQuota = Math.min(BUDGET_PRICE_TIER_QUOTA, limit / 2);
-        int performanceQuota = limit - cheapQuota;
+        List<Candidate> sorted = new ArrayList<>(candidates);
+        sorted.sort(order);
+        if (!keepPriceTiers) {
+            return topCandidates(sorted, order, PERFORMANCE_CANDIDATE_LIMIT);
+        }
+        int cheapQuota = Math.min(BUDGET_PRICE_TIER_QUOTA, PERFORMANCE_CANDIDATE_LIMIT / 2);
+        int performanceQuota = PERFORMANCE_CANDIDATE_LIMIT - cheapQuota;
         Set<String> selectedIds = new HashSet<>();
-        List<Candidate> selected = new ArrayList<>(limit);
-        for (Candidate candidate : sortedByPerformance) {
+        List<Candidate> selected = new ArrayList<>();
+        for (Candidate candidate : sorted) {
             if (selected.size() >= performanceQuota) {
                 break;
             }
             selected.add(candidate);
             selectedIds.add(candidate.hardware().hardwareId());
         }
-        List<Candidate> byPrice = new ArrayList<>(candidates);
-        byPrice.sort(Comparator.comparingLong((Candidate candidate) -> candidate.offer().priceFen())
-                .thenComparing(candidate -> candidate.hardware().hardwareId()));
+        List<Candidate> byPrice = new ArrayList<>(sorted);
+        byPrice.sort(priceFirstOrder());
         for (Candidate candidate : byPrice) {
-            if (selected.size() >= limit) {
+            if (selected.size() >= PERFORMANCE_CANDIDATE_LIMIT) {
                 break;
             }
             if (selectedIds.add(candidate.hardware().hardwareId())) {
                 selected.add(candidate);
             }
         }
+        fillPriceBucketQuota(sorted, selectedIds, selected);
         return List.copyOf(selected);
+    }
+
+    /**
+     * 按价格分桶补足候选：每桶按画像顺序保留前 {@link #PRICE_BUCKET_CANDIDATE_QUOTA} 个。
+     *
+     * <p>已入选的候选也占用桶配额，保证补足后每桶总量固定，不放大搜索空间。</p>
+     */
+    private void fillPriceBucketQuota(
+            List<Candidate> sortedByProfile,
+            Set<String> selectedIds,
+            List<Candidate> selected) {
+
+        int[] bucketCounts = new int[PRICE_BUCKET_UPPER_BOUNDS_FEN.length + 1];
+        for (Candidate candidate : selected) {
+            bucketCounts[bucketIndexOf(candidate.offer().priceFen())]++;
+        }
+        for (Candidate candidate : sortedByProfile) {
+            String hardwareId = candidate.hardware().hardwareId();
+            if (selectedIds.contains(hardwareId)) {
+                continue;
+            }
+            int bucket = bucketIndexOf(candidate.offer().priceFen());
+            if (bucketCounts[bucket] >= PRICE_BUCKET_CANDIDATE_QUOTA) {
+                continue;
+            }
+            bucketCounts[bucket]++;
+            selectedIds.add(hardwareId);
+            selected.add(candidate);
+        }
+    }
+
+    private static int bucketIndexOf(long priceFen) {
+        for (int index = 0; index < PRICE_BUCKET_UPPER_BOUNDS_FEN.length; index++) {
+            if (priceFen < PRICE_BUCKET_UPPER_BOUNDS_FEN[index]) {
+                return index;
+            }
+        }
+        return PRICE_BUCKET_UPPER_BOUNDS_FEN.length;
+    }
+
+    /**
+     * 按分组键保留每组前 N 个候选；排序与分组均显式声明，保证确定性。
+     *
+     * <p>分组而不是全库取前 N，是为了让每个平台/内存类型都保留可负担的候选；
+     * 否则低价平台会占满配额，其他平台在兼容性校验阶段整池失配。</p>
+     */
+    private List<Candidate> cheapestPerGroup(
+            List<Candidate> candidates,
+            Comparator<Candidate> order,
+            int limitPerGroup,
+            Function<Candidate, String> groupKeyOf) {
+
+        List<Candidate> sorted = new ArrayList<>(candidates);
+        sorted.sort(order);
+        Map<String, Integer> counts = new HashMap<>();
+        List<Candidate> selected = new ArrayList<>();
+        for (Candidate candidate : sorted) {
+            String groupKey = groupKeyOf.apply(candidate);
+            int count = counts.getOrDefault(groupKey, 0);
+            if (count >= limitPerGroup) {
+                continue;
+            }
+            counts.put(groupKey, count + 1);
+            selected.add(candidate);
+        }
+        return List.copyOf(selected);
+    }
+
+    private List<Candidate> topCandidates(
+            List<Candidate> candidates, Comparator<Candidate> order, int limit) {
+
+        List<Candidate> sorted = new ArrayList<>(candidates);
+        sorted.sort(order);
+        return List.copyOf(sorted.subList(0, Math.min(limit, sorted.size())));
+    }
+
+    private static String memoryTypeKey(Candidate candidate) {
+        return groupKeyOf(candidate.hardware().specifications().memoryType());
+    }
+
+    private static String platformKey(Candidate candidate) {
+        return groupKeyOf(candidate.hardware().specifications().socket())
+                + '|' + groupKeyOf(candidate.hardware().specifications().memoryType());
+    }
+
+    private static String groupKeyOf(String value) {
+        return isBlank(value) ? UNKNOWN_GROUP_KEY : normalizeKey(value);
     }
 
     /**
@@ -629,7 +802,17 @@ public class BuildSolver {
         return true;
     }
 
-    private Map<String, Offer> cheapestUsableOffers(
+    /**
+     * 按硬件聚合最低有效报价。
+     *
+     * <p>「指定组合生成方案」必须与求解使用同一取价口径，因此公开该方法而不是复制一份。</p>
+     *
+     * @param offers         全部报价
+     * @param pricingDate    询价日期，用于判断有效期
+     * @param requireVerified 是否只接受人工核验报价
+     * @return 按硬件标识索引的最低有效报价
+     */
+    public Map<String, Offer> cheapestUsableOffers(
             List<Offer> offers, LocalDate pricingDate, boolean requireVerified) {
         Map<String, Offer> cheapest = new HashMap<>();
         for (Offer offer : offers) {
@@ -762,9 +945,26 @@ public class BuildSolver {
         return price <= 0L ? 0L : score * VALUE_SCALE / price;
     }
 
-    private BuildDraft toDraft(
+    /**
+     * 由已选组合组装方案草稿。
+     *
+     * <p>求解命中与「按指定组合生成方案」共用这一份实现：报价、总价与评分只在这里计算，
+     * 避免出现第二套价格口径。</p>
+     *
+     * @param requirements     需求，决定评分与逐件理由的文案口径
+     * @param selection        已选八类硬件，必须完整
+     * @param offersByHardware 按硬件标识索引的最低有效报价
+     * @param benchmarkIndex   按硬件标识索引的跑分
+     * @param catalogVersion   目录版本
+     * @param offerDataStatus  报价数据状态
+     * @return 方案草稿
+     * @throws NullPointerException 任一类别缺少报价时
+     */
+    public BuildDraft toDraft(
+            BuildRequirements requirements,
             HardwareSelection selection,
-            SearchContext context,
+            Map<String, Offer> offersByHardware,
+            Map<String, Benchmark> benchmarkIndex,
             String catalogVersion,
             String offerDataStatus) {
 
@@ -773,23 +973,24 @@ public class BuildSolver {
         long totalPrice = 0L;
         for (HardwareCategory category : HardwareCategory.REQUIRED_CATEGORIES) {
             Hardware hardware = selection.get(category);
-            Offer offer = context.offerOf(hardware);
+            Offer offer = Objects.requireNonNull(offersByHardware.get(hardware.hardwareId()),
+                    () -> "缺少报价: " + hardware.hardwareId());
             totalPrice += offer.priceFen();
             offers.put(category, offer);
-            Benchmark benchmark = context.benchmarkIndex.get(hardware.hardwareId());
+            Benchmark benchmark = benchmarkIndex.get(hardware.hardwareId());
             if (benchmark != null) {
                 benchmarks.put(category, benchmark);
             }
         }
         CompatibilityReport report = compatibilityValidator.validate(selection);
         return new BuildDraft(
-                context.requirements,
+                requirements,
                 selection,
                 offers,
                 benchmarks,
                 totalPrice,
                 report,
-                scoreOf(selection, context),
+                BuildScoring.totalScore(requirements, selection.asMap(), benchmarkIndex),
                 catalogVersion,
                 offerDataStatus);
     }
@@ -847,11 +1048,6 @@ public class BuildSolver {
                     offersByHardware.put(candidate.hardware().hardwareId(), candidate.offer());
                 }
             }
-        }
-
-        private Offer offerOf(Hardware hardware) {
-            return Objects.requireNonNull(offersByHardware.get(hardware.hardwareId()),
-                    () -> "缺少报价: " + hardware.hardwareId());
         }
     }
 

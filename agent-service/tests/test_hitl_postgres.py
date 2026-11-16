@@ -82,7 +82,9 @@ async def test_hitl_interrupt_resumes_after_process_restart(
     thread_id = f"hitl-pg-{uuid4().hex}"
 
     async with _saver(url) as saver:
-        graph = build_pc_graph(model=None, profile=profile, checkpointer=saver)
+        graph = build_pc_graph(
+            model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+        )
         await graph.ainvoke(
             {"messages": [HumanMessage("帮我配台电脑")], "use_history": True},
             _config(thread_id),
@@ -92,7 +94,9 @@ async def test_hitl_interrupt_resumes_after_process_restart(
 
     # 连接池与图全部丢弃后重新建立：状态只能来自 Postgres checkpointer
     async with _saver(url) as saver:
-        rebuilt = build_pc_graph(model=None, profile=profile, checkpointer=saver)
+        rebuilt = build_pc_graph(
+            model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+        )
         await rebuilt.ainvoke(
             Command(
                 resume={

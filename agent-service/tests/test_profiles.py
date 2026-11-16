@@ -33,6 +33,7 @@ def test_default_profile_is_pc_config() -> None:
         "get_benchmark_data",
         "get_verified_offers",
         "solve_pc_build",
+        "compose_pc_build",
         "validate_pc_build",
     ]
     assert profile.model.default_key is None
@@ -51,6 +52,7 @@ def test_pc_profile_uses_pc_tools() -> None:
         "get_benchmark_data",
         "get_verified_offers",
         "solve_pc_build",
+        "compose_pc_build",
         "validate_pc_build",
     }
 

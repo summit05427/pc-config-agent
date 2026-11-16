@@ -221,5 +221,6 @@ def test_registered_tool_names_are_stable() -> None:
         "get_benchmark_data",
         "get_verified_offers",
         "solve_pc_build",
+        "compose_pc_build",
         "validate_pc_build",
     ]

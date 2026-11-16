@@ -20,6 +20,8 @@ from app.core.config import get_settings
 logger = structlog.get_logger(__name__)
 
 PROMPTS_DIRECTORY = Path(__file__).with_name("prompts")
+# PC 专用提示词放在子目录，避免与人格提示词混在同一层
+PC_PROMPTS_DIRECTORY_NAME = "pc"
 # 只允许小写字母、数字与连字符，天然排除 "." 与路径分隔符
 PROMPT_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
@@ -28,13 +30,8 @@ class PromptNotFoundError(RuntimeError):
     """提示词名称非法、文件缺失或内容为空。"""
 
 
-@lru_cache(maxsize=16)
-def load_prompt(name: str) -> str:
-    """按名称加载提示词内容（不含 `.md` 后缀）。"""
-    if not PROMPT_NAME_PATTERN.fullmatch(name):
-        raise PromptNotFoundError(f"非法的提示词名称：{name}")
-
-    path = (PROMPTS_DIRECTORY / f"{name}.md").resolve()
+def _read_prompt_file(path: Path, name: str) -> str:
+    """读取提示词文件；路径越界、缺失或为空都在加载期直接失败。"""
     # 双保险：即使白名单被放宽，也不允许跳出提示词目录
     if PROMPTS_DIRECTORY.resolve() not in path.parents:
         raise PromptNotFoundError(f"提示词路径越界：{name}")
@@ -47,6 +44,23 @@ def load_prompt(name: str) -> str:
     if not content:
         raise PromptNotFoundError(f"提示词文件为空：{name}")
     return content
+
+
+@lru_cache(maxsize=16)
+def load_prompt(name: str) -> str:
+    """按名称加载提示词内容（不含 `.md` 后缀）。"""
+    if not PROMPT_NAME_PATTERN.fullmatch(name):
+        raise PromptNotFoundError(f"非法的提示词名称：{name}")
+    return _read_prompt_file((PROMPTS_DIRECTORY / f"{name}.md").resolve(), name)
+
+
+@lru_cache(maxsize=16)
+def load_pc_prompt(name: str) -> str:
+    """加载 PC 子目录下的提示词（`app/agent/prompts/pc/<name>.md`）。"""
+    if not PROMPT_NAME_PATTERN.fullmatch(name):
+        raise PromptNotFoundError(f"非法的提示词名称：{name}")
+    path = (PROMPTS_DIRECTORY / PC_PROMPTS_DIRECTORY_NAME / f"{name}.md").resolve()
+    return _read_prompt_file(path, name)
 
 
 def load_system_prompt(name: str | None = None) -> str:

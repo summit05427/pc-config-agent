@@ -26,6 +26,7 @@ PC_CANDIDATES_PATH = "/internal/v1/pc/hardware/candidates"
 PC_BENCHMARKS_PATH = "/internal/v1/pc/benchmarks"
 PC_OFFERS_PATH = "/internal/v1/pc/offers"
 PC_SOLVE_PATH = "/internal/v1/pc/builds/solve"
+PC_COMPOSE_PATH = "/internal/v1/pc/builds/compose"
 PC_VALIDATE_PATH = "/internal/v1/pc/builds/validate"
 PC_BUILD_PATH = "/internal/v1/pc/builds"
 
@@ -114,6 +115,14 @@ class PcApiClient:
     ) -> dict[str, object]:
         return await self._request(
             "POST", PC_SOLVE_PATH, user_token=user_token, json=request
+        )
+
+    async def compose(
+        self, request: dict[str, object], *, user_token: str
+    ) -> dict[str, object]:
+        """按指定八类硬件生成方案并落快照；响应与 solve 成功分支同构。"""
+        return await self._request(
+            "POST", PC_COMPOSE_PATH, user_token=user_token, json=request
         )
 
     async def validate(self, hardware_ids: dict[str, str]) -> dict[str, object]:

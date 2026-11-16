@@ -16,7 +16,10 @@ public enum PcBuildErrorCode implements ErrorCode {
     BUILD_INCOMPLETE(40303, HttpStatus.BAD_REQUEST, "配置必须包含八个硬件类别"),
     REQUIREMENT_INVALID(40304, HttpStatus.BAD_REQUEST, "求解需求不合法"),
     CATALOG_UNAVAILABLE(40305, HttpStatus.SERVICE_UNAVAILABLE, "硬件目录不可用"),
-    USER_TOKEN_INVALID(40306, HttpStatus.UNAUTHORIZED, "缺少或无效的用户访问令牌");
+    USER_TOKEN_INVALID(40306, HttpStatus.UNAUTHORIZED, "缺少或无效的用户访问令牌"),
+    BUILD_OFFER_UNAVAILABLE(40307, HttpStatus.CONFLICT, "所选硬件缺少可用报价"),
+    BUILD_INCOMPATIBLE(40308, HttpStatus.UNPROCESSABLE_ENTITY, "所选硬件存在兼容性冲突"),
+    BUDGET_EXCEEDED(40309, HttpStatus.UNPROCESSABLE_ENTITY, "配置总价超过预算上限");
 
     private final int code;
     private final HttpStatus httpStatus;

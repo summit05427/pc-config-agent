@@ -179,11 +179,12 @@ Agent 401 使用字符串码（`agent-service/app/core/security.py`）：
 
 | 方法 | 路径 | 鉴权 | 请求 | 响应（`data`） |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/models` | 需登录（`token_use=access`） | 无 | `[{ "provider": "deepseek", "modelKey": "deepseek:deepseek-v4-pro", "displayName": "DeepSeek V4 Pro", "capabilities": ["text", "tool_calling"], "contextWindow": 128000 }]` |
+| GET | `/api/v1/models` | 需登录（`token_use=access`） | 无 | `[{ "provider": "deepseek", "modelKey": "deepseek:deepseek-v4-pro", "displayName": "DeepSeek 4.1 Pro", "capabilities": ["text", "tool_calling"], "contextWindow": 128000, "credentialSource": "MANAGED" }]` |
 
 - `modelKey` 是完整引用 `<provider>:<modelKey>`，与 Agent 侧请求的 `model` 字段取值一致；`null` 表示 Auto。
 - `capabilities` 是开放字符串数组，未知值必须忽略，禁止按 Provider 推断能力。当前约定：`text`（可对话）、`tool_calling`（支持工具调用）、`reasoning`（可产生思考，可被请求开启）、`reasoning_visible`（思考文本会经 SSE `reasoning` 事件下发，前端可展示）。`reasoning_visible` 只在同时具备 `reasoning` 时出现；OpenAI 推理类模型只有 reasoning tokens、无可展示文本，因此只标 `reasoning`。
-- `/api/v1/models` 只返回**平台托管模型**（`models.byok_only=false`）；BYOK 专用模型按用户可见性由 v2 返回，见 §5.5。
+- `/api/v1/models` 只返回**平台托管模型**（`models.byok_only=false`）；`MODEL_MANAGED_ENABLED=false`（纯 BYOK 部署）或平台密钥探测失败时返回空数组。平台密钥是否可用由 `ManagedModelAvailability` 通过网关 `probe:<provider>` 真实探测，不再只判断配置项是否非空；BYOK 专用模型按用户可见性由 v2 返回，见 §5.5。
+- `credentialSource` 表示该模型本次会使用的凭证来源：`MANAGED`（平台托管）或 `BYOK`（用户自带密钥）；判定规则与运行时一致——该 Provider 存在可用 BYOK 连接即为 `BYOK`。
 - `errorType` 只在错误响应顶层输出。运行时未启用（`MODEL_RUNTIME_ENABLED=false`）返回 404 `40204`、`errorType=runtime_disabled`，前端据此隐藏模型选择、回退单模型 UI。
 - Agent 经内部接口 `/internal/v1/**` 取用目录、任务与凭证，只接受服务令牌（`token_use=service`）；用户令牌访问内部接口返回 401，服务令牌访问 `/api/v1/**` 同样返回 401。内部接口全部契约见 §5.6。
 
@@ -194,9 +195,9 @@ Agent 401 使用字符串码（`agent-service/app/core/security.py`）：
 | 方法 | 路径 | 请求 | 响应（`data`） |
 | --- | --- | --- | --- |
 | GET | `/api/v1/model-connections` | 无 | `[{ "id": "...", "provider": "deepseek", "providerName": "DeepSeek", "baseUrl": "https://api.deepseek.com/v1", "status": "ACTIVE", "lastVerifiedAt": null, "createdAt": "...", "credential": { "id": "...", "maskedHint": "sk-****7890", "status": "UNVERIFIED", "createdAt": "..." } }]`，按创建时间倒序 |
-| POST | `/api/v1/model-connections` | `{ "providerCode": "deepseek", "baseUrl": "https://... （可空）", "apiKey": "sk-..." }`；`apiKey` 8..512 字符 | 新建连接（结构同上）；写入后**自动验证一次**：成功时 `credential.status=VERIFIED` 且 `lastVerifiedAt` 有值，失败时保留 `UNVERIFIED`（不回滚已保存的连接） |
+| POST | `/api/v1/model-connections` | `{ "providerCode": "deepseek", "baseUrl": "https://... （可空）", "apiKey": "sk-..." }`；`apiKey` 8..512 字符 | 新建连接（结构同上）；写入后**自动验证一次**：成功时 `credential.status=VERIFIED` 且 `lastVerifiedAt` 有值；上游明确拒绝时置为 `INVALID` 并清空 `lastVerifiedAt`；网络不可达时保留 `UNVERIFIED`（不回滚已保存的连接） |
 | PUT | `/api/v1/model-connections/{connectionId}` | `{ "baseUrl": "https://... （可空，留空沿用原地址）", "apiKey": "sk-..." }` | 轮换凭证：旧凭证撤销为 `REVOKED`、写入新凭证，清空旧的 `lastVerifiedAt`，保存后自动验证一次（响应结构同上） |
-| POST | `/api/v1/model-connections/{connectionId}/verify` | 无 | 手动重新验证：按 Provider 协议做真实探测：OpenAI 兼容用 `Authorization: Bearer` + `GET /models`，Anthropic 用 `x-api-key`/`anthropic-version` + `/v1/models`；列表端点 404/405/501 时退化为 `max_tokens=1` 的最小对话，成功写 `lastVerifiedAt` 并把凭证置为 `VERIFIED`；凭证被拒 422 `40219`、上游不可用 502 `40217`、超过单用户验证频率 429 `40222`（默认 5 次/分钟，见 `MODEL_CRED_VERIFY_RATE_LIMIT_PER_MINUTE`） |
+| POST | `/api/v1/model-connections/{connectionId}/verify` | 无 | 手动重新验证：按 Provider 协议做真实探测：OpenAI 兼容用 `Authorization: Bearer` + `GET /models`，Anthropic 用 `x-api-key`/`anthropic-version` + `/v1/models`；列表端点 404/405/501 时退化为 `max_tokens=1` 的最小对话，成功写 `lastVerifiedAt` 并把凭证置为 `VERIFIED`；凭证被拒时置为 `INVALID` 并返回 422 `40219`，上游不可用 502 `40217`（不改状态）、超过单用户验证频率 429 `40222`（默认 5 次/分钟，见 `MODEL_CRED_VERIFY_RATE_LIMIT_PER_MINUTE`） |
 | DELETE | `/api/v1/model-connections/{connectionId}` | 无 | `data` 为空；连接软删除为 `DELETED`、凭证撤销为 `REVOKED`，撤销后凭证不可再使用 |
 
 约束与错误码：
@@ -241,7 +242,9 @@ Agent 401 使用字符串码（`agent-service/app/core/security.py`）：
 | GET | `/api/v2/model-connections` | 同上 | `{ "list": [...同 §5.3 列表条目...], "total": 1, "page": 1, "size": 20 }`，按创建时间倒序 |
 | GET | `/api/v2/model-providers` | 无（固定小集合，不分页） | `[{ "code": "anthropic", "displayName": "Anthropic Claude", "protocol": "anthropic-messages", "defaultBaseUrl": "https://api.anthropic.com", "modelCount": 2 }]`，按 `code` 升序 |
 
-- `/api/v2/models` 返回**当前用户可见**模型：平台托管模型（`byok_only=false`）+ 用户已存在 `ACTIVE` 连接所属 Provider 的 BYOK 专用模型（`byok_only=true`）。未接入 Provider 的用户不会看到对应模型。
+- `/api/v2/models` 返回**当前用户可见**模型：平台托管模型（`byok_only=false`，且平台密钥真实探测可用）+ 用户已存在 `ACTIVE` 且凭证未被撤销/拒绝的连接所属 Provider 的 BYOK 专用模型（`byok_only=true`）。未接入 Provider 的用户不会看到对应模型；平台密钥失效或纯 BYOK 部署下目录为空时前端引导用户先配置 API Key。
+- 上游调用返回鉴权类错误时，使用明细上报会把 BYOK 凭证置为 `INVALID`，或立即使平台托管缓存失效，下一次目录请求即隐藏对应模型。
+- `credentialSource` 随每条模型返回，取值 `MANAGED` / `BYOK`；前端据此标注「平台」或「我的密钥」。
 - `/api/v2/model-providers` 是设置页「添加供应商」的唯一数据源，只返回协议受支持且已启用的 Provider；不得从模型目录反推供应商。
 - 协议白名单：`openai-compatible`（OpenAI、DeepSeek、Qwen、Volcengine、Gemini 官方兼容端点）与 `anthropic-messages`（Anthropic 原生 Messages）。
 - 分页参数非法（`page < 1` 或 `size` 超出 1..100）返回 400 `10001`，不静默截断。
@@ -280,19 +283,25 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/internal/v1/pc/hardware/candidates?category=` | 返回候选硬件摘要，`category` 可省略 |
+| GET | `/internal/v1/pc/hardware/candidates?category=` | 返回候选硬件摘要，含 `priceFen`（最低可用报价，无报价为 `null`）与 `missingFields`（兼容性关键字段缺失项） |
 | GET | `/internal/v1/pc/hardware/{hardwareId}` | 单条硬件详情，含规格与数据质量状态 |
 | GET | `/internal/v1/pc/benchmarks?category=&hardwareId=` | PassMark 跑分；无数据返回空结果，不猜测分数 |
 | GET | `/internal/v1/pc/offers?category=&hardwareId=&verifiedOnly=` | 报价列表，`verifiedOnly=true` 时只返回 `matchStatus=VERIFIED` |
 | POST | `/internal/v1/pc/builds/solve` | 确定性求解，返回 `buildId`、8 类组件、总价、兼容性报告 |
+| POST | `/internal/v1/pc/builds/compose` | 按调用方给定的 8 类硬件生成方案并落快照；请求体 `{"components":{八类硬件标识},"budgetMaxFen":可选}` |
 | POST | `/internal/v1/pc/builds/validate` | 复核完整性与兼容性，返回 `checks[]`、`overallStatus`、`ruleVersion` |
+| POST | `/internal/v1/pc/builds/validate-partial` | 任意已选组件子集的部分兼容性校验；不落库、不需用户令牌 |
 | GET | `/internal/v1/pc/builds/{buildId}` | 读取快照；仅所属用户可见，越权返回 403 `40302` |
 
-求解请求字段：`budgetMaxFen`（为空表示无硬预算）、`scenario`（`GENERAL` / `GAMING` / `VIDEO_EDITING` / `PROGRAMMING` / `RENDERING` / `AI_INFERENCE`；兼容旧值 `CREATIVE` / `WORKSTATION` / `OFFICE` / `GENERAL_USE` / `BALANCED`）、`renderMode`（可空，`CPU` / `GPU` / `BOTH`，仅在 `scenario=RENDERING` 时有意义）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers`。响应 `requirements` 回显 `workloadProfile` 与 `renderMode`，响应顶层含 `scoringVersion`。
+`compose` 只接受八个 `@NotBlank` 硬件标识与可选 `budgetMaxFen`（整数分，`>=1`，为空表示不限预算），不携带其他需求，按默认画像（`GENERAL`）生成；价格与总价只来自报价库的最低有效报价，逐件理由由服务端确定性生成，成功响应与 `solve` 成功分支的 `build` 结构一致并写入 append-only 快照。预算由服务端在写快照前强制校验，总价大于 `budgetMaxFen` 即失败，不放宽预算。失败语义：缺类别或类别不符 400 `40303`、任一选中硬件无可用报价 409 `40307`、兼容性存在硬冲突 422 `40308`、超出预算 422 `40309`，四种失败都不落库。
+
+求解请求字段：`budgetMaxFen`（为空表示无硬预算）、`budgetMinFen`（为空表示用户只给了上限；仅用于校验与文案，不强制多花钱）、`minCpuPriceFen` / `maxGpuPriceFen`（质量评审带约束重解时使用的 CPU 价格下限与 GPU 价格上限，可为空）、`scenario`（`GENERAL` / `GAMING` / `VIDEO_EDITING` / `PROGRAMMING` / `RENDERING` / `MEDIA` / `AI_INFERENCE`；兼容旧值 `CREATIVE` / `WORKSTATION` / `OFFICE` / `GENERAL_USE` / `BALANCED`）、`renderMode`（可空，`CPU` / `GPU` / `BOTH`，仅在 `scenario=RENDERING` 时有意义）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers`。`budgetMinFen > budgetMaxFen` 返回 400 `40304`。响应 `requirements` 回显 `workloadProfile` 与 `renderMode`，响应顶层含 `scoringVersion`。
 
 报价字段含 `priceSource`：`OWNER_VERIFIED` 为人工核验价，`MOCK_DEMO` 为演示占位价。**`MOCK_DEMO` 不得在用户侧表述为已核验报价**，前端与 `response_generator` 必须显式标注。
 
 兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。每条 `checks[]` 额外携带 `riskLevel`（`BLOCKING` / `ADVISORY`）：`BLOCKING` 表示该字段缺失时方案不得标记为完全验证通过，但不阻断求解。
+
+`validate-partial` 只执行「依赖类别全部已选」的规则，未覆盖的规则不出现在 `checks[]`；无可执行规则时 `overallStatus=UNKNOWN`，不得当 `PASS`；字段缺失同样返回 `UNKNOWN` 并回填 `missingFields`（形如 `cpu.socket`）。状态集合与 `/validate` 相同，因此 PSU 余量不足等情况仍返回 `WARNING`。
 
 ### 5.8 消息反馈（2026-11-10 已实现）
 
@@ -509,10 +518,16 @@ data: {"interrupt_id": "int-1", "interaction_type": "clarify_requirements", "que
 | `components[]` | 8 类硬件，含 `category`、`model_name`、`brand`、`title`、`platform`、`seller`、`price_source`、`spec_summary`、`price_fen`、`purchase_url`、`benchmark`、`offer_verified_at` |
 | `total_price_fen` / `budget_max_fen` / `budget_status` | 总价、预算上限与预算校验结论；均为整数分 |
 | `compatibility[]` / `overall_status` | 兼容性明细与总状态，取值为 `PASS`/`WARNING`/`FAIL`/`UNKNOWN` |
-| `demo_offer_count` | 演示价条数，大于 0 时前端必须常驻展示「演示价格，非真实在售」 |
+| `demo_offer_count` | 演示价（`price_source=MOCK_DEMO`）条数；大于 0 时前端必须常驻展示「演示价格，非真实在售」 |
 | `reason_summary` | 选型理由摘要；正文的权威来源仍是 `token` 事件 |
 
-`components[].price_source=MOCK_DEMO` 表示该行价格为演示占位价，禁止表述为已核验报价。
+`components[].price_source` 决定价格提示等级，逐件来源优先于聚合计数：
+
+- `MOCK_DEMO`：演示占位价，禁止表述为已核验报价；对应 `demo_offer_count`。
+- `PLATFORM_OBSERVED`：电商平台检索到的参考价，商品真实在售但未经人工核验；前端展示「参考价（平台观测，未经人工核验）」，不能与演示价混用文案。
+- `OWNER_VERIFIED`：人工核验价。
+
+注意：Java 落库响应中的 `demo_offer_count` 统计「非 `OWNER_VERIFIED`」条数，平台观测价也会被计入，不能据此判定演示价；SSE 投影按 `MOCK_DEMO` 重新计算。
 
 版本化约定（WP2.3）：
 

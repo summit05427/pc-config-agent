@@ -144,6 +144,8 @@ key 实际格式为 `<KEY_PREFIX>:<APP_ENV>:<domain>:<parts...>`（如 `agent:pr
 | --- | --- | --- | --- | --- | --- |
 | `MODEL_RUNTIME_ENABLED` | 控制面总开关；关闭时 `/internal/v1/**` 与 `/api/v1/models` 返回 404 | `false` | 否 | 无 | `application.yaml` L20 |
 | `BYOK_ENABLED` | 用户自带密钥开关 | `false` | 否 | **是**（Bean Validation）：为 `true` 时必须同时开启运行时且主密钥可用 | `application.yaml` L21；`ModelRuntimeProperties.java` L92-98 |
+| `MODEL_MANAGED_ENABLED` | 平台托管模型开关；`false` 时目录不返回平台模型，Auto 只落到用户 BYOK 模型 | `true` | 否 | 否 | `application.yaml` L23；`ModelRuntimeProperties.java` |
+| `MODEL_MANAGED_PROBE_TTL` | 平台密钥可用性探测缓存时长；探测失败会立即隐藏平台模型 | `30s` | 否 | 否 | `application.yaml`；`ManagedModelAvailability.java` |
 | `MODEL_CRED_MASTER_KEY` | BYOK 凭证加密主密钥（32 字节 base64） | 空 | `BYOK_ENABLED=true` 时必填 | **是**（同上 `@AssertTrue`） | `application.yaml` L24；`ModelRuntimeProperties.java` L92-98 |
 | `MODEL_CRED_KEY_VERSION` | 新密文使用的密钥版本 | `1` | 否 | 无 | `application.yaml` L25 |
 | `MODEL_CRED_MASTER_KEYS` | 多版本密钥环，格式 `<version>:<base64>`，英文逗号分隔 | 空 | 否 | 无；未配置时回退单密钥 `MODEL_CRED_MASTER_KEY` | `application.yaml` L27；`ModelRuntimeProperties.java` L220-232 |
@@ -218,6 +220,7 @@ cron 含空格，`.env` 与 YAML 中必须整体加引号。
 | `AGENT__SSE_HEARTBEAT_SECONDS` | SSE 心跳注释行间隔 | `15` | 否 | 无 | `config.py` L274 |
 | `AGENT__SYSTEM_PROMPT` | 提示词文件名（不含 `.md`，取自 `app/agent/prompts/`） | `pc-config-system` | 否 | 启动即校验文件存在，缺失抛 `RuntimeError` | `config.py` L280 |
 | `AGENT__MAX_SOLVE_RETRIES` | 兼容性校验失败后自动重解次数（0–2），重解只放宽 `require_verified_offers` | `1` | 否 | 字段级范围校验 | `config.py` L282；`agent-service/.env.example` |
+| `AGENT__PC_SELECTION_MODE` | PC 选型模式：`llm` 由 Build Architect 结构化选型；`solver` 为显式降级的确定性求解器 | `llm` | 否 | 字段级枚举校验（`solver` / `llm`） | `config.py` L284；`agent-service/.env.example` L119 |
 | `AGENT__TOOL_TIMEOUT_SECONDS` | 工具默认超时 | `10` | 否 | 无 | `config.py` L278 |
 | `AGENT__TOOL_MAX_RETRIES` | 工具失败重试次数（0–5） | `1` | 否 | 无 | `config.py` L280 |
 | `AGENT__TOOL_MAX_OUTPUT_TOKENS` | 工具单次返回的 token 上限；超出后截断并附加提示 | `2000` | 否 | 字段级 `>0` | `config.py` L311 |

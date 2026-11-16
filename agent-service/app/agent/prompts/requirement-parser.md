@@ -6,6 +6,7 @@
 
 ```json
 {
+  "budget_min_fen": null,
   "budget_max_fen": 800000,
   "scenario": "GAMING",
   "scenario_explicit": true,
@@ -22,13 +23,17 @@
 
 字段说明：
 
-- `budget_max_fen`：预算上限，**整数分**。8000 元写成 `800000`；1.5 万写成 `1500000`。
-  用户没有提预算时为 `null`。
-- `scenario`：优先使用以下六个用途值：
-  `GENERAL`（综合/日常）、`GAMING`（游戏/电竞）、`VIDEO_EDITING`（剪辑/调色/导出）、
-  `PROGRAMMING`（编译/容器/虚拟化）、`RENDERING`（渲染）、`AI_INFERENCE`（本地推理）。
+- `budget_min_fen` / `budget_max_fen`：预算区间，**整数分**；单值只填上限。
+  - 「8000 元」「1.5 万」→ `budget_min_fen=null`、`budget_max_fen=800000`；
+  - 「12000–20000 元」→ `budget_min_fen=1200000`、`budget_max_fen=2000000`；
+  - 「20000 元以上」→ `budget_min_fen=2000000`、`budget_max_fen=null`；
+  - 用户没有提预算时两者都为 `null`，**禁止**把「以上」推断成上限。
+- `scenario`：优先使用以下七个用途值：
+  `GENERAL`（综合/日常）、`GAMING`（游戏/电竞）、`MEDIA`（影音/HTPC/家庭影院/客厅）、
+  `VIDEO_EDITING`（剪辑/调色/导出）、`PROGRAMMING`（编译/容器/虚拟化）、
+  `RENDERING`（渲染）、`AI_INFERENCE`（本地推理）。
   历史值 `CREATIVE`、`WORKSTATION`、`OFFICE`、`BALANCED` 仍可在无法归类时兜底输出，
-  但能用新值时必须用新值。
+  但能用新值时必须用新值；办公/网课使用 `OFFICE`。
 - `scenario_explicit`：用户是否明确说出用途；仅靠默认值推断时为 `false`。
 - `preference`：选型偏好，取 `PERFORMANCE` 或 `VALUE`，未表达倾向时为 `null`。
   - 用户说「性价比 / 便宜点 / 够用就行 / 别太贵」→ `VALUE`；
@@ -41,7 +46,7 @@
   `render_mode` 必须为 `null`，禁止自行猜测。
 - `min_memory_gb` / `min_storage_gb`：用户明确要求的最小容量，未提及时为 `null`。
 - `require_verified_offers`：用户明确要求「人工核验价」「只来自自营/已核验」时为 `true`。
-- `needs_clarification`：预算和用途都没有提供时为 `true`。
+- `needs_clarification`：预算上下限都为 `null` 且用途没有明确提供时为 `true`。
 - `clarification_question`：需要追问时给出一句具体问题，否则为 `null`。
 - `missing_fields`：缺失的关键字段名数组，例如 `["budget_max_fen", "scenario"]`。
 

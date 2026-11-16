@@ -31,7 +31,7 @@ TabItem(value: string, trigger: string, content: any[]) — 标签页项：value
 Accordion(items: AccordionItem[]) — 折叠面板：把多段内容收进可展开的标题下
 AccordionItem(value: string, trigger: string, content: any[]) — 折叠项：value 是唯一标识，trigger 是标题，content 是展开后的子组件列表
 Table(columns: Col[]) — 数据表格：按列组织，每列自带数据数组；超过 10 行自动分页
-Col(label: string, data: (string | number | boolean)[]) — 表格列：label 是表头，data 是该列自上而下的单元格值
+Col(label: string, data: (string | number | boolean)[], type?: "text" | "image") — 表格列：label 是表头，data 是该列自上而下的单元格值；type=image 时单元格按图片 URL 渲染
 MetricIndicator(value: string, subtext?: string, previousValue?: string, trend?: {direction: "up" | "down", value: number}, variant?: "inline" | "with-strikethrough") — 关键指标：突出显示单个数值，可带环比趋势、副标题与划线对比值
 FollowUpBlock(items: FollowUpItem[]) — 追问建议：列出一条或多条可点击的后续问题，放在回答末尾
 FollowUpItem(text: string) — 单条追问建议：点击后以该文案继续对话
