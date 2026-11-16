@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 from collections.abc import AsyncIterator
 from typing import Any
@@ -33,6 +34,10 @@ from app.agent.pc.status import (
     FAILURE_CANDIDATE_NOT_IN_POOL,
     FAILURE_MODEL_UNAVAILABLE,
     FAILURE_QUALITY_CONSTRAINT,
+    FAILURE_STAGE_ID_NOT_IN_CANDIDATES,
+    FAILURE_STAGE_OUTPUT_TRUNCATED,
+    FAILURE_STAGE_PROVIDER_UNSUPPORTED,
+    FAILURE_STAGE_SCHEMA_INVALID,
     STATUS_ARCHITECT_FAILED,
     STATUS_RETRIEVED,
     STATUS_RETRY,
@@ -41,7 +46,7 @@ from app.agent.pc.status import (
 from app.agent.profiles import resolve_profile
 from app.agent.prompts import load_pc_prompt
 from app.agent.tool_context import ToolTurn
-from app.core.config import AuthSettings, Settings
+from app.core.config import AuthSettings, Settings, get_settings
 from app.services import control_plane
 from app.services.control_plane import ControlPlaneError
 
@@ -179,6 +184,112 @@ class _StructuredRunnable:
                 "parsing_error": ValueError("schema mismatch"),
             }
         return {"raw": AIMessage(content="{}"), "parsed": proposal, "parsing_error": None}
+
+
+class _RaisingStructuredRunnable:
+    """模拟不支持结构化输出/tool-calling 的 Provider：调用即抛错。"""
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        del messages, config
+        raise RuntimeError("structured output unsupported")
+
+
+class UnsupportedStructuredModel:
+    """结构化输出不可用；文本调用只返回需求 JSON，兜底提案必然不合法。"""
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        del schema, include_raw
+        return _RaisingStructuredRunnable()
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
+        del messages, config
+        return AIMessage(content=REQUIREMENT_JSON)
+
+    async def astream(
+        self, messages: Any, config: Any = None, **_kwargs: Any
+    ) -> AsyncIterator[AIMessageChunk]:
+        yield AIMessageChunk(content="这套配置在预算内优先保证游戏性能与散热余量。")
+
+
+class _BudgetTrackingModel(ArchitectModel):
+    """记录每次结构化调用实际生效的输出预算，用于验证按节点覆盖。"""
+
+    def __init__(self, proposals: list[BuildProposal | None]) -> None:
+        super().__init__(proposals)
+        self.max_tokens: int = 2048
+        self.budgets: list[int] = []
+
+    def model_copy(self, *, update: dict[str, Any] | None = None) -> _BudgetTrackingModel:
+        clone = copy.copy(self)
+        for key, value in (update or {}).items():
+            setattr(clone, key, value)
+        return clone
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        self.budgets.append(self.max_tokens)
+        return super().with_structured_output(schema, include_raw=include_raw)
+
+
+_TRUNCATED_PROPOSAL_JSON = '{"selected_components":[{"category":"CPU",'
+
+
+class _TruncatedProposalModel:
+    """结构化结果与文本兜底都被输出预算截断，finish_reason=length。"""
+
+    def __init__(self) -> None:
+        # 共享列表：model_copy 出来的副本要能看到「已经尝试过结构化调用」
+        self.proposal_attempts: list[str] = []
+        self.calls: list[str] = []
+        self.max_tokens: int = 2048
+        self.budgets: list[int] = []
+
+    def model_copy(self, *, update: dict[str, Any] | None = None) -> _TruncatedProposalModel:
+        clone = copy.copy(self)
+        for key, value in (update or {}).items():
+            setattr(clone, key, value)
+        return clone
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        del include_raw
+        self.budgets.append(self.max_tokens)
+        return _TruncatedProposalRunnable(self, schema)
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
+        del messages, config
+        self.budgets.append(self.max_tokens)
+        if not self.proposal_attempts:
+            self.calls.append("parser")
+            return AIMessage(content=REQUIREMENT_JSON)
+        self.calls.append("fallback")
+        return AIMessage(
+            content=_TRUNCATED_PROPOSAL_JSON,
+            response_metadata={"finish_reason": "length"},
+        )
+
+    async def astream(
+        self, messages: Any, config: Any = None, **_kwargs: Any
+    ) -> AsyncIterator[AIMessageChunk]:
+        yield AIMessageChunk(content="这套配置在预算内优先保证游戏性能与散热余量。")
+
+
+class _TruncatedProposalRunnable:
+    def __init__(self, model: _TruncatedProposalModel, schema: Any) -> None:
+        self._model = model
+        self._schema = schema
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        del messages, config
+        if self._schema is BuildStrategy:
+            return {"raw": AIMessage(content="{}"), "parsed": _strategy(), "parsing_error": None}
+        self._model.proposal_attempts.append("structured")
+        return {
+            "raw": AIMessage(
+                content=_TRUNCATED_PROPOSAL_JSON,
+                response_metadata={"finish_reason": "length"},
+            ),
+            "parsed": None,
+            "parsing_error": ValueError("truncated json"),
+        }
 
 
 class FakeTool:
@@ -370,6 +481,7 @@ async def test_repair_limit_fails_without_returning_unverified_build(
     assert compose.calls == []
     assert result["build_result"] is None
     assert result["build_failure"]["failure_type"] == FAILURE_CANDIDATE_NOT_IN_POOL
+    assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_ID_NOT_IN_CANDIDATES
     assert result["architect_repair_count"] == ARCHITECT_MAX_REPAIRS
     assert build_result_payload(result) is None
     assert "暂时没有生成可用配置" in render_failure_markdown(result)
@@ -444,7 +556,61 @@ async def test_model_none_fails_without_solver_fallback(
     assert compose.calls == []
     assert solve.calls == []
     assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
+    assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_SCHEMA_INVALID
     assert build_result_payload(result) is None
+
+
+async def test_unsupported_structured_output_reports_provider_stage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider 不支持结构化输出且文本兜底不合法时，失败阶段必须是 provider_unsupported。"""
+    solve, compose = _install_tools(monkeypatch)
+    model = UnsupportedStructuredModel()
+
+    result = await _run(_graph(model, "llm"), "provider-unsupported")  # type: ignore[arg-type]
+
+    assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
+    assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
+    assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_PROVIDER_UNSUPPORTED
+    assert compose.calls == []
+    assert solve.calls == []
+
+
+async def test_architect_structured_call_uses_dedicated_output_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Architect 结构化调用必须带 4096；其他节点仍沿用 LLM__MAX_TOKENS=2048。"""
+    monkeypatch.setenv("LLM__MAX_TOKENS", "2048")
+    monkeypatch.setenv("AGENT__ARCHITECT_MAX_TOKENS", "4096")
+    get_settings.cache_clear()
+    _install_tools(monkeypatch)
+    model = _BudgetTrackingModel([_proposal()])
+
+    result = await _run(_graph(model, "llm"), "architect-budget")
+
+    assert result["workflow_status"] == STATUS_SUCCESS
+    assert 2048 in model.budgets
+    assert model.budgets[-1] == 4096
+
+
+async def test_truncated_architect_output_reports_output_truncated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """finish_reason=length 时必须报 output_truncated，而不是 provider_unsupported。"""
+    monkeypatch.setenv("AGENT__ARCHITECT_MAX_TOKENS", "4096")
+    get_settings.cache_clear()
+    _install_tools(monkeypatch)
+    model = _TruncatedProposalModel()
+
+    result = await _run(_graph(model, "llm"), "architect-truncated")  # type: ignore[arg-type]
+
+    assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
+    assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
+    assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_OUTPUT_TRUNCATED
+    assert model.proposal_attempts == ["structured"]
+    # 兜底同样使用 Architect 预算，避免再次被 2048 截断
+    assert model.calls == ["parser", "fallback"]
+    assert model.budgets[-1] == 4096
 
 
 async def test_compose_tool_returns_structured_business_failure(

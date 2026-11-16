@@ -286,6 +286,9 @@ class AgentSettings(BaseModel):
     architect_max_partial_checks: int = Field(default=2, ge=0, le=4)
     # Architect 每回合允许调用知识检索的次数（0 表示关闭）；工具自身还有单轮配额兜底
     architect_max_knowledge_calls: int = Field(default=2, ge=0, le=4)
+    # Architect 结构化选型的单独输出预算：推理模型的思考 token 计入输出，
+    # 沿用 LLM__MAX_TOKENS=2048 会把 BuildProposal 的 JSON 截断
+    architect_max_tokens: int = Field(default=4096, gt=0)
     # 工具默认超时（秒）；单个工具可在注册时覆盖
     tool_timeout_seconds: float = Field(default=10.0, gt=0)
     # 工具失败后的重试次数；0 表示不重试
@@ -465,6 +468,18 @@ class RateLimitSettings(BaseModel):
     fail_open: bool = True
 
 
+class EvalSettings(BaseModel):
+    """真实评测身份，对应环境变量前缀 EVALS__。
+
+    `--real` 复用生产的模型解析与工具链路，因此必须携带一枚有效的用户访问令牌：
+    模型任务与用户维度工具都要用它向 Java 证明「代表哪个用户」。未配置时评测会
+    明确报「模型未解析」，而不是退回正则/确定性兜底把问题伪装成成功。
+    """
+
+    user_token: SecretStr | None = None
+    user_id: str = Field(default="eval-user", min_length=1, max_length=64)
+
+
 class Settings(BaseSettings):
     """全局配置根对象。
 
@@ -503,6 +518,7 @@ class Settings(BaseSettings):
     hitl: HitlSettings = Field(default_factory=HitlSettings)
     guard: GuardSettings = Field(default_factory=GuardSettings)
     rate_limit: RateLimitSettings = Field(default_factory=RateLimitSettings)
+    evals: EvalSettings = Field(default_factory=EvalSettings)
 
     @model_validator(mode="after")
     def validate_hitl_storage(self) -> "Settings":

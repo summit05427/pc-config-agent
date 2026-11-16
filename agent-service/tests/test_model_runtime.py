@@ -180,6 +180,8 @@ async def test_managed_credential_builds_graph_without_api_key(monkeypatch: Any)
         "agent_id": "pc-config",
         "api_key": None,
         "base_url": None,
+        # 生产调用不传检查点，保持进程缓存与业务库检查点不变
+        "checkpointer": None,
     }
     assert prepared.runtime is runtime
     assert prepared.graph is graph

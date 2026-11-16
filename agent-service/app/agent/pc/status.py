@@ -42,6 +42,19 @@ FAILURE_OUTPUT_TRUNCATED = "OUTPUT_TRUNCATED"
 # 质量评审发现「搭得不合理」但可通过换件修正；与兼容性、预算失败区分开
 FAILURE_QUALITY_CONSTRAINT = "QUALITY_CONSTRAINT"
 
+# 失败阶段：写入 `build_failure["failure_stage"]`，把笼统状态细化到具体环节
+FAILURE_STAGE_MODEL_MISSING = "model_missing"
+# 结构化输出不可用：Provider 不支持 tool-calling 或抛错
+FAILURE_STAGE_PROVIDER_UNSUPPORTED = "provider_unsupported"
+# 模型有输出但不符合 Schema：结构化解析失败或文本兜底 JSON 非法
+FAILURE_STAGE_SCHEMA_INVALID = "schema_invalid"
+# 输出预算耗尽被截断：Provider 本身可用，不能与「不支持结构化输出」混为一谈
+FAILURE_STAGE_OUTPUT_TRUNCATED = "output_truncated"
+FAILURE_STAGE_ID_NOT_IN_CANDIDATES = "id_not_in_candidates"
+FAILURE_STAGE_PARTIAL_CHECK = "partial_check_failed"
+# 组装失败前缀；后接工具返回的原因码，例如 compose_error:budget_exceeded
+FAILURE_STAGE_COMPOSE_ERROR_PREFIX = "compose_error:"
+
 # 上游不可用的统一安全文案，不把内部地址与异常堆栈暴露给用户
 UPSTREAM_ERROR_MESSAGE = "配置服务暂时不可用，请稍后重试。"
 EMPTY_CANDIDATES_MESSAGE = "当前硬件目录中没有找到可用于组装的候选硬件。"

@@ -8,8 +8,14 @@ from typing import Any, cast
 import pytest
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt
+from pydantic import SecretStr
 
+from app.agent import graph as agent_graph_module
 from app.agent.profiles import resolve_profile
+from app.core.config import get_settings
+from app.core.exceptions import AppError
+from app.services import model_runtime as model_runtime_module
+from app.services.model_resolver import ResolvedRuntime
 from evals.__main__ import main
 from evals.report import (
     STATUS_FAILED,
@@ -20,6 +26,7 @@ from evals.report import (
     EvalReport,
 )
 from evals.runners import fake_model as fake_model_module
+from evals.runners import real_model as real_model_module
 from evals.runners.fake_model import run_case
 from evals.runners.real_model import (
     _check_interrupt,
@@ -316,6 +323,115 @@ def test_fake_mode_skips_hitl_assertions() -> None:
 
     assert result.status == STATUS_SKIPPED
     assert {check.name for check in result.checks} >= {"interrupt_type", "resume"}
+
+
+def _enable_real_runtime(monkeypatch: pytest.MonkeyPatch) -> None:
+    """打开模型运行时并注入评测令牌；测试不依赖本地 .env 的真实值。"""
+    settings = get_settings()
+    monkeypatch.setattr(settings.model_runtime, "enabled", True)
+    monkeypatch.setattr(settings.evals, "user_token", SecretStr("eval-access-token"))
+
+
+async def test_real_runner_passes_resolved_model_into_graph(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """真实运行器必须复用生产解析，并把解析出的模型真正绑到节点上。"""
+    _enable_real_runtime(monkeypatch)
+    resolved = ResolvedRuntime(
+        task_id="task-eval",
+        provider="deepseek",
+        model_key="deepseek:deepseek-v4-pro",
+        credential_source="MANAGED",
+    )
+    resolve_calls: list[dict[str, Any]] = []
+
+    async def fake_resolve_runtime(**kwargs: Any) -> ResolvedRuntime:
+        resolve_calls.append(kwargs)
+        return resolved
+
+    async def fake_resolve_credential(runtime: ResolvedRuntime) -> None:
+        return None
+
+    fake_model = object()
+    captured: dict[str, Any] = {}
+
+    def fake_build_pc_graph(
+        *, model: Any, profile: Any, checkpointer: Any = None, selection_mode: Any = None
+    ) -> SimpleNamespace:
+        captured["model"] = model
+        return SimpleNamespace()
+
+    monkeypatch.setattr(model_runtime_module, "resolve_runtime", fake_resolve_runtime)
+    monkeypatch.setattr(model_runtime_module, "resolve_credential", fake_resolve_credential)
+    monkeypatch.setattr(
+        agent_graph_module, "get_chat_model", lambda *args, **kwargs: fake_model
+    )
+    monkeypatch.setattr(agent_graph_module, "build_pc_graph", fake_build_pc_graph)
+    agent_graph_module.clear_agent_cache()
+
+    prepared = await real_model_module._prepare_graph(
+        resolve_profile("pc-config"), "eval-runtime-thread"
+    )
+
+    assert len(resolve_calls) == 1
+    assert resolve_calls[0]["thread_id"] == "eval-runtime-thread"
+    # 节点拿到的不是 None：图装配收到的是 resolve_runtime 对应的模型实例
+    assert captured["model"] is fake_model
+    assert prepared.runtime is resolved
+
+
+async def test_real_runner_fails_explicitly_when_model_unresolved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """解析失败必须直接判失败，不能继续执行图触发正则兜底。"""
+    _enable_real_runtime(monkeypatch)
+
+    async def failed_resolve(**kwargs: Any) -> ResolvedRuntime:
+        raise AppError("模型任务创建失败", code="model_not_available", status_code=503)
+
+    def forbidden_graph(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("模型未解析时不得构图")
+
+    monkeypatch.setattr(model_runtime_module, "resolve_runtime", failed_resolve)
+    monkeypatch.setattr(model_runtime_module, "get_agent_for_runtime", forbidden_graph)
+
+    case = EvalCase(
+        id="runtime_unresolved",
+        agent_id="pc-config",
+        input="预算 8000 元，主要打游戏",
+        expect={"workflow_status": "success"},
+    )
+
+    result = await real_model_module.run_case(case)
+
+    assert result.status == STATUS_FAILED
+    assert result.error is not None
+    assert "模型未解析" in result.error
+    # 未进入图执行，因此不会产生任何「看似成功」的断言结果
+    assert result.checks == []
+
+
+async def test_real_runner_fails_explicitly_without_eval_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """启用运行时但没有评测令牌时，报告要明确指出模型未解析。"""
+    settings = get_settings()
+    monkeypatch.setattr(settings.model_runtime, "enabled", True)
+    monkeypatch.setattr(settings.evals, "user_token", None)
+
+    case = EvalCase(
+        id="runtime_without_token",
+        agent_id="pc-config",
+        input="预算 8000 元，主要打游戏",
+        expect={"workflow_status": "success"},
+    )
+
+    result = await real_model_module.run_case(case)
+
+    assert result.status == STATUS_FAILED
+    assert result.error is not None
+    assert "模型未解析" in result.error
+    assert "unauthorized" in result.error
 
 
 def test_check_interrupt_compares_public_interaction_type() -> None:

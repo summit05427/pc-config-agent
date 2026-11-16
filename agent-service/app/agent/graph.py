@@ -77,10 +77,32 @@ def get_agent_for_runtime(
     agent_id: str | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
-    """按「Profile + 运行时模型」返回图；`None` 等价于进程默认模型。"""
+    """按「Profile + 运行时模型」返回图；`None` 等价于进程默认模型。
+
+    传入 `checkpointer` 时不走进程缓存：评测等离屏调用需要内存检查点，
+    既不能复用生产图，也不能把评测会话写进业务库。
+    """
     profile = resolve_profile(agent_id)
     cache_key: tuple[str, str, str, str | None]
+    if checkpointer is not None:
+        model = (
+            None
+            if runtime is None
+            else get_chat_model(
+                runtime.provider,
+                runtime.model_key,
+                runtime.credential_id,
+                agent_id=profile.id,
+                temperature=profile.model.temperature,
+                max_tokens=profile.model.max_tokens,
+                api_key=api_key,
+                base_url=base_url or runtime.base_url,
+            )
+        )
+        return build_agent(model=model, checkpointer=checkpointer, profile=profile)
+
     if runtime is None:
         if profile.id == get_settings().agent.default_profile:
             return get_agent()

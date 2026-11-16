@@ -6,7 +6,7 @@
 
 from collections.abc import Sequence
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
@@ -14,11 +14,15 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command, Interrupt
+from pydantic import SecretStr
 
-from app.agent.graph import build_agent
 from app.agent.profiles import AgentProfile, resolve_profile
 from app.agent.registry import redact_sensitive_text
+from app.agent.tool_context import ToolTurn
 from app.core.config import get_settings
+from app.core.exceptions import AppError
+from app.services.model_runtime import PreparedAgent, prepare_agent
+from app.services.turn import build_agent_config
 from evals.report import (
     STATUS_FAILED,
     STATUS_PASSED,
@@ -36,21 +40,65 @@ CHECK_TOOL_SEQUENCE = "tool_sequence"
 CHECK_INTERRUPT = "interrupt_type"
 CHECK_RESUME = "resume"
 
+# 评测用户角色只用于工具治理与知识检索权限过滤；真实身份由 EVALS__USER_TOKEN 决定
+EVAL_USER_ROLES = ("USER",)
+# 模型未解析必须以显式前缀出现在报告里，便于一眼区分「配置缺失」与「业务失败」
+MODEL_UNRESOLVED_PREFIX = "模型未解析"
+
 # 点路径取值失败的哨兵；用 None 会把「字段存在但值为 null」误判为缺失
 _MISSING = object()
 
-_GRAPHS: dict[str, CompiledStateGraph] = {}
+
+class ModelResolutionError(RuntimeError):
+    """评测无法拿到运行时模型：必须直接判失败，不能继续构图走正则兜底。"""
 
 
-def _graph_for(profile: AgentProfile) -> CompiledStateGraph:
-    """同一 Profile 在一次运行内只构图一次；checkpointer 用内存实现，不写业务库。"""
-    cached = _GRAPHS.get(profile.id)
-    if cached is not None:
-        return cached
+def _eval_user_token() -> SecretStr | None:
+    """评测身份只从配置读取；禁止在代码或仓库里硬编码令牌。"""
+    return get_settings().evals.user_token
 
-    graph: CompiledStateGraph = build_agent(profile=profile, checkpointer=MemorySaver())
-    _GRAPHS[profile.id] = graph
-    return graph
+
+def _eval_user_id() -> str:
+    """评测用户标识与模型解析使用同一个来源，避免两处身份漂移。"""
+    return get_settings().evals.user_id
+
+
+async def _prepare_graph(profile: AgentProfile, thread_id: str) -> PreparedAgent:
+    """复用生产 `prepare_agent` 完成解析、凭证兑换与构图。
+
+    这里不另写一套模型选择逻辑：评测与 `/chat/stream` 必须看到同一个
+    `resolve_runtime` 结果，否则模型缺失时正则兜底会把问题伪装成成功。
+    检查点改用内存实现，避免评测会话写入业务库。
+    """
+    token = _eval_user_token()
+    try:
+        prepared = await prepare_agent(
+            profile,
+            user_id=_eval_user_id(),
+            thread_id=thread_id,
+            access_token=token,
+            requested_model=None,
+            checkpointer=MemorySaver(),
+        )
+    except AppError as exc:
+        raise ModelResolutionError(
+            f"{MODEL_UNRESOLVED_PREFIX}：{exc.code}（{exc.message}）"
+        ) from exc
+    except Exception as exc:
+        # 控制面不可达、凭证兑换失败等同样属于「模型不可用」，必须显式失败
+        raise ModelResolutionError(
+            f"{MODEL_UNRESOLVED_PREFIX}：{_describe_error(exc)}"
+        ) from exc
+
+    if get_settings().model_runtime.enabled and prepared.runtime is None:
+        raise ModelResolutionError(
+            f"{MODEL_UNRESOLVED_PREFIX}：运行时已启用但未返回模型"
+        )
+    return prepared
+
+
+def _user_token_value(token: SecretStr | None) -> str | None:
+    return token.get_secret_value() if token is not None else None
 
 
 def _message_text(message: BaseMessage) -> str:
@@ -184,11 +232,12 @@ def _check_workflow_status(
     actual = state.get("workflow_status")
     if actual in expected_values:
         return CheckResult("workflow_status", STATUS_PASSED, str(actual))
-    return CheckResult(
-        "workflow_status",
-        STATUS_FAILED,
-        f"期望 {' / '.join(expected_values)}，实际 {actual or '缺失'}",
-    )
+    detail = f"期望 {' / '.join(expected_values)}，实际 {actual or '缺失'}"
+    # 失败原因决定修复方向，必须回显；限长并脱敏，避免把模型原文或密钥带进报告
+    failure = state.get("build_failure")
+    if failure:
+        detail = f"{detail}；原因 {redact_sensitive_text(str(failure))[:ERROR_PREVIEW_CHARS]}"
+    return CheckResult("workflow_status", STATUS_FAILED, detail)
 
 
 def _check_missing_slots(expected: list[str], state: dict[str, Any]) -> CheckResult:
@@ -445,24 +494,37 @@ async def run_case(case: EvalCase) -> CaseResult:
     started_at = perf_counter()
     agent_id = case.agent_id or get_settings().agent.default_profile
     thread_id = f"eval-{case.id}-{uuid4().hex[:8]}"
-    config: RunnableConfig = {
-        # 每条用例独立 thread_id；多轮用例在同一 thread 上追加，避免历史互相污染
-        "configurable": {"thread_id": thread_id},
-        "recursion_limit": get_settings().agent.recursion_limit,
-    }
 
     try:
         profile = resolve_profile(agent_id)
-        graph = _graph_for(profile)
-        result: dict[str, Any] = {}
-        interrupt: Interrupt | None = None
-        is_resume_resolved = False
-        for text in (case.input, *case.turns):
-            result = await graph.ainvoke(
-                {"messages": [HumanMessage(content=text)]}, config=config
+        prepared = await _prepare_graph(profile, thread_id)
+        graph = prepared.graph
+        # 与生产相同：运行时进 configurable 供用量上报，不写进图状态
+        config: RunnableConfig = cast(
+            "RunnableConfig",
+            build_agent_config(
+                thread_id=thread_id,
+                runtime=prepared.runtime,
+            ),
+        )
+        user_token = _user_token_value(prepared.user_token)
+        # 与真实回合一致：工具通过 ToolTurn 读取用户身份与令牌
+        with ToolTurn(EVAL_USER_ROLES, user_token, user_id=_eval_user_id()):
+            result: dict[str, Any] = {}
+            for text in (case.input, *case.turns):
+                result = await graph.ainvoke(
+                    {"messages": [HumanMessage(content=text)]}, config=config
+                )
+            result, interrupt, is_resume_resolved = await _resume_if_interrupted(
+                graph, config, case, result
             )
-        result, interrupt, is_resume_resolved = await _resume_if_interrupted(
-            graph, config, case, result
+    except ModelResolutionError as exc:
+        # 模型不可用时直接失败：绝不继续执行图去触发正则/确定性兜底
+        return CaseResult(
+            case_id=case.id,
+            agent_id=agent_id,
+            error=str(exc),
+            latency_ms=int((perf_counter() - started_at) * 1000),
         )
     except Exception as exc:
         return CaseResult(
@@ -495,5 +557,4 @@ async def run_case(case: EvalCase) -> CaseResult:
 
 async def run_cases(cases: list[EvalCase]) -> list[CaseResult]:
     """顺序执行：并发会把真实费用与限流风险成倍放大。"""
-    _GRAPHS.clear()
     return [await run_case(case) for case in cases]

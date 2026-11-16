@@ -51,6 +51,8 @@ def test_agent_defaults_are_stable() -> None:
     assert settings.tool_timeout_seconds == 10.0
     assert settings.tool_max_retries == 1
     assert settings.max_solve_retries == 1
+    # Architect 结构化选型单独放大输出预算：推理模型思考 token 会挤占 2048
+    assert settings.architect_max_tokens == 4096
 
 
 def test_default_tool_specs_are_stable() -> None:

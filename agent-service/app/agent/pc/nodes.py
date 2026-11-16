@@ -27,6 +27,7 @@ from app.agent.pc.hitl import build_compatibility_question
 from app.agent.pc.llm import (
     extract_json_object,
     invoke_model_structured,
+    invoke_model_structured_outcome,
     invoke_model_text,
     stream_model_text,
 )
@@ -72,6 +73,10 @@ from app.agent.pc.status import (
     FAILURE_MODEL_UNAVAILABLE,
     FAILURE_OFFER_UNAVAILABLE,
     FAILURE_OUTPUT_TRUNCATED,
+    FAILURE_STAGE_COMPOSE_ERROR_PREFIX,
+    FAILURE_STAGE_ID_NOT_IN_CANDIDATES,
+    FAILURE_STAGE_PARTIAL_CHECK,
+    FAILURE_STAGE_SCHEMA_INVALID,
     FAILURE_TOOL_ERROR,
     FAILURE_USER_TOKEN_MISSING,
     SELECTION_MODE_LLM,
@@ -1188,6 +1193,7 @@ def _architect_failure(
     rule_ids: tuple[str, ...] | None = None,
     preserve: list[str] | None = None,
     repair_attempt: int = 0,
+    stage: str | None = None,
 ) -> dict[str, Any]:
     """按方案 §12.2 的形状描述失败；没有服务端明细时不编造受影响类别。"""
     affected = list(categories or [])
@@ -1198,6 +1204,8 @@ def _architect_failure(
         # `reason` 兼容现有失败文案的结构，`failure_type` 是修正闭环的正式字段
         "reason": failure_type,
         "failure_type": failure_type,
+        # 具体阶段：区分 Provider 不支持、Schema 非法、候选越界与组装失败
+        "failure_stage": stage,
         "affected_categories": affected,
         "affected_hardware_ids": list(hardware_ids or []),
         "violated_rule_ids": list(rule_ids or _FAILURE_RULE_IDS.get(failure_type, ())),
@@ -1206,6 +1214,11 @@ def _architect_failure(
         "allowed_changes": allowed,
         "repair_attempt": repair_attempt,
     }
+
+
+def _compose_failure_stage(code: str) -> str:
+    """把组装失败细化到原因码，例如 `compose_error:budget_exceeded`。"""
+    return f"{FAILURE_STAGE_COMPOSE_ERROR_PREFIX}{code.lower()}"
 
 
 @dataclass
@@ -1413,6 +1426,7 @@ def _partial_failure(
             if category.value not in affected
         ],
         repair_attempt=repair_count,
+        stage=FAILURE_STAGE_PARTIAL_CHECK,
     )
 
 
@@ -1481,7 +1495,11 @@ async def _compose_proposal(
         events.append(_tool_end("compose_pc_build", "工具未注册"))
         return _ComposeOutcome(
             None,
-            _architect_failure(FAILURE_TOOL_ERROR, message="配置组装工具未注册。"),
+            _architect_failure(
+                FAILURE_TOOL_ERROR,
+                message="配置组装工具未注册。",
+                stage=_compose_failure_stage("tool_missing"),
+            ),
             False,
         )
 
@@ -1490,7 +1508,11 @@ async def _compose_proposal(
         events.append(_tool_end("compose_pc_build", error or "组装失败"))
         return _ComposeOutcome(
             None,
-            _architect_failure(FAILURE_TOOL_ERROR, message=error or "配置组装失败。"),
+            _architect_failure(
+                FAILURE_TOOL_ERROR,
+                message=error or "配置组装失败。",
+                stage=_compose_failure_stage("tool_error"),
+            ),
             True,
         )
     return _compose_payload_outcome(data, events)
@@ -1507,6 +1529,7 @@ def _compose_payload_outcome(
             _architect_failure(
                 FAILURE_OUTPUT_TRUNCATED,
                 message="组装结果被治理层截断，无法作为完整方案使用。",
+                stage=_compose_failure_stage("output_truncated"),
             ),
             False,
         )
@@ -1516,7 +1539,11 @@ def _compose_payload_outcome(
         message = as_text(failure_payload.get("message"), "服务端未能生成配置。")
         retryable = failure_payload.get("retryable") is not False
         events.append(_tool_end("compose_pc_build", message))
-        return _ComposeOutcome(None, _architect_failure(reason, message=message), retryable)
+        return _ComposeOutcome(
+            None,
+            _architect_failure(reason, message=message, stage=_compose_failure_stage(reason)),
+            retryable,
+        )
 
     build = _normalize_compose_build(data)
     if build is None:
@@ -1526,6 +1553,7 @@ def _compose_payload_outcome(
             _architect_failure(
                 FAILURE_TOOL_ERROR,
                 message="组装结果缺少八类组件或兼容性报告。",
+                stage=_compose_failure_stage("invalid_payload"),
             ),
             False,
         )
@@ -1544,8 +1572,8 @@ async def _request_architect_proposal(
     agent_id: str,
     architect_prompt: str,
     knowledge_text: str = "",
-) -> BuildProposal | None:
-    return await invoke_model_structured(
+) -> tuple[BuildProposal | None, str | None]:
+    outcome = await invoke_model_structured_outcome(
         model,
         [
             SystemMessage(content=architect_prompt),
@@ -1555,7 +1583,10 @@ async def _request_architect_proposal(
         config=config,
         agent_id=agent_id,
         purpose="build_architect",
+        # 推理模型的思考 token 计入输出：Architect 单独放大预算，其他节点保持全局值
+        max_tokens=get_settings().agent.architect_max_tokens,
     )
+    return outcome.value, outcome.failure_stage
 
 
 def _architect_candidate_failure(
@@ -1573,6 +1604,7 @@ def _architect_candidate_failure(
             if category.value not in invalid_categories
         ],
         repair_attempt=repair_count,
+        stage=FAILURE_STAGE_ID_NOT_IN_CANDIDATES,
     )
 
 
@@ -1747,7 +1779,7 @@ async def build_architect(
     )
 
     while True:
-        proposal = await _request_architect_proposal(
+        proposal, failure_stage = await _request_architect_proposal(
             state,
             failure,
             config,
@@ -1761,6 +1793,8 @@ async def build_architect(
                 FAILURE_MODEL_UNAVAILABLE,
                 message="模型未能返回符合 Schema 的选型提案。",
                 repair_attempt=session.repair_count,
+                # 模型返回空但未给出阶段时按 Schema 非法处理，避免失败不可定位
+                stage=failure_stage or FAILURE_STAGE_SCHEMA_INVALID,
             )
             return _architect_failure_update(unavailable, session, last_proposal)
         last_proposal = proposal
@@ -1788,7 +1822,9 @@ async def build_architect(
             return _architect_success_update(proposal, outcome.build, session)
 
         failure = outcome.failure or _architect_failure(
-            FAILURE_TOOL_ERROR, message="配置组装失败。"
+            FAILURE_TOOL_ERROR,
+            message="配置组装失败。",
+            stage=_compose_failure_stage("tool_error"),
         )
         if not outcome.retryable or not session.can_repair():
             return _architect_failure_update(failure, session, proposal)

@@ -34,7 +34,7 @@ from app.core.logging import configure_logging
 from app.core.metrics import MetricsMiddleware
 from app.core.middleware import REQUEST_ID_HEADER, RequestIDMiddleware
 from app.core.redis import redis_lifespan
-from app.rag import RagConfigError, ensure_retriever_loaded
+from app.rag import RagConfigError, close_retriever, ensure_retriever_loaded
 from app.services.control_plane import close_control_plane_client
 from app.services.model_usage import start_usage_reporter, stop_usage_reporter
 from app.services.pc_client import close_pc_client
@@ -97,6 +97,8 @@ async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
             # 先关闭 PC 查询连接，再释放控制面令牌连接池
             await close_pc_client()
             await close_control_plane_client()
+            # 检索器可能持有独立的向量库连接池，最后释放
+            await close_retriever()
 
 
 def create_app() -> FastAPI:

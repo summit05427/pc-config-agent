@@ -10,10 +10,11 @@
 
 from dataclasses import dataclass
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import SecretStr
 
-from app.agent.graph import get_agent, get_agent_for_runtime, invalidate_credential
+from app.agent.graph import build_agent, get_agent, get_agent_for_runtime, invalidate_credential
 from app.agent.profiles import AgentProfile
 from app.core.config import get_settings
 from app.core.exceptions import AppError
@@ -41,12 +42,17 @@ class PreparedAgent:
     user_token: SecretStr | None = None
 
 
-def _default_graph(profile: AgentProfile) -> CompiledStateGraph:
+def _default_graph(
+    profile: AgentProfile, checkpointer: BaseCheckpointSaver | None = None
+) -> CompiledStateGraph:
     """未使用运行时模型时的图选择。
 
     默认 Profile 沿用进程级默认图；其他 Profile 按 `agent_id` 独立缓存，
-    避免不同人格的提示词与温度互相串扰。
+    避免不同人格的提示词与温度互相串扰。传入 checkpointer 时按离屏调用处理，
+    只构建一次性图，不污染进程缓存。
     """
+    if checkpointer is not None:
+        return build_agent(profile=profile, checkpointer=checkpointer)
     if profile.id == get_settings().agent.default_profile:
         return get_agent()
     return get_agent_for_runtime(None, agent_id=profile.id)
@@ -77,6 +83,7 @@ async def prepare_agent(
     requested_model: str | None,
     client_idempotency_key: str | None = None,
     reasoning: bool | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> PreparedAgent:
     """按原顺序完成「解析 → 门控 → 兑换 → 构图」，返回可直接运行的图。
 
@@ -85,6 +92,8 @@ async def prepare_agent(
 
     :param reasoning: 本轮是否要求模型思考；`None` 表示沿用模型默认行为。
         运行时关闭时没有目录可依据，该参数被忽略。
+    :param checkpointer: 仅离屏调用（如真实评测）传入；生产留空，沿用进程缓存与
+        生产检查点，避免评测会话写入业务库。
     :raises AppError: 开启运行时但缺少访问令牌（401）、模型不支持所需能力（422），
         或解析/兑换阶段的业务错误。
     """
@@ -92,7 +101,9 @@ async def prepare_agent(
     if not settings.model_runtime.enabled:
         # 关闭时保持原有单模型逻辑，不发起任何出站请求
         return PreparedAgent(
-            graph=_default_graph(profile), runtime=None, user_token=access_token
+            graph=_default_graph(profile, checkpointer),
+            runtime=None,
+            user_token=access_token,
         )
 
     if access_token is None:
@@ -109,7 +120,9 @@ async def prepare_agent(
     if runtime is None:
         # 控制面不可达且未显式指定模型：显式降级到进程默认模型
         return PreparedAgent(
-            graph=_default_graph(profile), runtime=None, user_token=access_token
+            graph=_default_graph(profile, checkpointer),
+            runtime=None,
+            user_token=access_token,
         )
 
     _ensure_reasoning_supported(runtime, reasoning)
@@ -127,5 +140,6 @@ async def prepare_agent(
         agent_id=profile.id,
         api_key=credential.api_key if credential is not None else None,
         base_url=credential.base_url if credential is not None else None,
+        checkpointer=checkpointer,
     )
     return PreparedAgent(graph=graph, runtime=runtime, user_token=access_token)

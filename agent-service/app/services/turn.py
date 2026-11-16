@@ -458,16 +458,37 @@ def _final_message_events(
     return events
 
 
-def _agent_config(request: TurnRequest) -> dict[str, Any]:
-    """组装图配置；运行时只放 configurable，不进入可持久化的 AgentState。"""
+def build_agent_config(
+    *,
+    thread_id: str,
+    runtime: ResolvedRuntime | None = None,
+    recursion_limit: int | None = None,
+) -> dict[str, Any]:
+    """组装图配置；运行时只放 configurable，不进入可持久化的 AgentState。
+
+    抽成公共函数供评测运行器复用：真实评测必须与生产注入同一个
+    `configurable.model_runtime`，否则用量上报会丢失任务与模型信息。
+    """
     config: dict[str, Any] = {
-        "configurable": {"thread_id": request.checkpoint_thread_id},
+        "configurable": {"thread_id": thread_id},
         # 防止模型反复调用工具；超限时 LangGraph 抛错，由外层转成 error 事件
-        "recursion_limit": get_settings().agent.recursion_limit,
+        "recursion_limit": (
+            recursion_limit
+            if recursion_limit is not None
+            else get_settings().agent.recursion_limit
+        ),
     }
-    if request.runtime is not None:
-        config["configurable"]["model_runtime"] = request.runtime
+    if runtime is not None:
+        config["configurable"]["model_runtime"] = runtime
     return config
+
+
+def _agent_config(request: TurnRequest) -> dict[str, Any]:
+    """回合配置：checkpoint thread 与运行时由请求显式给出，生产行为保持不变。"""
+    return build_agent_config(
+        thread_id=request.checkpoint_thread_id,
+        runtime=request.runtime,
+    )
 
 
 async def _persist_turn(request: TurnRequest) -> dict[str, Any]:

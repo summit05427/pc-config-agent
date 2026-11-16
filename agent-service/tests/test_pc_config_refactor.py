@@ -14,13 +14,18 @@ from langgraph.constants import TAG_NOSTREAM
 from pydantic import ValidationError
 
 from app.agent.pc import nodes as nodes_module
-from app.agent.pc.llm import invoke_model_structured
+from app.agent.pc.llm import invoke_model_structured, invoke_model_structured_outcome
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildProposal,
     SelectedComponent,
 )
-from app.agent.pc.status import STATUS_NO_CANDIDATES, STATUS_RETRIEVED, STATUS_UPSTREAM_ERROR
+from app.agent.pc.status import (
+    FAILURE_STAGE_PROVIDER_UNSUPPORTED,
+    STATUS_NO_CANDIDATES,
+    STATUS_RETRIEVED,
+    STATUS_UPSTREAM_ERROR,
+)
 
 SUMMARY_KEYS = {
     "hardware_id",
@@ -349,3 +354,76 @@ async def test_structured_call_returns_none_without_model() -> None:
     )
 
     assert result is None
+
+
+class _UnsupportedStructuredRunnable:
+    """模拟不支持结构化输出的 Provider：直接返回 None。"""
+
+    def __init__(self, model: _FallbackModel) -> None:
+        self._model = model
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        del messages, config
+        self._model.structured_calls += 1
+        return None
+
+
+class _FallbackModel:
+    """结构化输出不可用，文本调用返回脚本化内容，用于验证一次性兜底。"""
+
+    def __init__(self, text: str | None) -> None:
+        self._text = text
+        self.structured_calls = 0
+        self.text_prompts: list[str] = []
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        del schema, include_raw
+        return _UnsupportedStructuredRunnable(self)
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
+        del config
+        self.text_prompts.append(str(messages[-1].content))
+        return AIMessage(content=self._text or "")
+
+
+async def test_structured_output_none_falls_back_to_text_json() -> None:
+    """Provider 不支持结构化输出时，用注入 JSON Schema 的文本调用补齐。"""
+    model = _FallbackModel(
+        json.dumps({"selected_components": _components()}, ensure_ascii=False)
+    )
+
+    result = await invoke_model_structured(
+        model,  # type: ignore[arg-type]
+        [HumanMessage(content="组装一台电脑")],
+        schema=BuildProposal,
+        config=None,
+        agent_id="pc-config",
+        purpose="build_architect",
+    )
+
+    assert isinstance(result, BuildProposal)
+    assert model.structured_calls == 1
+    assert len(model.text_prompts) == 1
+    # Schema 必须真正注入提示词，否则自由文本无法稳定产出八类 ID
+    assert "selected_components" in model.text_prompts[0]
+    assert "只输出一个 JSON 对象" in model.text_prompts[0]
+
+
+async def test_structured_output_none_and_fallback_invalid_returns_stage() -> None:
+    """兜底解析失败时必须返回 None，并保留第一次失败阶段用于诊断。"""
+    model = _FallbackModel("抱歉，我无法给出配置。")
+
+    outcome = await invoke_model_structured_outcome(
+        model,  # type: ignore[arg-type]
+        [HumanMessage(content="组装一台电脑")],
+        schema=BuildProposal,
+        config=None,
+        agent_id="pc-config",
+        purpose="build_architect",
+    )
+
+    assert outcome.value is None
+    assert outcome.failure_stage == FAILURE_STAGE_PROVIDER_UNSUPPORTED
+    assert model.structured_calls == 1
+    # 兜底只允许一次，不允许循环重试
+    assert len(model.text_prompts) == 1
