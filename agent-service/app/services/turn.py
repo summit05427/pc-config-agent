@@ -104,7 +104,7 @@ async def run_turn(request: TurnRequest, outcome: TurnOutcome) -> AsyncIterator[
     settings = get_settings()
     stream_error: str | None = None
     # 角色、调用配额与用户令牌成对进入/退出：任何异常或取消都不会只复位一半
-    with ToolTurn(request.user_roles, request.user_token):
+    with ToolTurn(request.user_roles, request.user_token, user_id=request.user_id):
         try:
             # 请求级钩子：阻断时由传输层转成流内 error，不改动已建立的 200 响应
             await run_hooks(_hook_context(HookPoint.BEFORE_REQUEST, request))
@@ -131,6 +131,8 @@ async def _turn_events(request: TurnRequest, outcome: TurnOutcome) -> AsyncItera
     use_history = request.preferences.use_history if request.preferences else True
 
     citations: list[Citation] = []
+    # 同一回合内 turn 级 RAG 与工具级知识引用共用一份已下发集合，按 source_id 去重
+    sent_citation_ids: set[str] = set()
     # RAG 默认关闭；开启时先按权限过滤检索，再把引用与提示词片段带进本轮
     if get_settings().rag.enabled:
         citations = await _retrieve_citations(
@@ -138,14 +140,14 @@ async def _turn_events(request: TurnRequest, outcome: TurnOutcome) -> AsyncItera
             request.user_id,
             request.user_roles,
         )
-        if citations:
-            yield TurnEvent(
-                "citations",
-                {"citations": [citation.to_payload() for citation in citations]},
-            )
+        fresh_payloads = _fresh_citation_payloads(citations, sent_citation_ids)
+        if fresh_payloads:
+            yield TurnEvent("citations", {"citations": fresh_payloads})
     turn_prompt = _compose_turn_prompt(preference_prompt, build_retrieval_prompt(citations))
 
-    async for event in _agent_events(request, turn_prompt, use_history, outcome):
+    async for event in _agent_events(
+        request, turn_prompt, use_history, outcome, sent_citation_ids
+    ):
         yield event
 
     # 生成已结束：此后即使客户端在落库阶段断开，本轮也应记为完成
@@ -174,8 +176,9 @@ async def _agent_events(
     turn_prompt: str | None,
     use_history: bool,
     outcome: TurnOutcome,
+    sent_citation_ids: set[str],
 ) -> AsyncIterator[TurnEvent]:
-    """把图的 messages / updates 流翻译成回合事件。
+    """把图的 messages / updates / custom 流翻译成回合事件。
 
     偏好字段每轮都显式传入：即使本轮不携带偏好，也要把旧值覆盖为默认，
     避免同一 thread 上一轮的偏好残留。
@@ -205,15 +208,19 @@ async def _agent_events(
         _agent_config(request),
         # 必须是 list：LangGraph 只把 list 识别为多模式，tuple 会被当成单一模式
         # mypy 无法从 list 字面量推断 Literal 序列，属于上游重载标注问题
-        stream_mode=["messages", "updates"],  # type: ignore[call-overload]
+        stream_mode=["messages", "updates", "custom"],  # type: ignore[call-overload]
     ):
         if mode == "messages":
             events = _chunk_events(chunk, buffer_output, pending_events, streamed_text)
+        elif mode == "custom":
+            events = _custom_events(chunk, buffer_output, pending_events, streamed_text)
         elif isinstance(chunk, dict) and "__interrupt__" in chunk:
             outcome.interrupted = True
             events = _interrupt_events(chunk["__interrupt__"])
         else:
-            events = _update_events(chunk, pending_events, "".join(streamed_text))
+            events = _update_events(
+                chunk, pending_events, "".join(streamed_text), sent_citation_ids
+            )
         for event in events:
             yield event
 
@@ -279,10 +286,42 @@ def _chunk_events(
     return events
 
 
+def _custom_events(
+    chunk: Any,
+    buffer_output: bool,
+    pending_events: list[TurnEvent],
+    streamed_text: list[str],
+) -> list[TurnEvent]:
+    """custom 模式：PC 节点在生成过程中主动下发的思考与正文分片。
+
+    节点正文仍由确定性渲染器拼装，因此不能走 `messages` 流；这里只接受
+    节点声明的两种 kind，未知负载直接忽略，避免把内部调试数据推给客户端。
+    """
+    if not isinstance(chunk, dict):
+        return []
+    kind = chunk.get("kind")
+    text = chunk.get("text")
+    if not isinstance(text, str) or not text:
+        return []
+    if kind == "reasoning":
+        event = TurnEvent("reasoning", {"text": text})
+    elif kind == "token":
+        event = TurnEvent("token", {"text": text})
+        # 与 messages 流共用去重记录：节点返回的最终正文据此判断是否已下发
+        streamed_text.append(text)
+    else:
+        return []
+    if buffer_output:
+        pending_events.append(event)
+        return []
+    return [event]
+
+
 def _update_events(
     chunk: dict[str, Any],
     pending_events: list[TurnEvent],
     streamed_text: str,
+    sent_citation_ids: set[str],
 ) -> list[TurnEvent]:
     """updates 模式：翻译节点累积的工具事件与最终正文。
 
@@ -300,9 +339,72 @@ def _update_events(
             continue
         events.extend(_tool_event_events(update.get("tool_events")))
         events.extend(
+            _knowledge_citation_events(
+                update.get("knowledge_citations"), sent_citation_ids
+            )
+        )
+        events.extend(
             _final_message_events(node, update.get("messages", []), streamed_text)
         )
     return events
+
+
+def _fresh_citation_payloads(
+    citations: list[Citation],
+    sent_source_ids: set[str],
+) -> list[dict[str, Any]]:
+    """按 `source_id` 去重：turn 级 RAG 引用只下发本轮未出现过的来源。"""
+    payloads: list[dict[str, Any]] = []
+    for citation in citations:
+        if citation.source_id in sent_source_ids:
+            continue
+        sent_source_ids.add(citation.source_id)
+        payloads.append(citation.to_payload())
+    return payloads
+
+
+def _knowledge_citation_events(
+    raw_citations: Any,
+    sent_source_ids: set[str],
+) -> list[TurnEvent]:
+    """工具级知识引用转成既有 `citations` 事件，字段与 RAG 引用完全一致。
+
+    节点可能在不同修正轮次重复返回同一来源，这里按 `source_id` 去重；
+    字段白名单与 `Citation.to_payload()` 对齐，新增的元数据不透传给前端。
+    """
+    if not isinstance(raw_citations, list):
+        return []
+    payloads: list[dict[str, Any]] = []
+    for raw in raw_citations:
+        payload = _citation_payload(raw)
+        if payload is None or payload["source_id"] in sent_source_ids:
+            continue
+        sent_source_ids.add(str(payload["source_id"]))
+        payloads.append(payload)
+    if not payloads:
+        return []
+    return [TurnEvent("citations", {"citations": payloads})]
+
+
+def _citation_payload(raw: Any) -> dict[str, Any] | None:
+    """只保留事件契约字段；缺失来源或片段时直接丢弃，不补造内容。"""
+    if not isinstance(raw, dict):
+        return None
+    source_id = raw.get("source_id")
+    snippet = raw.get("snippet")
+    if not isinstance(source_id, str) or not source_id:
+        return None
+    if not isinstance(snippet, str) or not snippet:
+        return None
+    payload: dict[str, Any] = {
+        "source_id": source_id,
+        "title": str(raw.get("title") or ""),
+        "snippet": snippet,
+    }
+    score = raw.get("score")
+    if isinstance(score, (int, float)) and not isinstance(score, bool):
+        payload["score"] = float(score)
+    return payload
 
 
 def _tool_event_events(raw_events: Any) -> list[TurnEvent]:

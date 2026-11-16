@@ -97,6 +97,9 @@ os.environ["OPENUI__ENABLED"] = "false"
 # HITL 默认关闭：本地 .env 若设 HITL__ENABLED=true，澄清路径会变成 interrupt，
 # 「未开启 HITL 保持原流程」用例随环境漂移；需要 HITL 的用例用 hitl_on fixture 显式开启。
 os.environ["HITL__ENABLED"] = "false"
+# RAG 默认值由 embedding 配置推导：本地 .env 只要配了模型与维度就会自动开启，
+# 启动期会加载 pgvector 检索器并依赖真实库，因此测试必须显式关闭。
+os.environ["RAG__ENABLED"] = "false"
 # 限流按用户计数，而集成测试共用一个 Redis 与同一批测试用户：
 # 沿用默认 20 次/分钟会让后跑的用例被前面的请求挤成 429，形成顺序相关的假失败。
 # 这里放大配额，只保留中间件调用路径；限流语义由 tests/test_rate_limit.py

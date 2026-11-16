@@ -17,6 +17,8 @@ from app.agent.pc.status import (
 )
 from app.agent.registry import ToolExecutionError, register_tool
 from app.agent.tool_context import get_current_tool_turn
+from app.core.config import get_settings
+from app.rag import Citation, NoopRetriever, RetrievalRequest, get_retriever
 from app.services.control_plane import (
     PC_BUDGET_EXCEEDED,
     PC_BUILD_INCOMPATIBLE,
@@ -40,6 +42,19 @@ MAX_PARTIAL_CHECKS_PER_TURN = 4
 # 组装不遍历组合，但会落快照；超时仍按 30 秒兜底
 COMPOSE_TIMEOUT_SECONDS = 30
 PARTIAL_CHECK_TIMEOUT_SECONDS = 30
+
+# 知识检索：只读、单轮配额与 Architect 的次数上限是两道独立闸门
+KNOWLEDGE_TIMEOUT_SECONDS = 10
+KNOWLEDGE_MAX_OUTPUT_TOKENS = 4000
+MAX_KNOWLEDGE_CALLS_PER_TURN = 4
+MIN_KNOWLEDGE_TOP_K = 1
+MAX_KNOWLEDGE_TOP_K = 6
+DEFAULT_KNOWLEDGE_TOP_K = 4
+MAX_KNOWLEDGE_QUERY_CHARS = 200
+# 单条片段进入模型上下文的上限：4 条 × 400 字符，远低于工具输出预算
+MAX_KNOWLEDGE_SNIPPET_CHARS = 400
+KNOWLEDGE_UNAVAILABLE_MESSAGE = "知识检索暂时不可用，请基于候选与校验结果继续"
+KNOWLEDGE_IDENTITY_MISSING_MESSAGE = "缺少用户身份，无法检索知识"
 
 # PC 业务错误 → (失败类型, 是否允许模型修正)
 _COMPOSE_FAILURES: dict[str, tuple[str, bool]] = {
@@ -312,3 +327,107 @@ async def check_partial_compatibility(
     if not components:
         raise ToolExecutionError("增量校验至少需要一个已选组件")
     return await _call_client(get_pc_client().validate_partial(components))
+
+
+@register_tool(
+    name="search_knowledge",
+    description=(
+        "检索装机方法学与权衡原则，只能用于解释「为什么这样取舍」；"
+        "型号、规格、价格与兼容性结论必须来自候选清单与服务端校验，不得使用本工具推断。"
+    ),
+    timeout_seconds=KNOWLEDGE_TIMEOUT_SECONDS,
+    max_output_tokens=KNOWLEDGE_MAX_OUTPUT_TOKENS,
+    max_calls_per_turn=MAX_KNOWLEDGE_CALLS_PER_TURN,
+)
+async def search_knowledge(
+    query: str, top_k: int = DEFAULT_KNOWLEDGE_TOP_K
+) -> dict[str, object]:
+    """按当前用户与角色检索知识卡片；失败只降级为「无引用」，不阻塞回合。
+
+    RAG 未启用时返回 `enabled=false` 与空引用；任何情况下都不补写内容。
+    """
+    normalized = _normalize_knowledge_query(query)
+    limit = _clamp_knowledge_top_k(top_k)
+    settings = get_settings()
+    if not settings.rag.enabled:
+        return _knowledge_payload(False, [], False)
+
+    turn = get_current_tool_turn()
+    user_id = turn.user_id if turn is not None else ""
+    if not user_id:
+        # 没有身份就无法执行权限过滤；宁可返回错误也不做匿名检索
+        return _knowledge_payload(True, [], False, error=KNOWLEDGE_IDENTITY_MISSING_MESSAGE)
+
+    roles = turn.roles if turn is not None else ()
+    try:
+        retriever = get_retriever()
+        if isinstance(retriever, NoopRetriever):
+            return _knowledge_payload(False, [], False)
+        # 多取一条用于判断是否被 top_k 截断，随后立即裁掉
+        citations = await retriever.retrieve(
+            RetrievalRequest(
+                query=normalized,
+                user_id=user_id,
+                roles=roles,
+                limit=limit + 1,
+            )
+        )
+    except Exception as exc:
+        # 模型或向量库故障：给出明确提示，由节点继续走候选与校验主线
+        logger.warning("rag.knowledge_tool_failed", error_type=type(exc).__name__)
+        return _knowledge_payload(True, [], False, error=KNOWLEDGE_UNAVAILABLE_MESSAGE)
+
+    return _knowledge_payload(
+        True,
+        [_knowledge_citation_payload(item) for item in citations[:limit]],
+        len(citations) > limit,
+    )
+
+
+def _normalize_knowledge_query(query: str) -> str:
+    """空问题与超长问题在工具边界拒绝，避免把无意义查询打到向量库。"""
+    normalized = query.strip()
+    if not normalized:
+        raise ToolExecutionError("知识检索需要非空问题")
+    if len(normalized) > MAX_KNOWLEDGE_QUERY_CHARS:
+        raise ToolExecutionError(
+            f"知识检索问题不能超过 {MAX_KNOWLEDGE_QUERY_CHARS} 字"
+        )
+    return normalized
+
+
+def _clamp_knowledge_top_k(top_k: object) -> int:
+    """越界按边界收口：模型给 9 时取 6，给 0 时取 1；非法类型退回默认值。"""
+    if isinstance(top_k, bool) or not isinstance(top_k, int):
+        return DEFAULT_KNOWLEDGE_TOP_K
+    return max(MIN_KNOWLEDGE_TOP_K, min(MAX_KNOWLEDGE_TOP_K, top_k))
+
+
+def _knowledge_citation_payload(citation: Citation) -> dict[str, object]:
+    """模型可见引用：保留来源与置信等级，片段裁短以免挤占上下文。"""
+    snippet = " ".join(citation.snippet.split())[:MAX_KNOWLEDGE_SNIPPET_CHARS]
+    return {
+        "source_id": citation.source_id,
+        "title": citation.title,
+        "snippet": snippet or citation.snippet,
+        "score": citation.score,
+        "source_name": citation.source_name,
+        "confidence_level": citation.confidence_level,
+    }
+
+
+def _knowledge_payload(
+    enabled: bool,
+    citations: list[dict[str, object]],
+    truncated: bool,
+    *,
+    error: str | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "enabled": enabled,
+        "citations": citations,
+        "truncated": truncated,
+    }
+    if error is not None:
+        payload["error"] = error
+    return payload

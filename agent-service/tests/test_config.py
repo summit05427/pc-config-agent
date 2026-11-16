@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import AuthSettings, OpenUiSettings, Settings
+from app.core.config import AuthSettings, OpenUiSettings, RagSettings, Settings
 
 
 def _prod_settings(public_key_pem: str, **overrides: Any) -> Settings:
@@ -152,6 +152,21 @@ def test_solo_blank_connection_strings_are_unset(public_key_pem: str) -> None:
 
     assert settings.storage.postgres_url is None
     assert settings.redis.url is None
+
+
+def test_rag_enabled_defaults_to_embedding_configuration() -> None:
+    """未显式配置时按 embedding 是否齐备推导；缺少配置只表示未启用，不报错。"""
+    assert RagSettings().enabled is False
+    assert RagSettings(embedding_model="text-embedding-3-small").enabled is False
+    assert RagSettings(embedding_model="", embedding_dimensions=1536).enabled is False
+    assert RagSettings(
+        embedding_model="text-embedding-3-small", embedding_dimensions=1536
+    ).enabled is True
+    # 显式开关始终优先于推导结果
+    assert RagSettings(
+        enabled=False, embedding_model="text-embedding-3-small", embedding_dimensions=1536
+    ).enabled is False
+    assert RagSettings(enabled=True).enabled is True
 
 
 def test_public_key_is_required() -> None:

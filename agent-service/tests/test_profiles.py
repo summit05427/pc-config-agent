@@ -36,6 +36,7 @@ def test_default_profile_is_pc_config() -> None:
         "compose_pc_build",
         "validate_pc_build",
         "check_partial_compatibility",
+        "search_knowledge",
     ]
     assert profile.model.default_key is None
     assert profile.model.temperature == 0.3
@@ -56,6 +57,7 @@ def test_pc_profile_uses_pc_tools() -> None:
         "compose_pc_build",
         "validate_pc_build",
         "check_partial_compatibility",
+        "search_knowledge",
     }
 
 

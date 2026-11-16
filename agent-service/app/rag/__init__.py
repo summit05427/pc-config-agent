@@ -9,6 +9,7 @@ from app.rag.base import (
 )
 from app.rag.prompt import build_retrieval_prompt
 from app.rag.registry import (
+    close_retriever,
     discover_retriever,
     ensure_retriever_loaded,
     get_retriever,
@@ -22,6 +23,7 @@ __all__ = [
     "RetrievalRequest",
     "Retriever",
     "build_retrieval_prompt",
+    "close_retriever",
     "discover_retriever",
     "ensure_retriever_loaded",
     "get_retriever",

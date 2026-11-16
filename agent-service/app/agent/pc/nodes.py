@@ -155,6 +155,33 @@ _PREFERENCE_KEYWORDS: tuple[tuple[Preference, tuple[str, ...]], ...] = (
 
 # Architect 修正上限：首次提案之外最多再修正两次，避免无限重选
 ARCHITECT_MAX_REPAIRS = 2
+# 知识检索工具名；调用次数受 AGENT__ARCHITECT_MAX_KNOWLEDGE_CALLS 与工具配额双重限制
+KNOWLEDGE_TOOL_NAME = "search_knowledge"
+# 单条引用片段进入提示词的上限：只保留解释取舍所需的长度
+MAX_KNOWLEDGE_PROMPT_SNIPPET_CHARS = 300
+# 场景 → 检索词：只描述取舍方向，不携带型号、价格或任何用户隐私字段
+_KNOWLEDGE_SCENARIO_TERMS: dict[str, str] = {
+    "GAMING": "游戏 装机 显卡 与 处理器 预算 取舍 原则",
+    "VIDEO_EDITING": "视频剪辑 装机 多核 内存 存储 取舍 原则",
+    "PROGRAMMING": "编程开发 装机 多核 内存 取舍 原则",
+    "RENDERING": "渲染 装机 多核 功耗 散热 取舍 原则",
+    "AI_INFERENCE": "本地推理 装机 显存 内存带宽 取舍 原则",
+    "CREATIVE": "创作设计 装机 性能 内存 取舍 原则",
+    "OFFICE": "办公 装机 静音 稳定 取舍 原则",
+    "MEDIA": "影音 装机 静音 功耗 取舍 原则",
+    "BALANCED": "整机 装机 预算 分配 性能 取舍 原则",
+}
+# 失败类型 → 检索词：修正阶段只查「怎么权衡」，不查具体型号
+_KNOWLEDGE_FAILURE_TERMS: dict[str, str] = {
+    FAILURE_CANDIDATE_NOT_IN_POOL: "候选范围 选型 原则",
+    FAILURE_OFFER_UNAVAILABLE: "报价不可用 选型 原则",
+    FAILURE_COMPATIBILITY_CONFLICT: "硬件兼容性 冲突 权衡 原则",
+    FAILURE_BUDGET_EXCEEDED: "预算超限 取舍 原则",
+    FAILURE_USER_TOKEN_MISSING: "身份失效 修正 原则",
+    FAILURE_TOOL_ERROR: "组装失败 修正 原则",
+    FAILURE_OUTPUT_TRUNCATED: "结果截断 修正 原则",
+    FAILURE_MODEL_UNAVAILABLE: "模型不可用 修正 原则",
+}
 # 增量校验覆盖的核心组件：插槽、内存代际、显卡供电等冲突都在这一组里交叉判定
 ARCHITECT_PARTIAL_CORE_CATEGORIES: tuple[HardwareCategory, ...] = (
     HardwareCategory.CPU,
@@ -1136,11 +1163,16 @@ def _strategy_text(state: PCConfigState) -> str:
     return "\n".join(lines)
 
 
-def _architect_context(state: PCConfigState, failure: dict[str, Any]) -> str:
+def _architect_context(
+    state: PCConfigState,
+    failure: dict[str, Any],
+    knowledge_text: str = "",
+) -> str:
     sections = [
         _requirements_text(as_mapping(state.get("requirements"))),
         _strategy_text(state),
         _architect_quality_feedback_text(as_mapping(state.get("quality_feedback"))),
+        knowledge_text,
         _architect_catalog_text(as_mapping(state.get("candidate_sets"))),
         _architect_repair_text(failure),
     ]
@@ -1187,10 +1219,17 @@ class _ArchitectSession:
     partial_checks: int
     repair_count: int
     max_partial_checks: int
+    knowledge_calls: int
+    max_knowledge_calls: int
+    knowledge_citations: list[dict[str, Any]]
 
     def can_repair(self) -> bool:
         """修正次数上限对所有失败类型统一生效。"""
         return self.repair_count < ARCHITECT_MAX_REPAIRS
+
+    def can_search_knowledge(self) -> bool:
+        """知识检索与工具配额是两道独立闸门，任一耗尽都不再调用。"""
+        return self.knowledge_calls < self.max_knowledge_calls
 
     def bump_repair(self, failure: dict[str, Any]) -> dict[str, Any]:
         self.repair_count += 1
@@ -1212,6 +1251,8 @@ def _architect_failure_update(
         "architect_repair_count": session.repair_count,
         "partial_compatibility_reports": session.partial_reports,
         "partial_check_count": session.partial_checks,
+        "knowledge_citations": session.knowledge_citations,
+        "knowledge_call_count": session.knowledge_calls,
         "selection_mode": SELECTION_MODE_LLM,
         "tool_events": session.events,
     }
@@ -1502,12 +1543,13 @@ async def _request_architect_proposal(
     model: BaseChatModel | None,
     agent_id: str,
     architect_prompt: str,
+    knowledge_text: str = "",
 ) -> BuildProposal | None:
     return await invoke_model_structured(
         model,
         [
             SystemMessage(content=architect_prompt),
-            HumanMessage(content=_architect_context(state, failure)),
+            HumanMessage(content=_architect_context(state, failure, knowledge_text)),
         ],
         schema=BuildProposal,
         config=config,
@@ -1554,6 +1596,8 @@ def _architect_success_update(
         "architect_repair_count": session.repair_count,
         "partial_compatibility_reports": session.partial_reports,
         "partial_check_count": session.partial_checks,
+        "knowledge_citations": session.knowledge_citations,
+        "knowledge_call_count": session.knowledge_calls,
         "selection_mode": SELECTION_MODE_LLM,
     }
 
@@ -1563,12 +1607,123 @@ def _architect_session(state: PCConfigState) -> _ArchitectSession:
         requirements=as_mapping(state.get("requirements")),
         candidate_sets=as_mapping(state.get("candidate_sets")),
         events=[],
-        # 增量校验与修正次数按回合累计：质量重解重入时也共享同一份上限
+        # 增量校验、知识检索与修正次数按回合累计：质量重解重入时共享同一份上限
         partial_reports=list(as_list(state.get("partial_compatibility_reports"))),
         partial_checks=as_int(state.get("partial_check_count")),
         repair_count=as_int(state.get("architect_repair_count")),
         max_partial_checks=get_settings().agent.architect_max_partial_checks,
+        knowledge_calls=as_int(state.get("knowledge_call_count")),
+        max_knowledge_calls=get_settings().agent.architect_max_knowledge_calls,
+        knowledge_citations=[
+            as_mapping(item) for item in as_list(state.get("knowledge_citations"))
+        ],
     )
+
+
+def _knowledge_query_for_proposal(state: PCConfigState) -> str:
+    """提案前查方法学依据：只用结构化需求拼检索词，不带型号与用户原文。"""
+    requirements = as_mapping(state.get("requirements"))
+    scenario = as_text(requirements.get("scenario"), "BALANCED")
+    terms = _KNOWLEDGE_SCENARIO_TERMS.get(scenario, _KNOWLEDGE_SCENARIO_TERMS["BALANCED"])
+    preference = as_text(requirements.get("preference"))
+    if preference == Preference.PERFORMANCE.value:
+        terms = f"{terms} 性能优先"
+    elif preference == Preference.VALUE.value:
+        terms = f"{terms} 性价比"
+    return terms
+
+
+def _knowledge_query_for_repair(failure: dict[str, Any]) -> str:
+    """修正阶段查权衡原则：按失败类型与受影响类别检索，不查具体型号。"""
+    failure_type = as_text(failure.get("failure_type"), as_text(failure.get("reason")))
+    terms = _KNOWLEDGE_FAILURE_TERMS.get(failure_type, "选型修正 权衡 原则")
+    categories = _category_labels(failure.get("affected_categories"))
+    return f"{terms} {categories}".strip()
+
+
+async def _search_knowledge(
+    query: str,
+    session: _ArchitectSession,
+) -> str:
+    """调用受治理工具检索知识；引用写入 session，返回可注入提示词的片段文本。
+
+    检索不可用或未启用都只返回空串：Architect 必须继续用候选与校验结果决策。
+    """
+    tool = get_governed_tool(KNOWLEDGE_TOOL_NAME)
+    if tool is None:
+        logger.warning("pc.knowledge_tool_missing")
+        return ""
+    session.knowledge_calls += 1
+    session.events.append(_tool_start(KNOWLEDGE_TOOL_NAME, {"query": query}))
+    data, error = await _call_tool(tool, {"query": query})
+    if error is not None or data is None:
+        session.events.append(_tool_end(KNOWLEDGE_TOOL_NAME, error or "检索失败"))
+        return ""
+    if data.get("enabled") is False:
+        session.events.append(_tool_end(KNOWLEDGE_TOOL_NAME, "知识检索未启用"))
+        return ""
+    citations = [as_mapping(item) for item in as_list(data.get("citations"))]
+    citations = [item for item in citations if as_text(item.get("source_id"))]
+    session.knowledge_citations = _merge_knowledge_citations(
+        session.knowledge_citations, citations
+    )
+    message = as_text(data.get("error")) or f"引用 {len(citations)} 条"
+    session.events.append(_tool_end(KNOWLEDGE_TOOL_NAME, message))
+    return _knowledge_prompt_text(citations)
+
+
+async def _architect_knowledge(session: _ArchitectSession, query: str) -> str:
+    """RAG 关闭或次数耗尽时不发起调用；开启时失败也只降级为空文本。"""
+    if not get_settings().rag.enabled or not session.can_search_knowledge():
+        return ""
+    return await _search_knowledge(query, session)
+
+
+def _merge_knowledge_citations(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """按 `source_id` 去重合并；同一来源在多轮检索中只保留首次出现的片段。"""
+    merged = list(existing)
+    seen = {as_text(item.get("source_id")) for item in existing}
+    for item in incoming:
+        source_id = as_text(item.get("source_id"))
+        if not source_id or source_id in seen:
+            continue
+        seen.add(source_id)
+        merged.append(item)
+    return merged
+
+
+def _knowledge_prompt_text(citations: list[dict[str, Any]]) -> str:
+    """渲染方法学依据；明确写出边界，防止模型把知识当成规格来源。"""
+    if not citations:
+        return ""
+    lines = [
+        "## 方法学依据（仅用于解释取舍，不得用于型号/规格/价格/兼容性结论）",
+        (
+            "- 下列片段只支撑「为什么这样取舍」；"
+            "型号、规格、价格与兼容性只能来自候选清单与服务端校验结果。"
+        ),
+    ]
+    for index, item in enumerate(citations, start=1):
+        title = as_text(item.get("title"), "无标题")
+        snippet = " ".join(as_text(item.get("snippet")).split())[
+            :MAX_KNOWLEDGE_PROMPT_SNIPPET_CHARS
+        ]
+        source_name = as_text(item.get("source_name"))
+        confidence = as_text(item.get("confidence_level"))
+        meta = "；".join(
+            part
+            for part in (
+                f"来源：{source_name}" if source_name else "",
+                f"置信：{confidence}" if confidence else "",
+            )
+            if part
+        )
+        heading = f"[{index}] {title}（{meta}）" if meta else f"[{index}] {title}"
+        lines.append(f"{heading}\n{snippet}")
+    return "\n".join(lines)
 
 
 async def build_architect(
@@ -1586,6 +1741,10 @@ async def build_architect(
     session = _architect_session(state)
     failure = as_mapping(state.get("build_failure"))
     last_proposal: BuildProposal | None = None
+    # 提案前查一次方法学依据；RAG 关闭或配额耗尽时为空文本
+    knowledge_text = await _architect_knowledge(
+        session, _knowledge_query_for_proposal(state)
+    )
 
     while True:
         proposal = await _request_architect_proposal(
@@ -1595,6 +1754,7 @@ async def build_architect(
             model=model,
             agent_id=agent_id,
             architect_prompt=architect_prompt,
+            knowledge_text=knowledge_text,
         )
         if proposal is None:
             unavailable = _architect_failure(
@@ -1611,6 +1771,7 @@ async def build_architect(
             if not session.can_repair():
                 return _architect_failure_update(failure, session, proposal)
             failure = session.bump_repair(failure)
+            knowledge_text = await _architect_repair_knowledge(session, failure, knowledge_text)
             continue
 
         # 增量校验只提前暴露核心组件冲突；整机校验仍由 compose 负责
@@ -1619,6 +1780,7 @@ async def build_architect(
             if not session.can_repair():
                 return _architect_failure_update(partial_failure, session, proposal)
             failure = session.bump_repair(partial_failure)
+            knowledge_text = await _architect_repair_knowledge(session, failure, knowledge_text)
             continue
 
         outcome = await _compose_proposal(proposal, session.requirements, session.events)
@@ -1631,6 +1793,17 @@ async def build_architect(
         if not outcome.retryable or not session.can_repair():
             return _architect_failure_update(failure, session, proposal)
         failure = session.bump_repair(failure)
+        knowledge_text = await _architect_repair_knowledge(session, failure, knowledge_text)
+
+
+async def _architect_repair_knowledge(
+    session: _ArchitectSession,
+    failure: dict[str, Any],
+    previous_text: str,
+) -> str:
+    """修正时查权衡原则；没有新片段就沿用上一轮文本，避免提示词凭空消失。"""
+    text = await _architect_knowledge(session, _knowledge_query_for_repair(failure))
+    return text or previous_text
 
 
 def _reason_context(state: PCConfigState) -> str:

@@ -284,6 +284,8 @@ class AgentSettings(BaseModel):
     pc_selection_mode: Literal["solver", "llm"] = "llm"
     # 每回合允许的增量兼容性校验次数（0 表示关闭）；工具自身还有单轮配额兜底
     architect_max_partial_checks: int = Field(default=2, ge=0, le=4)
+    # Architect 每回合允许调用知识检索的次数（0 表示关闭）；工具自身还有单轮配额兜底
+    architect_max_knowledge_calls: int = Field(default=2, ge=0, le=4)
     # 工具默认超时（秒）；单个工具可在注册时覆盖
     tool_timeout_seconds: float = Field(default=10.0, gt=0)
     # 工具失败后的重试次数；0 表示不重试
@@ -383,13 +385,43 @@ class MCPSettings(BaseModel):
 class RagSettings(BaseModel):
     """可选 RAG 配置，对应环境变量前缀 RAG__。
 
-    默认关闭：关闭时不导入任何检索器模块，也不发起外部请求。
-    开启后必须声明 `retriever_module`，启动期导入失败直接拒绝启动。
+    开关默认值由 embedding 配置推导：模型与维度都齐备时开启，否则关闭。
+    推导放在启动期一次完成，缺少 embedding 配置只表示「未启用」，不会拒绝启动。
+    关闭时不导入任何检索器模块，也不发起外部请求。
+
+    内置 pgvector 检索器还会读取 embedding 与融合参数：显式开启后
+    `embedding_model` 为空或维度非正时由检索器工厂抛错，而不是用假向量兜底。
     """
 
     enabled: bool = False
     retriever_module: str = Field(default="", max_length=200)
     top_k: int = Field(default=5, ge=1, le=20)
+    # Embedding 与向量维度必须成对配置；维度用于建表与结果校验
+    embedding_model: str = Field(default="", max_length=200)
+    embedding_dimensions: int = Field(default=0, ge=0, le=8192)
+    embedding_batch_size: int = Field(default=32, ge=1, le=256)
+    embedding_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
+    # RRF（Reciprocal Rank Fusion）平滑常数：越大越弱化头部名次差异
+    rrf_k: int = Field(default=60, ge=1, le=1000)
+    # 每个通道的召回数量 = limit * 倍数；上限在检索器内再收口
+    recall_multiplier: int = Field(default=4, ge=1, le=20)
+
+    @model_validator(mode="before")
+    @classmethod
+    def derive_enabled_from_embedding(cls, values: object) -> object:
+        """未显式配置 `RAG__ENABLED` 时，按 embedding 模型与维度是否齐备判定。
+
+        显式 true/false 始终优先；只在缺省时推导，避免把「没配 embedding」
+        误判成启动错误——那种情况只意味着 RAG 未启用。
+        """
+        if not isinstance(values, dict) or values.get("enabled") is not None:
+            return values
+        model_name = str(values.get("embedding_model") or "").strip()
+        try:
+            dimensions = int(values.get("embedding_dimensions") or 0)
+        except (TypeError, ValueError):
+            dimensions = 0
+        return {**values, "enabled": bool(model_name) and dimensions > 0}
 
 
 class HitlSettings(BaseModel):

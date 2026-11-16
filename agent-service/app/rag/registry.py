@@ -67,3 +67,20 @@ def reset_retriever() -> None:
     """清空缓存；仅供测试隔离使用，生产环境不调用。"""
     global _retriever
     _retriever = None
+
+
+async def close_retriever() -> None:
+    """释放检索器持有的连接池等资源；实现方可选提供 `aclose()`。"""
+    global _retriever
+    retriever = _retriever
+    _retriever = None
+    if retriever is None:
+        return
+    closer = getattr(retriever, "aclose", None)
+    if closer is None:
+        return
+    try:
+        await closer()
+    except Exception as exc:
+        # 关闭阶段的失败只记录类型，避免掩盖退出流程中的其他异常
+        logger.warning("rag.retriever_close_failed", error_type=type(exc).__name__)

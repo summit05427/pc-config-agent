@@ -23,11 +23,19 @@ class ToolTurn:
     避免上一轮的角色或配额泄漏到下一轮请求。
     """
 
-    def __init__(self, roles: tuple[str, ...], user_token: str | None = None) -> None:
+    def __init__(
+        self,
+        roles: tuple[str, ...],
+        user_token: str | None = None,
+        *,
+        user_id: str = "",
+    ) -> None:
         self.roles = roles
         # 用户访问令牌只用于 Java 内部接口的 `X-User-Token`，
         # 不进入 state / 日志 / SSE；没有回合时保持 None。
         self.user_token = user_token
+        # 知识检索按用户维度做权限过滤；脚本调用没有回合上下文时为「无身份」。
+        self.user_id = user_id
         self._call_counts: dict[str, int] = {}
         self._token: Token[ToolTurn | None] | None = None
 

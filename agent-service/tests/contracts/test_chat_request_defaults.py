@@ -65,6 +65,7 @@ def test_default_tool_specs_are_stable() -> None:
         "compose_pc_build",
         "validate_pc_build",
         "check_partial_compatibility",
+        "search_knowledge",
     ]
 
     compose_spec = get_tool_spec("compose_pc_build")

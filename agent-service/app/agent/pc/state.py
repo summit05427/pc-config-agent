@@ -37,6 +37,9 @@ class PCConfigState(TypedDict):
     # 提交整机前的增量校验：报告与已用次数（同一回合内累计，受配置上限约束）
     partial_compatibility_reports: NotRequired[list[dict[str, Any]]]
     partial_check_count: NotRequired[int]
+    # 知识检索引用（函数级业务引用）与已用次数；由 turn.py 去重后下发 citations 事件
+    knowledge_citations: NotRequired[list[dict[str, Any]]]
+    knowledge_call_count: NotRequired[int]
     selection_mode: NotRequired[str]
     compatibility_report: NotRequired[dict[str, Any] | None]
     budget_report: NotRequired[dict[str, Any] | None]

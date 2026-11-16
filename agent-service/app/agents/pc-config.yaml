@@ -12,3 +12,4 @@ tools:
   - compose_pc_build
   - validate_pc_build
   - check_partial_compatibility
+  - search_knowledge

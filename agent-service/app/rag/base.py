@@ -12,7 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Citation(BaseModel):
-    """一条可展示的来源引用；`source_id` 用于前端跳转与排查。"""
+    """一条可展示的来源引用；`source_id` 用于前端跳转与排查。
+
+    `source_name` / `confidence_level` 只供工具把来源可信度带给模型，
+    不进入 `to_payload()`：SSE 的 `citations` 事件必须保持既有四字段契约。
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -20,9 +24,17 @@ class Citation(BaseModel):
     title: str = Field(default="", max_length=128)
     snippet: str = Field(min_length=1, max_length=4000)
     score: float | None = Field(default=None, ge=0, le=1)
+    source_name: str = Field(default="", max_length=200)
+    confidence_level: str = Field(default="", max_length=16)
 
     def to_payload(self) -> dict[str, object]:
-        return self.model_dump()
+        """只输出事件契约字段，避免新增字段漂移到前端。"""
+        return {
+            "source_id": self.source_id,
+            "title": self.title,
+            "snippet": self.snippet,
+            "score": self.score,
+        }
 
 
 class RetrievalRequest(BaseModel):

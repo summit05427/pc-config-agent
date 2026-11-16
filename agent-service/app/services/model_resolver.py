@@ -143,17 +143,9 @@ async def resolve_runtime(
     except ControlPlaneError as error:
         if error.code in _PROPAGATED_CODES:
             raise _to_app_error(error) from None
-        if model_key is not None:
-            # 显式指定模型时不能降级：控制面不可达意味着无法确认该模型可用，
-            # 换成进程默认等于偷换用户选择，而前端仍会显示「已切换」。
-            raise _to_app_error(error) from None
-        logger.warning(
-            "model_runtime.degraded",
-            code=error.code,
-            thread_id=thread_id,
-            reason="control_plane_unavailable",
-        )
-        return None
+        # 不允许静默降级：Auto 退回进程默认模型会用平台凭证，而用户可能已选择 BYOK；
+        # 平台密钥失效时还会产生「看似成功、实际 401」的回合。明确报错让客户端重试。
+        raise _to_app_error(error) from None
 
     if task.credential_source == CREDENTIAL_SOURCE_BYOK and not task.credential_id:
         # Java 应保证 BYOK 任务必带 credential_id；缺失说明契约被破坏。
