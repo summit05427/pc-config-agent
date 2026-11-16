@@ -28,7 +28,16 @@
 
 除表中列出的类别外，其余类别一律按价格升序、`hardware_id` 升序。任一类别候选为空即返回 `NO_CANDIDATES`，并带上缺失类别与各类候选数。
 
-池构建必须**先过滤再截断**：主板只保留命中「已截断 CPU 池插槽集合」的候选，内存只保留命中「已截断主板池内存类型集合」的候选，散热只保留支持 CPU 池任一插槽扣具的候选，之后才按上表排序并截断到 12/8。原因是运行时目录已扩到数百条，按价格取前 N 会把与主板内存类型或 CPU 插槽不匹配的候选选进池，导致所有组合 `FAIL`、求解直接无解。
+池构建必须**先过滤再截断**：主板只保留命中「已截断 CPU 池插槽集合」的候选，内存只保留命中「已截断主板池内存类型集合」的候选，散热只保留支持 CPU 池任一插槽扣具的候选，之后才按上表排序并截断。截断按类别分组保留，而不是全库取前 N：
+
+- CPU / GPU：性能前 8 + 最低价 4 + 按价格分桶补足（桶上界 1,000 / 2,000 / 4,000 / 8,000 元，每桶 ≤2），避免中端档位整段缺失；
+- 内存：按 `memory_type` 分组，每组 8 条，避免低价 DDR4 占满整池导致 DDR5 平台失配；
+- 主板：按 `(socket, memory_type)` 平台分组，每组 6 条；
+- 其余类别：按上表排序取前 8 条。
+
+原因是运行时目录已扩到数百条，按价格取前 N 会把与主板内存类型或 CPU 插槽不匹配的候选选进池，导致所有组合 `FAIL`、求解直接无解。
+
+质量评审下发的 `minCpuPriceFen` / `maxGpuPriceFen` 在候选池阶段裁剪 CPU/GPU；若约束把整类筛空，退回原候选，避免提示性约束把可解问题变成 `NO_CANDIDATES`。
 
 选优偏好：`preference=VALUE` 且存在预算时，按 `score * 1_000_000 / price` 降序排序；`PERFORMANCE` 或未提供时按总分降序。偏好只影响“同样合法的方案里挑哪个”，不会放宽预算或兼容性约束。
 
@@ -60,14 +69,15 @@ score = weighted + memoryBonus + storageBonus + vramBonus
 
 | 用途画像 `WorkloadProfile` | 归一化场景 | CPU 权重 | GPU 权重 | 额外加成 |
 | --- | --- | --- | --- | --- |
-| `GENERAL` | `BALANCED` | 50 | 50 | 无 |
+| `GENERAL` | 调用方显式 `OFFICE` 时保留 85/15；否则 `BALANCED` | 见左 | 见左 | 无 |
 | `GAMING` | `GAMING` | 30 | 70 | 单线程混合 |
 | `VIDEO_EDITING` | `CREATIVE` | 55 | 45 | 显存 × 10 分/GB |
 | `PROGRAMMING` | `PROGRAMMING` | 80 | 20 | 无 |
 | `RENDERING` | `PROGRAMMING`（`renderMode=CPU`）/ `GAMING`（`GPU`）/ `CREATIVE`（未指定） | 见左 | 见左 | 无 |
+| `MEDIA` | `MEDIA` | 70 | 30 | 无 |
 | `AI_INFERENCE` | `AI_INFERENCE` | 40 | 60 | 显存 × 3000 分/GB |
 
-旧值仍可作为输入并被归一化：`CREATIVE → VIDEO_EDITING`、`BALANCED`/`OFFICE → GENERAL`、`WORKSTATION → RENDERING`。`GENERAL` 与改造前的 `BALANCED` 在排序与评分上完全一致，历史结果可直接对照。
+旧值仍可作为输入并被归一化：`CREATIVE → VIDEO_EDITING`、`BALANCED`/`OFFICE → GENERAL`、`WORKSTATION → RENDERING`。**`OFFICE` 不再被折叠成 `BALANCED`**：场景权重 85/15 原样保留，只有画像收敛到 `GENERAL`；`MEDIA` 是独立场景与画像（70/30）。`GENERAL` 与改造前的 `BALANCED` 在排序与评分上完全一致，历史结果可直接对照。
 
 显存加成与单线程混合只影响评分相对次序，不代表推理速度或游戏帧率；项目没有对应的真实 Benchmark，结果中不得据此承诺 tok/s 或 FPS。
 

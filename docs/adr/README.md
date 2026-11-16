@@ -18,6 +18,7 @@
 | [0007](./0007-session-store-seam.md) | 会话读写收口到单一 SessionStore seam | 模板 |
 | [0008](./0008-unified-model-egress-litellm.md) | 唯一模型出口收敛到 LiteLLM | 模板 |
 | [0027](./0027-pc-config-decisions.md) | PC 配置模块决策合并记录 | PC 配置 |
+| [0028](./0028-llm-led-build-selection.md) | 选型决策权迁移到 LLM，Java 保留事实与验证权威 | PC 配置 |
 
 ## 2. 合并与空缺说明
 

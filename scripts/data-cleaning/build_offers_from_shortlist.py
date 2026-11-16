@@ -96,8 +96,11 @@ def main() -> int:
 
     offers = [_build_offer(row) for row in shortlist]
 
-    verified_count = sum(1 for o in offers if o["verified_at"])
-    estimated_count = len(offers) - verified_count
+    # 计数按 price_source 语义取值：verified 只能统计 OWNER_VERIFIED，
+    # 不能用「有核验时间」冒充，否则 PLATFORM_OBSERVED 会被算成核验价。
+    verified_count = sum(1 for o in offers if o["price_source"] == "OWNER_VERIFIED")
+    mock_count = sum(1 for o in offers if o["price_source"] == "MOCK_DEMO")
+    observed_count = len(offers) - verified_count - mock_count
 
     payload = {
         "schema_version": SCHEMA_VERSION,
@@ -108,8 +111,8 @@ def main() -> int:
         "catalog_version": CATALOG_VERSION,
         "offers": offers,
         "verified_offer_count": verified_count,
-        "mock_offer_count": 0,
-        "observed_offer_count": estimated_count,
+        "mock_offer_count": mock_count,
+        "observed_offer_count": observed_count,
         "skipped_pending": 0,
     }
 
@@ -119,8 +122,8 @@ def main() -> int:
         target.write_text(text, encoding="utf-8", newline="\n")
 
     print(
-        f"[ok] offers={len(offers)} verified={verified_count} estimated={estimated_count} "
-        f"data_status={DATA_STATUS} catalog_version={CATALOG_VERSION}"
+        f"[ok] offers={len(offers)} verified={verified_count} mock={mock_count} "
+        f"observed={observed_count} data_status={DATA_STATUS} catalog_version={CATALOG_VERSION}"
     )
     for target in TARGETS:
         print(f"[ok] wrote {target.relative_to(BASE_DIR)}")

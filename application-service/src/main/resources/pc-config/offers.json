@@ -7243,8 +7243,8 @@
       "notes": "16TB 以上大容量机械盘；[估算价，非实测]；[来源: SPEC_BAND]"
     }
   ],
-  "verified_offer_count": 243,
+  "verified_offer_count": 0,
   "mock_offer_count": 0,
-  "observed_offer_count": 159,
+  "observed_offer_count": 402,
   "skipped_pending": 0
 }
