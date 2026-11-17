@@ -136,8 +136,10 @@ RAG 未启用或检索器构造失败时整组记为 `skipped`、退出码 0，�
 
 ## 7. 已知未覆盖
 
+- **HTTP/SSE 端到端**：现有 `--real` 在进程内直接构建图并调用节点，不经过真实 `POST /v1/chat`、SSE 事件、会话落库与前端消费；`frontend/e2e` 只覆盖 UI 视觉与表单，不覆盖真实模型。
 - 真实市场核验价的端到端验证：当前无 `OWNER_VERIFIED`，只能验证平台观测价链路。
 - 真实模型评测的 CI 门禁：`--real` 仍需本地手动执行。
+- 多 Agent 目前只完成 1 条复杂场景单例验收；Power & Storage Specialist、Critic 受限修正与 A/B 对照未覆盖。
 - 性能压测（并发 SSE、快照表增长）。
 - Java 覆盖率数字门禁：当前只要求测试全绿，未配置 `jacoco check`。
 

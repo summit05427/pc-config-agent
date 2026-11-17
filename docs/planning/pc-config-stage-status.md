@@ -34,7 +34,7 @@
 
 | 设计点 | 落地 | 证据 |
 | --- | --- | --- |
-| 9 节点图 | 已实现 | `app/agent/pc/graph.py` |
+| 9 节点图 | 已实现；多 Agent 开启时额外 2 个节点 | `app/agent/pc/graph.py` |
 | 需求解析与正则兜底 | 已实现 | `nodes.py::requirement_parser` |
 | 配置策略 | 已实现，模型失败用默认策略 | `nodes.py::build_strategist`、`strategy_source` |
 | 候选检索 | 8 类并发 + 跑分/报价补充 | `nodes.py::candidate_retriever` |
@@ -48,7 +48,18 @@
 | RAG | 已实现并本地验证：19 张卡片 / 49 切片入库，`recall@5` 0.9、`MRR@5` 0.75；仓库默认仍关闭 | `app/rag/knowledge/`、`evals/rag_eval.py` |
 | 多 Agent | 骨架已实现，默认关闭；单例真实验收通过：2/2 Specialist 成功、7 次调用、22.6s、硬约束 100% | `app/agent/pc/specialists.py`、`evals/acceptance/`、ADR 0030 |
 
-### 3.1 Stage 1 门禁快照（2026-11-17）
+### 3.1 与重构方案 Stage 对照
+
+| 方案阶段 | 状态 | 说明 |
+| --- | --- | --- |
+| Stage 0 审计与契约冻结 | 完成 | 代码、契约与基线已核对；历史端到端报告已删除 |
+| Stage 1 LLM 参与选型 | 完成 | 候选集内选型、Java 校验、有限修正、门禁度量 |
+| Stage 2 Strategist 与增量校验 | 完成 | `build_strategist`、`check_partial_compatibility`、结构化修正反馈 |
+| Stage 3 RAG 知识体系 | 部分 | 混合检索、引用、离线检索评测完成；rerank 与引用正确性回归未完成 |
+| Stage 4 多 Agent | 部分 | 2 个 Specialist + Critic 默认关闭；缺 Power & Storage Specialist、Critic 修正、A/B 对照 |
+| Stage 5 生产化与稳态 | 部分 | 构建快照已有；调用预算、Prompt/模型版本、离线回放、灰度未完成 |
+
+### 3.2 Stage 1 门禁快照（2026-11-17）
 
 | 口径 | 实测 | 结论 |
 | --- | --- | --- |

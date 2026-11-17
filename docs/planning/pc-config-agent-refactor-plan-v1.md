@@ -4,7 +4,7 @@
 **日期：** 2026-11-16（评审增补见 §22，2026-11-17）
 **适用项目：** 当前 React + Spring Boot + LangGraph PC Config Agent 代码库  
 **重构方向：** 从 Java 确定性求解器主导，升级为 LLM 主导选型、Java 权威验证、RAG 提供知识证据的智能配置系统。
-**当前进度：** Stage 1 已落地（LLM 选型闭环、求解器路径移除）；RAG 与多 Agent 尚未实现。阶段状态与真实评测结果见 [pc-config-stage-status.md](pc-config-stage-status.md) 与 [roadmap.md](roadmap.md)。
+**当前进度：** Stage 1/2 已落地；RAG 已本地验证、多 Agent 骨架已实现，二者默认关闭；阶段状态与真实评测结果见 [pc-config-stage-status.md](pc-config-stage-status.md) 与 [roadmap.md](roadmap.md)。
 
 ---
 

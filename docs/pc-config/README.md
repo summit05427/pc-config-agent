@@ -10,11 +10,11 @@
 ## 1. 当前基线（2026-11-17 核验）
 
 - **选型**：Agent 侧 LLM 在 `build_architect` 输出 `BuildProposal`；Java 只提供候选、跑分、报价、组装、兼容校验与快照，不提供求解接口。
-- **图**：9 个节点（7 个业务节点 + 2 个 HITL 门控），见 [Agent 工作流](../services/agent-service/agent-workflows.md)。
+- **图**：默认 9 个节点（7 个业务节点 + 2 个 HITL 门控），开启多 Agent 后为 11 个，见 [Agent 工作流](../services/agent-service/agent-workflows.md)。
 - **兼容规则**：9 条，全部 `BLOCKING`，见 [compatibility-rules.md](./compatibility-rules.md)。
 - **数据**：目录 402 款；报价 402 条，全部 `PLATFORM_OBSERVED`，无 `OWNER_VERIFIED`；跑分 169 条。
 - **默认模型**：`deepseek:deepseek-flash`（网关 `model_name` 同名）。
-- **未实现**：多 Agent、RAG 知识库均处于规划中。
+- **默认关闭**：多 Agent 骨架（2 Specialist + Critic）与 RAG 知识库均已实现，默认关闭；前者完成 1 条单例真实验收，后者本地检索指标达标。
 
 ## 2. 文档导航
 

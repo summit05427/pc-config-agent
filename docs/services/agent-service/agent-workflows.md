@@ -10,10 +10,10 @@
 
 ## 1. 结论先行
 
-- 唯一生产图是 PC 配置确定性流水线：**9 个节点**（7 个业务节点 + 2 个 HITL 门控）。
+- 唯一生产图是 PC 配置确定性流水线：默认 **9 个节点**（7 个业务节点 + 2 个 HITL 门控）；开启多 Agent 后额外注册 `specialist_panel` 与 `critic_review` 两个节点，共 11 个。
 - 选型由 Agent 侧 LLM 在 `build_architect` 完成；Java 只提供候选、跑分、报价、组装、兼容校验与快照等事实能力。
 - Java 不提供求解/选型端点，也不再执行搜索/评分选优；不存在旧求解器或独立校验节点。
-- LLM 只在 `requirement_parser`、`build_strategist`、`build_architect`、`response_generator` 四处调用；其余节点为确定性代码。
+- 默认路径 LLM 只在 `requirement_parser`、`build_strategist`、`build_architect`、`response_generator` 四处调用；多 Agent 开启后增加 2 个并行 Specialist 与 1 个 Critic。
 - 模型不可用时 `requirement_parser` 用正则兜底；`build_architect` **不**回退到旧求解器，直接返回结构化失败。
 
 ## 2. 图结构
@@ -30,14 +30,19 @@ START
   → build_strategist          （LLM 定策略；失败用默认策略并标记来源 DEFAULT）
   → candidate_retriever       （并发检索 8 类候选、跑分、报价统计）
        ├─ no_candidates / upstream_error → response_generator → END
+       ├─ 多 Agent 开启且场景复杂（GAMING/CREATIVE/VIDEO_EDITING/RENDERING/PROGRAMMING）→ specialist_panel
        └─ 其余 → build_architect
+  → specialist_panel          （Performance / Platform 并行分析；单角色失败只跳过该角色）
   → build_architect           （LLM 选型 → 候选校验 → 增量校验 → Java compose → 有限修正）
        ├─ 失败 → response_generator → END
        └─ success → quality_review
   → quality_review            （确定性质量评审）
        ├─ retry → build_architect（最多 1 次）
        ├─ success + 兼容性 UNKNOWN → compatibility_gate → response_generator
+       ├─ 多 Agent 开启、无修正且 Critic 开启 → critic_review
        └─ 其余 → response_generator → END
+  → critic_review             （只评审成功方案，输出 PASS/REVISE/PASS_WITH_DISCLOSURE，不改方案）
+       → response_generator → END
 ```
 
 节点常量与边定义在 `app/agent/pc/graph.py`；路由只读 `workflow_status`，不解析自然语言。
@@ -51,6 +56,8 @@ START
 | `clarification_gate` | HITL：缺关键槽位时中断收集补充信息；关闭时直通 | `validation_result` | `messages`、`workflow_status` | 恢复答案非法 → `hitl_resume_invalid` |
 | `build_strategist` | 产出 `BuildStrategy`（预算倾向、组件优先级、取舍原则） | `requirements` | `build_strategy`、`strategy_source` | 模型不可用/非法 → 默认策略，来源标 `DEFAULT` |
 | `candidate_retriever` | 按 8 类并发调用候选工具，补充 CPU/GPU 跑分与报价统计 | `requirements` | `candidate_sets`、`candidate_pool` | `no_candidates` / `upstream_error` |
+| `specialist_panel` | 并行调用 Performance / Platform 两个 Specialist；只读需求、策略与候选摘要 | `requirements`、`build_strategy`、`candidate_sets` | `specialist_reports`、`specialist_roles_used` | 单角色失败只跳过该角色；全部失败返回空 |
+| `critic_review` | 独立评审已通过 Java 校验的方案；只输出结论与问题 | 需求、策略、最终组件、质量评审、Specialist 报告 | `critic_report` | 模型失败返回空，不阻断回合 |
 | `build_architect` | LLM 输出 `BuildProposal`；校验候选归属；可选增量校验；调 Java `compose`；失败最多修正 2 次 | 需求、策略、候选 | `build_result`、`build_proposal`、`compatibility_report` | `architect_failed` / `upstream_error` |
 | `quality_review` | 确定性质量评审：CPU/GPU 档位、办公显卡上限、预算下限提示 | `requirements`、`build_result` | `quality_review`、`quality_notice`、`quality_feedback` | 可修正 → `retry`（最多 1 次） |
 | `compatibility_gate` | HITL：整体兼容性 `UNKNOWN` 时确认继续或终止；关闭时直通 | `compatibility_report` | `workflow_status` | `abort` → `aborted` |
@@ -80,7 +87,8 @@ START
 
 - 所有工具经 `get_governed_tool(name)` 取得，统一获得超时、重试、角色、脱敏、截断与配额治理；节点禁止直接使用 `httpx`。
 - 工具异常统一转成 `ToolExecutionError` 安全文案，内部地址与堆栈只进日志。
-- `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS`（默认 2）与 `AGENT__ARCHITECT_MAX_KNOWLEDGE_CALLS`（默认 2）在节点层再收一层配额。
+- `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS`（默认 3）与 `AGENT__ARCHITECT_MAX_KNOWLEDGE_CALLS`（默认 2）在节点层再收一层配额。
+- 多 Agent 由 `AGENT__MULTI_AGENT_ENABLED`（默认 `false`）与 `AGENT__CRITIC_ENABLED`（默认 `true`）控制；单轮调用预算见 [ADR 0030](../../adr/0030-multi-agent-call-budget.md)（简单 ≤5，复杂 ≤7）。
 
 ## 6. `PCConfigState` 字段
 
@@ -97,6 +105,8 @@ START
 | `build_result` / `build_failure` | Java 组装结果或结构化失败 |
 | `compatibility_report` | 完整兼容性报告 |
 | `quality_review` / `quality_notice` / `quality_feedback` / `quality_retry_count` | 质量评审结论与重选反馈 |
+| `specialist_reports` / `specialist_roles_used` | 并行 Specialist 的报告与成功角色（多 Agent 关闭时不存在） |
+| `critic_report` | Critic 评审结论（`PASS` / `REVISE` / `PASS_WITH_DISCLOSURE`），仅记录不改方案 |
 | `reason_summary` | 最终推荐说明（LLM 或确定性文案） |
 | `workflow_status` | 路由与失败分支的唯一依据 |
 | `tool_events` | 节点累积的工具进度，由 `turn.py` 翻译成 SSE |
@@ -170,12 +180,13 @@ START
 | 默认 Profile | `AGENT__DEFAULT_PROFILE=pc-config` |
 
 - Profile `extra="forbid"`，不能选择图；单图由 `build_agent` 固定装配。
-- 提示词：`app/agent/prompts/` 下的 `pc-config-system.md`、`requirement-parser.md`、`response-generator.md`，以及 `prompts/pc/` 下的 `build-strategist.md`、`build-architect.md`。
+- 提示词：`app/agent/prompts/` 下的 `pc-config-system.md`、`requirement-parser.md`、`response-generator.md`，以及 `prompts/pc/` 下的 `build-strategist.md`、`build-architect.md`、`performance-specialist.md`、`platform-specialist.md`、`critic.md`。
 - 解析、策略与选型均打 `TAG_NOSTREAM`，内部 JSON 不进入消息流。
 
 ## 13. 未实现与默认关闭的能力
 
-- 多 Agent 编排、工具并行执行、人工审批流【规划中】。
+- 多 Agent 骨架已实现并默认关闭（`AGENT__MULTI_AGENT_ENABLED=false`）：`specialist_panel` 并行运行 Performance / Platform 两个分析角色，`critic_review` 只评审不修正；策略上由确定性场景枚举决定是否启用，不是 Strategist 自由裁量。
+  - 未完成：Power & Storage Specialist、Critic 触发的受限修正、多 Agent 与单 Agent 的 A/B 对照评测。
 - RAG 检索链路（切块 → embedding → pgvector → 词法+向量 RRF → Architect 注入 → citations）已实现，默认关闭：LiteLLM 已注册 `qwen:text-embedding-v4`（百炼，需根 `.env` 的 `QWEN_API_KEY`），配置齐备即可开启；语料为 `knowledge/cards/` 的 19 张卡片（9 张内部方法论 + 10 张数据集快照）。未完成：rerank、引用正确性的持续回归。
 - MCP 仅保留经网关的客户端接缝，默认关闭【未实现业务用途】。
 

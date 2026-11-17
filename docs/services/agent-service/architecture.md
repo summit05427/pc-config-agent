@@ -10,11 +10,11 @@
 
 ## 1. 结论先行
 
-- Python 3.12 + FastAPI；唯一生产图是 `pc-config` 的 9 节点确定性流水线。
+- Python 3.12 + FastAPI；唯一生产图是 `pc-config` 确定性流水线（默认 9 节点，开启多 Agent 后 11 节点）。
 - HTTP 层只做鉴权、限流、输入护栏与协议转换；一轮对话的全部编排在 `app/services/turn.py`。
 - 工具必须经 `tool_governance` 取得，统一超时、重试、角色、配额、脱敏与截断。
 - 状态与消息分两层：LangGraph checkpointer 存图状态，业务表存会话与消息。
-- 多 Agent 与 RAG 知识库【规划中】；当前 RAG 只有可插拔接缝，默认无知识库。
+- 多 Agent（2 Specialist + Critic）与 RAG 知识库均已实现，默认关闭；开启后图增加 `specialist_panel` / `critic_review` 两个节点。
 
 ## 2. 目录结构
 
@@ -110,7 +110,7 @@ POST /api/v1/chat/stream
 
 ## 8. PC 图接入
 
-- `app/agent/pc/graph.py` 定义 9 个节点与条件边。
+- `app/agent/pc/graph.py` 定义 9 个默认节点与条件边；多 Agent 开启时额外注册 `specialist_panel` 与 `critic_review`。
 - `app/agent/pc/nodes.py` 实现需求解析、校验、策略、检索、LLM 选型、质量评审、渲染。
 - `app/services/pc_client.py` 封装 Java `/internal/v1/pc/**`。
 - 选型在 `build_architect` 完成；Java 只提供事实与组装，不存在旧求解器或独立校验节点。
@@ -129,8 +129,8 @@ POST /api/v1/chat/stream
 
 ## 10. 已知问题与边界
 
-- 多 Agent、工具并行执行、人工审批流【规划中】。
-- RAG 无知识库、无向量化、无引用治理【规划中】。
+- 多 Agent 仅 2 个 Specialist + 只读 Critic；Power & Storage Specialist、Critic 修正、工具并行与人工审批流【未实现】。
+- RAG 已有知识库与引用治理，默认关闭；rerank 与引用正确性回归【未完成】。
 - MCP 仅有网关客户端接缝，默认关闭【未实现业务用途】。
 - `--real` 评测未进 CI，语义回归依赖人工。
 - 会话摘要与长期记忆只做上下文压缩，不是跨会话用户画像【未实现】。

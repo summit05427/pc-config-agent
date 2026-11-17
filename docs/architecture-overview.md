@@ -108,7 +108,7 @@ Compose 内网
 ### 5.4 Agent Service
 
 - `app/api` 只做协议层；`app/services/turn.py` 负责一轮对话生命周期。
-- `app/agent/pc/` 装配 9 节点图；工具经 `app/agent/tool_governance` 统一治理。
+- `app/agent/pc/` 装配 9 节点默认图（多 Agent 开启时 11 个）；工具经 `app/agent/tool_governance` 统一治理。
 - `app/services/pc_client.py` 是 Java PC 接口唯一客户端。
 - 会话业务表与 LangGraph checkpointer 分离；`STORAGE__BACKEND=postgres` 时启用持久化。
 
@@ -134,8 +134,8 @@ Compose 内网
 
 ## 8. 未实现能力
 
-- 多 Agent 协作【规划中】。
-- RAG 检索链路已实现（pgvector Hybrid，词法+向量 RRF 融合），默认关闭；缺 embedding 部署与外部语料，离线评测集未建。
+- 多 Agent 骨架已实现（Performance / Platform 并行 + Critic 评审），默认关闭；缺 Power & Storage Specialist、Critic 受限修正与 A/B 对照。
+- RAG 检索链路已实现并本地验证（19 卡 / 49 切片，pgvector Hybrid，默认关闭）；缺 rerank 与引用正确性回归。
 - 管理端硬件/报价维护页【未实现】。
 - 自动报价采集、价格历史、过期清理【未实现】。
 - 多方案对比、交互式换件【未实现】。

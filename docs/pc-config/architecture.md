@@ -70,8 +70,8 @@
 
 ## 7. 未实现能力
 
-- 多 Agent 协作、Specialist 子角色、Critic 独立 Agent【规划中】。
-- RAG 检索链路已实现（pgvector Hybrid，默认关闭）；QVL/手册等外部语料与专业评测未完成。
+- 多 Agent 骨架已实现（Performance / Platform + Critic），默认关闭；缺 Power & Storage Specialist、Critic 受限修正与 A/B 对照。
+- RAG 检索链路已实现并本地验证（默认关闭）；rerank 与引用正确性回归未完成。
 - 多方案对比、瓶颈分析、交互式换件、历史价格曲线、管理端硬件维护页【未实现】。
 - 自动报价采集与过期清理【未实现】。
 
