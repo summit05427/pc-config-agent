@@ -11,7 +11,7 @@ public enum CredentialVerificationOutcome {
     /** 上游接受凭证，连接与凭证状态已回写。 */
     VERIFIED,
 
-    /** 上游明确拒绝凭证（401/403），状态未改变。 */
+    /** 上游明确拒绝凭证（401/403），凭证状态已回写为 INVALID。 */
     REJECTED,
 
     /** 上游不可达、超时或返回非预期状态，状态未改变。 */

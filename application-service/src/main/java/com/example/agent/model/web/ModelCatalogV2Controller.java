@@ -1,7 +1,7 @@
 package com.example.agent.model.web;
 
 import com.example.agent.model.application.ModelCatalogService;
-import com.example.agent.model.domain.ResolvedModel;
+import com.example.agent.model.domain.ModelCatalogEntry;
 import com.example.agent.model.web.dto.ModelSummaryResponse;
 import com.example.agent.shared.api.ApiResponse;
 import com.example.agent.shared.api.PageQuery;
@@ -36,11 +36,11 @@ public class ModelCatalogV2Controller {
     @Operation(
             summary = "分页查询可用模型",
             description = "返回当前用户可见的模型：平台托管模型 + 已接入 Provider 的 BYOK 模型；"
-                    + "size 超过 100 返回 400")
+                    + "credentialSource 标明该模型使用平台密钥还是用户自带密钥；size 超过 100 返回 400")
     @GetMapping
     public ApiResponse<PageResult<ModelSummaryResponse>> listModels(
             @Valid PageQuery pageQuery, Authentication authentication) {
-        PageResult<ResolvedModel> page = modelCatalogService.listAvailable(
+        PageResult<ModelCatalogEntry> page = modelCatalogService.listAvailable(
                 pageQuery, CurrentUser.id(authentication));
         List<ModelSummaryResponse> list = page.list().stream()
                 .map(ModelSummaryResponse::from)

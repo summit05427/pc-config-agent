@@ -7,6 +7,7 @@ import com.example.agent.model.domain.UsageRecordDraft;
 import com.example.agent.model.domain.UsageRecordInput;
 import com.example.agent.model.domain.UsageReportResult;
 import com.example.agent.model.infrastructure.PricingStore;
+import com.example.agent.model.infrastructure.ProviderConnectionStore;
 import com.example.agent.model.infrastructure.RuntimeTaskStore;
 import com.example.agent.model.infrastructure.UsageStore;
 import java.math.BigDecimal;
@@ -15,6 +16,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -54,6 +56,10 @@ public class ModelUsageService {
 
     static final String COST_BEARER_USER = "USER";
 
+    /** 上游鉴权失败的 errorType 关键字；命中后立即失效对应凭证或平台托管缓存。 */
+    private static final Set<String> AUTH_FAILURE_MARKERS = Set.of(
+            "authentication", "unauthorized", "permissiondenied", "invalidapikey");
+
     private static final BigDecimal TOKENS_PER_MILLION = new BigDecimal("1000000");
 
     private static final int COST_SCALE = 6;
@@ -63,6 +69,10 @@ public class ModelUsageService {
     private final UsageStore usageStore;
 
     private final PricingStore pricingStore;
+
+    private final ProviderConnectionStore connectionStore;
+
+    private final ManagedModelAvailability managedAvailability;
 
     private final ModelRuntimeGuard runtimeGuard;
 
@@ -98,10 +108,46 @@ public class ModelUsageService {
                 .toList();
         int accepted = usageStore.insertIgnoreDuplicates(rows);
         int duplicated = rows.size() - accepted;
+        invalidateRejectedCredentials(pending);
         if (rejected > 0) {
             log.warn("使用明细部分被拒绝 rejected={} accepted={} duplicated={}", rejected, accepted, duplicated);
         }
         return new UsageReportResult(accepted, duplicated, rejected);
+    }
+
+    /**
+     * 上游鉴权失败说明密钥已失效：BYOK 凭证置 INVALID，平台托管立即使缓存失效。
+     *
+     * <p>这一步把「真实调用结果」回写到控制面，避免用户必须手动点一次验证才能发现密钥失效；
+     * 只处理鉴权类错误，限流、超时等临时故障不改状态。</p>
+     */
+    private void invalidateRejectedCredentials(List<PendingUsage> pending) {
+        OffsetDateTime now = OffsetDateTime.now();
+        for (PendingUsage item : pending) {
+            if (!isAuthenticationFailure(item)) {
+                continue;
+            }
+            RuntimeTaskSnapshot task = item.task();
+            if (CREDENTIAL_SOURCE_BYOK.equals(task.credentialSource())
+                    && task.credentialId() != null) {
+                connectionStore.markInvalidByCredential(
+                        task.userPublicId(), task.credentialId(), now);
+                log.warn("上游鉴权失败，BYOK 凭证已标记失效 credential={}",
+                        task.credentialId());
+            } else {
+                managedAvailability.markUnavailable();
+                log.warn("上游鉴权失败，平台托管密钥已标记不可用");
+            }
+        }
+    }
+
+    private boolean isAuthenticationFailure(PendingUsage item) {
+        if (!"failure".equalsIgnoreCase(item.status()) || item.errorType() == null) {
+            return false;
+        }
+        String normalized = item.errorType().toLowerCase(Locale.ROOT)
+                .replace("_", "").replace("-", "");
+        return AUTH_FAILURE_MARKERS.stream().anyMatch(normalized::contains);
     }
 
     private Map<UUID, RuntimeTaskSnapshot> loadTasks(List<UsageRecordInput> records) {

@@ -5,8 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.agent.model.application.ModelCatalogService;
 import com.example.agent.model.domain.ModelErrorCode;
+import com.example.agent.model.domain.ModelSnapshot;
 import com.example.agent.model.domain.ProviderSummary;
-import com.example.agent.model.domain.ResolvedModel;
+import com.example.agent.model.infrastructure.ModelCatalogStore;
 import com.example.agent.model.infrastructure.QuotaMapper;
 import com.example.agent.model.infrastructure.QuotaRow;
 import com.example.agent.model.infrastructure.RuntimeTaskMapper;
@@ -71,30 +72,37 @@ class ModelPersistenceTests {
 
     private final ModelCatalogService modelCatalogService;
 
+    private final ModelCatalogStore modelCatalogStore;
+
     @Autowired
     ModelPersistenceTests(QuotaMapper quotaMapper,
             RuntimeTaskMapper runtimeTaskMapper,
             UsageMapper usageMapper,
-            ModelCatalogService modelCatalogService) {
+            ModelCatalogService modelCatalogService,
+            ModelCatalogStore modelCatalogStore) {
         this.quotaMapper = quotaMapper;
         this.runtimeTaskMapper = runtimeTaskMapper;
         this.usageMapper = usageMapper;
         this.modelCatalogService = modelCatalogService;
+        this.modelCatalogStore = modelCatalogStore;
     }
 
     @Test
     void listAvailable_shouldReturnSeedModelsWithCapabilities() {
-        List<ResolvedModel> models = modelCatalogService.listAvailable();
+        // 目录接口会先探测平台密钥；这里直接读仓储，验证的是迁移后的种子数据本身
+        List<ModelSnapshot> models = modelCatalogStore.listEnabled();
 
-        // V17 修正 DeepSeek 目录；V21 停用 OpenAI 模型（当前只提供 DeepSeek 密钥）
-        assertThat(models).extracting(ResolvedModel::reference)
-                .contains("deepseek:deepseek-v4-pro", "deepseek:deepseek-flash")
-                .doesNotContain("deepseek:deepseek-chat", "openai:gpt-4o-mini", "openai:gpt-4o");
-        ResolvedModel flash = models.stream()
-                .filter(model -> "deepseek:deepseek-flash".equals(model.reference()))
+        // V17 修正 DeepSeek 目录；V21 停用 OpenAI 模型；V27 只保留 V4.1 Flash
+        assertThat(models).extracting(model -> model.providerCode() + ":" + model.modelKey())
+                .contains("deepseek:deepseek-flash")
+                .doesNotContain(
+                        "deepseek:deepseek-v4-pro", "deepseek:deepseek-chat",
+                        "openai:gpt-4o-mini", "openai:gpt-4o");
+        ModelSnapshot flash = models.stream()
+                .filter(model -> "deepseek-flash".equals(model.modelKey()))
                 .findFirst()
                 .orElseThrow();
-        assertThat(flash.capabilities()).contains("text", "tool_calling");
+        assertThat(flash.capabilitiesJson()).contains("text", "tool_calling", "reasoning");
     }
 
     @Test

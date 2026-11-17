@@ -138,7 +138,8 @@ class ModelConnectionApiTests {
                 .andExpect(jsonPath("$.data.baseUrl").value(""))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.data.credential.maskedHint").value(MASKED_HINT))
-                .andExpect(jsonPath("$.data.credential.status").value("UNVERIFIED"))
+                // 自动验证被上游拒绝时凭证直接标记为 INVALID，避免 UI 展示成待验证
+                .andExpect(jsonPath("$.data.credential.status").value("INVALID"))
                 // 明文、密文、回读端点都不存在
                 .andExpect(jsonPath("$.data.apiKey").doesNotExist())
                 .andExpect(jsonPath("$.data.credential.ciphertext").doesNotExist())
@@ -215,7 +216,8 @@ class ModelConnectionApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.credential.maskedHint").value(ROTATED_MASKED_HINT))
-                .andExpect(jsonPath("$.data.credential.status").value("UNVERIFIED"))
+                // 自动验证被上游拒绝时凭证直接标记为 INVALID，避免 UI 展示成待验证
+                .andExpect(jsonPath("$.data.credential.status").value("INVALID"))
                 .andExpect(content().string(not(containsString(ROTATED_SECRET))));
     }
 

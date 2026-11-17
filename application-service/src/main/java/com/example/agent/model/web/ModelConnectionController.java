@@ -68,7 +68,7 @@ public class ModelConnectionController {
     @Operation(
             summary = "验证凭证",
             description = "先本地校验密文与掩码，再探测 Provider（GET /models，不支持时退化为最小 chat）；"
-                    + "成功写入 lastVerifiedAt 并置凭证为 VERIFIED，失败不改变状态")
+                    + "成功写入 lastVerifiedAt 并置凭证为 VERIFIED，上游明确拒绝时置为 INVALID")
     @PostMapping("/{connectionId}/verify")
     public ApiResponse<ModelConnectionResponse> verify(
             @PathVariable UUID connectionId,

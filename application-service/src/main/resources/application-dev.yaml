@@ -1,10 +1,16 @@
 # 云服务器联调环境：应用与 PostgreSQL 同机部署，数据库只监听 127.0.0.1，不暴露公网。
 # 若在本地通过 SSH 隧道连云端数据库，务必用临时环境变量覆盖，不要写进仓库。
 spring:
+    config:
+        # 仅本地/联调生效：读取仓库根 .env，省去手动注入 DB / JWT 变量；
+        # optional 保证文件缺失时跳过，容器内由 Compose 注入环境变量，行为不变。
+        import: optional:file:../.env[.properties]
     datasource:
-        url: ${DB_URL:jdbc:postgresql://127.0.0.1:5432/agent}
-        username: ${DB_USERNAME:agent}
-        password: ${DB_PASSWORD}
+        # 根 .env 用 POSTGRES_PORT 定义宿主机映射端口，默认值与 Compose 保持一致
+        url: ${DB_URL:jdbc:postgresql://127.0.0.1:${POSTGRES_PORT:5432}/agent}
+        username: ${DB_USERNAME:${POSTGRES_USER:agent}}
+        # 根 .env 里只有 POSTGRES_PASSWORD，容器内则由 Compose 注入 DB_PASSWORD
+        password: ${DB_PASSWORD:${POSTGRES_PASSWORD}}
         hikari:
             maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
             minimum-idle: ${DB_POOL_MIN_IDLE:2}

@@ -98,6 +98,30 @@
           AND status = 'ACTIVE'
     </update>
 
+    <update id="clearVerifiedAt">
+        UPDATE provider_connections
+        SET last_verified_at = NULL,
+            updated_at = #{updatedAt}
+        WHERE id = #{id}
+          AND user_public_id = #{userPublicId}
+          AND status = 'ACTIVE'
+    </update>
+
+    <update id="clearVerifiedAtByCredential">
+        UPDATE provider_connections connections
+        SET last_verified_at = NULL,
+            updated_at = #{updatedAt}
+        WHERE connections.user_public_id = #{userPublicId}
+          AND connections.status = 'ACTIVE'
+          AND EXISTS (
+              SELECT 1
+              FROM provider_credentials credentials
+              WHERE credentials.id = #{credentialId}
+                AND credentials.connection_id = connections.id
+                AND credentials.user_public_id = #{userPublicId}
+          )
+    </update>
+
     <update id="markDeleted">
         UPDATE provider_connections
         SET status = 'DELETED',

@@ -86,7 +86,7 @@ class BuildSolveServiceTests {
 
     @Test
     void composeWithCompleteHardware_shouldPersistSnapshotPricedByOfferRepository() {
-        BuildResult result = service.composeAndSnapshot(USER_ID, completeIds(), null);
+        BuildResult result = service.composeAndSnapshot(USER_ID, completeIds(), null, null);
 
         assertThat(result.buildId()).isNotNull();
         assertThat(result.userId()).isEqualTo(USER_ID);
@@ -116,9 +116,9 @@ class BuildSolveServiceTests {
 
     @Test
     void composeOverBudget_shouldFailWithBudgetExceededWithoutSnapshot() {
-        long totalPriceFen = service.composeAndSnapshot(USER_ID, completeIds(), null).totalPriceFen();
+        long totalPriceFen = service.composeAndSnapshot(USER_ID, completeIds(), null, null).totalPriceFen();
 
-        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, completeIds(), totalPriceFen - 1))
+        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, completeIds(), totalPriceFen - 1, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> {
                     assertThat(errorCodeOf(exception)).isEqualTo(40309);
@@ -130,9 +130,9 @@ class BuildSolveServiceTests {
 
     @Test
     void composeWithExactBudget_shouldSucceed() {
-        long totalPriceFen = service.composeAndSnapshot(USER_ID, completeIds(), null).totalPriceFen();
+        long totalPriceFen = service.composeAndSnapshot(USER_ID, completeIds(), null, null).totalPriceFen();
 
-        BuildResult result = service.composeAndSnapshot(USER_ID, completeIds(), totalPriceFen);
+        BuildResult result = service.composeAndSnapshot(USER_ID, completeIds(), totalPriceFen, null);
 
         assertThat(result.totalPriceFen()).isEqualTo(totalPriceFen);
         assertThat(snapshotRepository.savedCount()).isEqualTo(2);
@@ -143,7 +143,7 @@ class BuildSolveServiceTests {
         Map<HardwareCategory, String> hardwareIds = completeIds();
         hardwareIds.remove(HardwareCategory.COOLER);
 
-        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, hardwareIds, null))
+        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, hardwareIds, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(errorCodeOf(exception)).isEqualTo(40303));
         assertThat(snapshotRepository.savedCount()).isZero();
@@ -154,7 +154,7 @@ class BuildSolveServiceTests {
         Map<HardwareCategory, String> hardwareIds = completeIds();
         hardwareIds.put(HardwareCategory.CPU, COMPLETE_HARDWARE_IDS.get(HardwareCategory.GPU));
 
-        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, hardwareIds, null))
+        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, hardwareIds, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> {
                     assertThat(errorCodeOf(exception)).isEqualTo(40303);
@@ -167,7 +167,7 @@ class BuildSolveServiceTests {
     void composeWithoutUsableOffer_shouldFailInsteadOfFillingZeroPrice() {
         BuildSolveService serviceWithoutOffers = newService(new EmptyOfferRepository());
 
-        assertThatThrownBy(() -> serviceWithoutOffers.composeAndSnapshot(USER_ID, completeIds(), null))
+        assertThatThrownBy(() -> serviceWithoutOffers.composeAndSnapshot(USER_ID, completeIds(), null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(errorCodeOf(exception)).isEqualTo(40307));
         assertThat(snapshotRepository.savedCount()).isZero();
@@ -179,7 +179,7 @@ class BuildSolveServiceTests {
         // AM5 的 CPU 换到 LGA1700 主板：插槽规则必然 FAIL，不能被当成可用方案落库。
         hardwareIds.put(HardwareCategory.MOTHERBOARD, "motherboard-asrock-b760-pro-rs");
 
-        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, hardwareIds, null))
+        assertThatThrownBy(() -> service.composeAndSnapshot(USER_ID, hardwareIds, null, null))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> {
                     assertThat(errorCodeOf(exception)).isEqualTo(40308);
@@ -191,7 +191,7 @@ class BuildSolveServiceTests {
     @Test
     void composeWithoutUserToken_shouldFailAuthentication() {
         PcBuildInternalController controller = controller(new InternalUserTokenResolver(rejectingDecoder()));
-        ComposeRequest request = new ComposeRequest(validateRequest(), null);
+        ComposeRequest request = new ComposeRequest(validateRequest(), null, null);
 
         assertThatThrownBy(() -> controller.compose(request, null))
                 .isInstanceOf(BusinessException.class)
@@ -214,7 +214,7 @@ class BuildSolveServiceTests {
                 new InternalUserTokenResolver(token -> userToken));
 
         ApiResponse<BuildResultResponse> response =
-                controller.compose(new ComposeRequest(validateRequest(), null), "test-user-token");
+                controller.compose(new ComposeRequest(validateRequest(), null, null), "test-user-token");
 
         assertThat(response.code()).isEqualTo(ApiResponse.SUCCESS_CODE);
         assertThat(response.data().buildId()).isNotNull();

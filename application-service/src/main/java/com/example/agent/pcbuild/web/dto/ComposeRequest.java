@@ -2,6 +2,7 @@ package com.example.agent.pcbuild.web.dto;
 
 import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.domain.PcBuildErrorCode;
+import com.example.agent.pcbuild.domain.WorkloadProfile;
 import com.example.agent.shared.error.BusinessException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -17,10 +18,12 @@ import java.util.Map;
  * @param components   八类硬件标识
  * @param budgetMaxFen 预算上限，单位人民币分；可为 {@code null}，非空时必须为正，
  *                     由服务端在写快照前强制校验
+ * @param workloadProfile 工作负载画像；为空表示调用方未声明，回落到 GENERAL
  */
 public record ComposeRequest(
         @NotNull @Valid ValidateRequest components,
-        @Min(value = 1, message = "预算上限至少为 1 分") Long budgetMaxFen) {
+        @Min(value = 1, message = "预算上限至少为 1 分") Long budgetMaxFen,
+        WorkloadProfile workloadProfile) {
 
     /**
      * 转换为类别到硬件标识的映射。

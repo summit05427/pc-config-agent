@@ -9,6 +9,7 @@ import com.example.agent.pcbuild.domain.BuildResult;
 import com.example.agent.pcbuild.domain.BuildSnapshot;
 import com.example.agent.pcbuild.domain.BuildSolverVersion;
 import com.example.agent.pcbuild.domain.HardwareCategory;
+import com.example.agent.pcbuild.domain.WorkloadProfile;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
 import com.example.agent.shared.error.BusinessException;
 import java.util.EnumMap;
@@ -62,7 +63,7 @@ class BuildSnapshotPersistenceTests {
     @Test
     void composedBuild_shouldBeReadableByOwnerWithAllComponents() {
         UUID userId = UUID.randomUUID();
-        BuildResult result = buildSolveService.composeAndSnapshot(userId, completeIds(), null);
+        BuildResult result = buildSolveService.composeAndSnapshot(userId, completeIds(), 2_000_000L, WorkloadProfile.GAMING);
 
         BuildResultResponse response = buildSolveService.requireBuild(userId, result.buildId());
 
@@ -87,13 +88,15 @@ class BuildSnapshotPersistenceTests {
     @Test
     void requirementsSnapshot_shouldCarryProfileRenderModeAndScoringVersion() {
         UUID userId = UUID.randomUUID();
-        BuildResult result = buildSolveService.composeAndSnapshot(userId, completeIds(), null);
+        BuildResult result = buildSolveService.composeAndSnapshot(userId, completeIds(), 2_000_000L, WorkloadProfile.GAMING);
 
         BuildSnapshot snapshot = buildSnapshotRepository
                 .findByIdAndUserId(result.buildId(), userId)
                 .orElseThrow();
         assertThat(snapshot.requirementsSnapshot())
                 .contains("\"workloadProfile\"")
+                .contains("\"budgetMaxFen\": 2000000")
+                .contains("\"GAMING\"")
                 .contains("\"renderMode\"")
                 .contains("\"scoringVersion\"");
     }
@@ -101,7 +104,7 @@ class BuildSnapshotPersistenceTests {
     @Test
     void snapshot_shouldNotBeReadableByAnotherUser() {
         UUID owner = UUID.randomUUID();
-        BuildResult result = buildSolveService.composeAndSnapshot(owner, completeIds(), null);
+        BuildResult result = buildSolveService.composeAndSnapshot(owner, completeIds(), null, null);
 
         assertThatThrownBy(() -> buildSolveService.requireBuild(UUID.randomUUID(), result.buildId()))
                 .isInstanceOf(BusinessException.class)

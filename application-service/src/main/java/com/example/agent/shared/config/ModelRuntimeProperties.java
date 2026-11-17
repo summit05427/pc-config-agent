@@ -29,6 +29,23 @@ public class ModelRuntimeProperties {
     /** BYOK 开关；关闭时连接与凭证接口统一返回 404。 */
     private boolean byokEnabled = false;
 
+    /**
+     * 平台托管模型开关；关闭时目录不返回平台模型，Auto 与显式选择都只能使用用户 BYOK 模型。
+     *
+     * <p>默认开启以保持既有部署行为；纯 BYOK 部署把它设为 {@code false}，
+     * 避免「后端没有可用平台密钥但目录仍展示平台模型」。</p>
+     */
+    private boolean managedEnabled = true;
+
+    /**
+     * 平台托管可用性探测结果的缓存时长。
+     *
+     * <p>目录与建任务都会读取该结果；每次请求都探测上游会放大延迟与费用，
+     * 因此缓存一小段时间。调用失败会立即失效缓存，避免继续放行失效密钥。</p>
+     */
+    @NotNull(message = "app.model.managed-probe-ttl 不能为空")
+    private Duration managedProbeTtl = Duration.ofSeconds(30);
+
     /** Auto 对应的平台默认模型，值格式 {@code <provider>:<modelKey>}。 */
     @NotBlank(message = "app.model.default-model-key 不能为空")
     private String defaultModelKey = "openai:gpt-4o-mini";

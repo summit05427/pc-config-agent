@@ -87,6 +87,28 @@ public class ProviderConnectionStore {
         credentialMapper.markVerified(credentialId, userPublicId);
     }
 
+    /**
+     * 凭证被上游拒绝时标记失效：凭证置 INVALID，连接清空最近验证时间。
+     */
+    public void markInvalid(
+            UUID userPublicId, UUID connectionId, UUID credentialId, OffsetDateTime updatedAt) {
+        credentialMapper.markInvalid(credentialId, userPublicId);
+        connectionMapper.clearVerifiedAt(connectionId, userPublicId, updatedAt);
+    }
+
+    /**
+     * 只凭凭证 ID 标记失效：使用明细回写时任务行只有凭证 ID，没有连接 ID。
+     *
+     * @param userPublicId 用户公开 ID
+     * @param credentialId 凭证标识
+     * @param updatedAt    更新时间
+     */
+    public void markInvalidByCredential(
+            UUID userPublicId, UUID credentialId, OffsetDateTime updatedAt) {
+        credentialMapper.markInvalid(credentialId, userPublicId);
+        connectionMapper.clearVerifiedAtByCredential(credentialId, userPublicId, updatedAt);
+    }
+
     private static ProviderConnectionView toView(ProviderConnectionViewRow row) {
         if (row == null) {
             return null;

@@ -60,7 +60,7 @@ public class PcBuildInternalController {
             @RequestHeader(value = USER_TOKEN_HEADER, required = false) String userToken) {
         UUID userId = userTokenResolver.requireUserId(userToken);
         BuildResult result = buildSolveService.composeAndSnapshot(
-                userId, request.toHardwareIds(), request.budgetMaxFen());
+                userId, request.toHardwareIds(), request.budgetMaxFen(), request.workloadProfile());
         return ApiResponse.success(buildResultFactory.toResponse(result));
     }
 

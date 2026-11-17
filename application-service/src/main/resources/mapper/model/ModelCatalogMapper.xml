@@ -49,12 +49,21 @@
           AND models.byok_only = FALSE
     </select>
 
+    <!--
+      用户可见性：
+      1. includeManaged 为 true 时，平台托管模型（byok_only = FALSE）对所有人可见；
+      2. BYOK 模型要求该用户存在 ACTIVE 连接，且凭证未被撤销/被上游拒绝，
+         避免把「已失效密钥」的模型继续展示成可用。
+    -->
     <sql id="visibleToUser">
         AND (
-            models.byok_only = FALSE
+            (#{includeManaged} = TRUE AND models.byok_only = FALSE)
             OR EXISTS (
                 SELECT 1
                 FROM provider_connections connections
+                JOIN provider_credentials credentials
+                  ON credentials.connection_id = connections.id
+                 AND credentials.status NOT IN ('REVOKED', 'INVALID')
                 WHERE connections.user_public_id = #{userPublicId}
                   AND connections.provider_code = models.provider_code
                   AND connections.status = 'ACTIVE'

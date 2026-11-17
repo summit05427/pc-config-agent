@@ -14,6 +14,7 @@ import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.domain.HardwareSelection;
 import com.example.agent.pcbuild.domain.Offer;
 import com.example.agent.pcbuild.domain.PcBuildErrorCode;
+import com.example.agent.pcbuild.domain.WorkloadProfile;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
 import com.example.agent.shared.error.BusinessException;
 import java.time.Instant;
@@ -37,12 +38,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class BuildSolveService {
-
-    /**
-     * 指定组合不携带需求，统一按默认场景与无预算生成：评分与逐件理由沿用默认口径。
-     */
-    private static final BuildRequirements COMPOSE_REQUIREMENTS =
-            new BuildRequirements(null, BuildRequirements.DEFAULT_SCENARIO, null, null, false);
 
     private final BuildSolver solver;
 
@@ -72,13 +67,21 @@ public class BuildSolveService {
      */
     @Transactional
     public BuildResult composeAndSnapshot(
-            UUID userId, Map<HardwareCategory, String> hardwareIds, Long budgetMaxFen) {
+            UUID userId,
+            Map<HardwareCategory, String> hardwareIds,
+            Long budgetMaxFen,
+            WorkloadProfile workloadProfile) {
         HardwareSelection selection = HardwareSelection.from(resolveSelection(hardwareIds));
         Map<String, Offer> offersByHardware = solver.cheapestUsableOffers(
                 offerRepository.findAll(), LocalDate.now(), false);
         requireOffers(selection, offersByHardware);
+        // 预算与画像必须进入需求并随快照落库：只在这里做超预算校验会让前端读到
+        // 「未设置预算 / GENERAL」，配置单与理由随之失真。
+        BuildRequirements requirements = new BuildRequirements(
+                budgetMaxFen, null, null, null, null, null, null, false, workloadProfile,
+                null, null, null);
         BuildDraft draft = solver.toDraft(
-                COMPOSE_REQUIREMENTS,
+                requirements,
                 selection,
                 offersByHardware,
                 benchmarkIndex(),

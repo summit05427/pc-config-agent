@@ -114,4 +114,30 @@ public interface ProviderConnectionMapper {
             @Param("id") UUID id,
             @Param("userPublicId") UUID userPublicId,
             @Param("verifiedAt") OffsetDateTime verifiedAt);
+
+    /**
+     * 清空最近验证时间：凭证被上游拒绝后，旧的成功时间不再成立。
+     *
+     * @param id           连接标识
+     * @param userPublicId 用户公开 ID
+     * @param updatedAt    更新时间
+     * @return 影响行数
+     */
+    int clearVerifiedAt(
+            @Param("id") UUID id,
+            @Param("userPublicId") UUID userPublicId,
+            @Param("updatedAt") OffsetDateTime updatedAt);
+
+    /**
+     * 按凭证 ID 清空所属连接的最近验证时间。
+     *
+     * @param credentialId 凭证标识
+     * @param userPublicId 用户公开 ID
+     * @param updatedAt    更新时间
+     * @return 影响行数
+     */
+    int clearVerifiedAtByCredential(
+            @Param("credentialId") UUID credentialId,
+            @Param("userPublicId") UUID userPublicId,
+            @Param("updatedAt") OffsetDateTime updatedAt);
 }

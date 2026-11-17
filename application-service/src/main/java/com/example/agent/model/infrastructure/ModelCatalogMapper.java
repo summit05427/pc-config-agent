@@ -47,28 +47,34 @@ public interface ModelCatalogMapper {
     List<ModelRow> findVisiblePage(
             @Param("userPublicId") UUID userPublicId,
             @Param("offset") long offset,
-            @Param("limit") int limit);
+            @Param("limit") int limit,
+            @Param("includeManaged") boolean includeManaged);
 
     /**
      * 统计「当前用户可见」的模型总数。
      *
-     * @param userPublicId 用户公开 ID
+     * @param userPublicId   用户公开 ID
+     * @param includeManaged 是否包含平台托管模型
      * @return 条目数
      */
-    long countVisible(@Param("userPublicId") UUID userPublicId);
+    long countVisible(
+            @Param("userPublicId") UUID userPublicId,
+            @Param("includeManaged") boolean includeManaged);
 
     /**
      * 按 Provider 与模型标识查询当前用户可见的模型。
      *
-     * @param providerCode Provider 代码
-     * @param modelKey     Provider 侧模型标识
-     * @param userPublicId 用户公开 ID
-     * @return 命中行；不存在、已停用或无 BYOK 连接时 {@code null}
+     * @param providerCode   Provider 代码
+     * @param modelKey       Provider 侧模型标识
+     * @param userPublicId   用户公开 ID
+     * @param includeManaged 是否包含平台托管模型
+     * @return 命中行；不存在、已停用或无可用连接时 {@code null}
      */
     ModelRow findVisibleByKey(
             @Param("providerCode") String providerCode,
             @Param("modelKey") String modelKey,
-            @Param("userPublicId") UUID userPublicId);
+            @Param("userPublicId") UUID userPublicId,
+            @Param("includeManaged") boolean includeManaged);
 
     /**
      * 查询已启用 Provider 及其启用模型数量，供 BYOK 供应商选择器使用。

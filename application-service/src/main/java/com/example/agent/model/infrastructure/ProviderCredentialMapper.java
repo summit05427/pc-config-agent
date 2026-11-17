@@ -53,6 +53,17 @@ public interface ProviderCredentialMapper {
             @Param("userPublicId") UUID userPublicId);
 
     /**
+     * 标记凭证被上游拒绝：状态置 INVALID，保留行以便用户重新验证或轮换。
+     *
+     * @param id           凭证标识
+     * @param userPublicId 用户公开 ID
+     * @return 影响行数
+     */
+    int markInvalid(
+            @Param("id") UUID id,
+            @Param("userPublicId") UUID userPublicId);
+
+    /**
      * 撤销连接下全部未撤销凭证。
      *
      * @param connectionId 连接标识

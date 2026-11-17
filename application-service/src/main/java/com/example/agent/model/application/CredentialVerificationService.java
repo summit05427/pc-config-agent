@@ -53,13 +53,13 @@ public class CredentialVerificationService {
         EncryptedCredential credential = requireCredential(userPublicId, connectionId);
         String plaintext = decryptOrNull(credential.ciphertext());
         if (plaintext == null || !CredentialMasker.mask(plaintext).equals(credential.maskedHint())) {
-            return recordFailure(userPublicId, connectionId, view.provider(),
+            return recordFailure(userPublicId, connectionId, credential.id(), view.provider(),
                     CredentialVerificationOutcome.CORRUPTED);
         }
         CredentialVerificationOutcome outcome = classify(
                 probeUpstream(userPublicId, connectionId, view, plaintext));
         if (outcome != CredentialVerificationOutcome.VERIFIED) {
-            return recordFailure(userPublicId, connectionId, view.provider(), outcome);
+            return recordFailure(userPublicId, connectionId, credential.id(), view.provider(), outcome);
         }
         markVerified(userPublicId, connectionId, credential.id());
         auditRecorder.recordForUser(AuthAuditEvent.MODEL_CREDENTIAL_VERIFIED, userPublicId);
@@ -119,11 +119,27 @@ public class CredentialVerificationService {
     }
 
     private CredentialVerificationOutcome recordFailure(
-            UUID userPublicId, UUID connectionId, String providerCode, CredentialVerificationOutcome outcome) {
+            UUID userPublicId, UUID connectionId, UUID credentialId, String providerCode,
+            CredentialVerificationOutcome outcome) {
+        // 上游明确拒绝（401/403）说明凭证已失效，必须回写状态，否则 UI 会一直显示「已验证」；
+        // 网络不可用/密文损坏不回写，避免把临时故障写成永久失败
+        if (outcome == CredentialVerificationOutcome.REJECTED) {
+            markInvalid(userPublicId, connectionId, credentialId);
+        }
         auditRecorder.recordForUser(AuthAuditEvent.MODEL_CREDENTIAL_VERIFY_FAILED, userPublicId);
         log.warn("BYOK 凭证验证未通过 connectionId={} userId={} provider={} outcome={}",
                 connectionId, userPublicId, providerCode, outcome);
         return outcome;
+    }
+
+    /**
+     * 凭证被上游拒绝时标记为 INVALID 并清空最近验证时间，使连接列表立即反映真实状态。
+     * 两行更新放在同一个短事务内，避免出现「凭证已失效、连接仍显示已验证」的中间态。
+     */
+    private void markInvalid(UUID userPublicId, UUID connectionId, UUID credentialId) {
+        OffsetDateTime now = OffsetDateTime.now(modelRuntimeUtcClock);
+        transactionTemplate.executeWithoutResult(status -> connectionStore.markInvalid(
+                userPublicId, connectionId, credentialId, now));
     }
 
     /**

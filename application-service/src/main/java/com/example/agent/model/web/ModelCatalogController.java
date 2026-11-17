@@ -20,7 +20,7 @@ public class ModelCatalogController {
     private final ModelCatalogService modelCatalogService;
 
     /**
-     * @return 当前可用模型列表；运行时未启用时返回 404
+     * @return 当前可用的平台托管模型；纯 BYOK 部署返回空列表
      */
     @GetMapping
     public ApiResponse<List<ModelSummaryResponse>> listModels() {

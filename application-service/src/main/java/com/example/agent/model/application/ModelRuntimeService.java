@@ -41,6 +41,9 @@ public class ModelRuntimeService {
 
     static final String CREDENTIAL_SOURCE_BYOK = "BYOK";
 
+    /** 凭证被上游拒绝后的状态；此类凭证不得再用于对话，必须先重新配置。 */
+    static final String CREDENTIAL_STATUS_INVALID = "INVALID";
+
     private static final String TASK_STATUS_ACTIVE = "ACTIVE";
 
     private static final String QUOTA_TYPE_DAILY_REQUESTS = "daily_requests";
@@ -77,7 +80,7 @@ public class ModelRuntimeService {
             }
         }
         ResolvedModel resolvedModel = requestedModel == null || requestedModel.isBlank()
-                ? modelCatalogService.resolveAuto()
+                ? modelCatalogService.resolveAuto(userPublicId)
                 : modelCatalogService.requireAvailable(requestedModel, userPublicId);
         // 凭证来源在扣额度前确定：凭证已撤销时直接失败，避免白扣一次额度
         ByokTarget byok = resolveByok(userPublicId, resolvedModel.provider());
@@ -197,6 +200,11 @@ public class ModelRuntimeService {
             return null;
         }
         if (connection.credential() == null) {
+            throw new BusinessException(ModelErrorCode.CREDENTIAL_REVOKED);
+        }
+        // 上游已明确拒绝的凭证继续使用只会得到同样的 401；在流建立前直接失败，
+        // 让前端提示用户重新配置，而不是先消耗额度再返回上游错误
+        if (CREDENTIAL_STATUS_INVALID.equals(connection.credential().status())) {
             throw new BusinessException(ModelErrorCode.CREDENTIAL_REVOKED);
         }
         return new ByokTarget(connection.credential().id(), connection.baseUrl());

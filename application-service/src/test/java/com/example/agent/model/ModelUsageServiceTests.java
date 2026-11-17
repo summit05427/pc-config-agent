@@ -2,12 +2,15 @@ package com.example.agent.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.example.agent.model.application.ManagedModelAvailability;
 import com.example.agent.model.application.ModelRuntimeGuard;
 import com.example.agent.model.application.ModelUsageService;
 import com.example.agent.model.domain.ModelErrorCode;
@@ -16,6 +19,9 @@ import com.example.agent.model.domain.UsageReportResult;
 import com.example.agent.model.infrastructure.ModelPricingMapper;
 import com.example.agent.model.infrastructure.ModelPricingRow;
 import com.example.agent.model.infrastructure.PricingStore;
+import com.example.agent.model.infrastructure.ProviderConnectionMapper;
+import com.example.agent.model.infrastructure.ProviderConnectionStore;
+import com.example.agent.model.infrastructure.ProviderCredentialMapper;
 import com.example.agent.model.infrastructure.RuntimeTaskMapper;
 import com.example.agent.model.infrastructure.RuntimeTaskRow;
 import com.example.agent.model.infrastructure.RuntimeTaskStore;
@@ -57,6 +63,15 @@ class ModelUsageServiceTests {
     @Mock
     private ModelPricingMapper modelPricingMapper;
 
+    @Mock
+    private ProviderConnectionMapper providerConnectionMapper;
+
+    @Mock
+    private ProviderCredentialMapper providerCredentialMapper;
+
+    @Mock
+    private ManagedModelAvailability managedAvailability;
+
     private ModelRuntimeProperties properties;
 
     private ModelUsageService service;
@@ -68,7 +83,48 @@ class ModelUsageServiceTests {
         // 真实 Store 包住被 mock 的 mapper，保留原有对底层调用的断言
         service = new ModelUsageService(
                 new RuntimeTaskStore(runtimeTaskMapper), new UsageStore(usageMapper),
-                new PricingStore(modelPricingMapper), new ModelRuntimeGuard(properties));
+                new PricingStore(modelPricingMapper),
+                new ProviderConnectionStore(providerConnectionMapper, providerCredentialMapper),
+                managedAvailability, new ModelRuntimeGuard(properties));
+    }
+
+    @Test
+    void report_shouldMarkByokCredentialInvalid_onAuthenticationFailure() {
+        UUID credentialId = UUID.randomUUID();
+        when(runtimeTaskMapper.findByIds(anyCollection()))
+                .thenReturn(List.of(task("BYOK", credentialId)));
+        when(usageMapper.insertIgnoreDuplicates(anyList())).thenReturn(1);
+
+        service.report(List.of(failureRecord(
+                "openai:gpt-4o-mini", "BYOK", TASK_ID, "OpenAIAuthenticationError")));
+
+        verify(providerCredentialMapper).markInvalid(credentialId, USER_ID);
+        verify(providerConnectionMapper).clearVerifiedAtByCredential(
+                eq(credentialId), eq(USER_ID), any());
+        verify(managedAvailability, never()).markUnavailable();
+    }
+
+    @Test
+    void report_shouldInvalidateManagedCache_onAuthenticationFailure() {
+        when(runtimeTaskMapper.findByIds(anyCollection())).thenReturn(List.of(task("MANAGED")));
+        when(usageMapper.insertIgnoreDuplicates(anyList())).thenReturn(1);
+
+        service.report(List.of(failureRecord(
+                "openai:gpt-4o-mini", "MANAGED", TASK_ID, "OpenAIAuthenticationError")));
+
+        verify(managedAvailability).markUnavailable();
+        verify(providerCredentialMapper, never()).markInvalid(any(), any());
+    }
+
+    @Test
+    void report_shouldNotChangeCredential_onTimeoutFailure() {
+        when(runtimeTaskMapper.findByIds(anyCollection())).thenReturn(List.of(task("MANAGED")));
+        when(usageMapper.insertIgnoreDuplicates(anyList())).thenReturn(1);
+
+        service.report(List.of(failureRecord(
+                "openai:gpt-4o-mini", "MANAGED", TASK_ID, "APITimeoutError")));
+
+        verify(managedAvailability, never()).markUnavailable();
     }
 
     @Test
@@ -223,9 +279,14 @@ class ModelUsageServiceTests {
     }
 
     private RuntimeTaskRow task(String credentialSource) {
+        return task(credentialSource, null);
+    }
+
+    private RuntimeTaskRow task(String credentialSource, UUID credentialId) {
         return new RuntimeTaskRow(
-                TASK_ID, USER_ID, "t-1", null, "openai:gpt-4o-mini", credentialSource, null, null,
-                "ACTIVE", OffsetDateTime.parse("2026-10-30T08:10:00Z"), OffsetDateTime.parse("2026-10-30T08:00:00Z"), null);
+                TASK_ID, USER_ID, "t-1", null, "openai:gpt-4o-mini", credentialSource,
+                credentialId, null, "ACTIVE", OffsetDateTime.parse("2026-10-30T08:10:00Z"),
+                OffsetDateTime.parse("2026-10-30T08:00:00Z"), null);
     }
 
     private ModelPricingRow price(String effectiveFrom, String input, String output) {
@@ -244,5 +305,12 @@ class ModelUsageServiceTests {
         return new UsageRecordInput(
                 UUID.randomUUID(), taskId, "conversation", modelKey.split(":")[0], modelKey, "MANAGED",
                 null, null, 850, "success", null, OCCURRED_AT);
+    }
+
+    private UsageRecordInput failureRecord(
+            String modelKey, String credentialSource, UUID taskId, String errorType) {
+        return new UsageRecordInput(
+                UUID.randomUUID(), taskId, "conversation", modelKey.split(":")[0], modelKey,
+                credentialSource, null, null, 850, "failure", errorType, OCCURRED_AT);
     }
 }

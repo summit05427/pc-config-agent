@@ -121,19 +121,19 @@ class ModelRuntimeServiceTests {
     @Test
     void createTask_shouldUseDefaultModelWhenRequestIsBlank() {
         ResolvedModel model = new ResolvedModel("openai", "gpt-4o-mini", "GPT-4o mini", List.of("text"), 128000);
-        when(modelCatalogService.resolveAuto()).thenReturn(model);
+        when(modelCatalogService.resolveAuto(USER_ID)).thenReturn(model);
         when(quotaMapper.tryConsume(eq(USER_ID), any(LocalDate.class), anyInt())).thenReturn(new QuotaRow(1, 2));
 
         service.createTask(USER_ID, "t-1", null, null);
 
-        verify(modelCatalogService).resolveAuto();
+        verify(modelCatalogService).resolveAuto(USER_ID);
         verify(modelCatalogService, never()).requireAvailable(any(), any());
     }
 
     @Test
     void createTask_shouldThrowQuotaExceededWithDetail_whenQuotaIsFull() {
         ResolvedModel model = new ResolvedModel("openai", "gpt-4o-mini", "GPT-4o mini", List.of("text"), 128000);
-        when(modelCatalogService.resolveAuto()).thenReturn(model);
+        when(modelCatalogService.resolveAuto(USER_ID)).thenReturn(model);
         when(quotaMapper.tryConsume(eq(USER_ID), any(LocalDate.class), anyInt())).thenReturn(null);
         when(quotaMapper.find(eq(USER_ID), any(LocalDate.class))).thenReturn(new QuotaRow(2, 2));
 
@@ -274,7 +274,7 @@ class ModelRuntimeServiceTests {
     void createTask_shouldThrowQuotaExceeded_whenByokAndQuotaIsFull() {
         properties.setByokEnabled(true);
         ResolvedModel model = new ResolvedModel("openai", "gpt-4o-mini", "GPT-4o mini", List.of("text"), 128000);
-        when(modelCatalogService.resolveAuto()).thenReturn(model);
+        when(modelCatalogService.resolveAuto(USER_ID)).thenReturn(model);
         when(connectionMapper.findActiveViewByProvider(USER_ID, "openai"))
                 .thenReturn(connectionView(CREDENTIAL_ID, BYOK_BASE_URL));
         when(quotaMapper.tryConsume(eq(USER_ID), any(LocalDate.class), anyInt())).thenReturn(null);

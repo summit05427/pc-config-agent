@@ -8,16 +8,9 @@ model_list:
   # model_name 与业务模型标识保持一致（provider:model），Agent 侧无需二次映射。
   # 仅 deepseek 随模板提供凭证；其余条目需部署方在 .env 中提供对应密钥，
   # 未提供时该条目调用会失败，但目录已在 V22 标记为 byok_only，用户不会选到。
-  - model_name: "deepseek:deepseek-v4-pro"
-    litellm_params:
-      model: "deepseek/deepseek-v4-pro"
-      api_key: os.environ/LLM_API_KEY
-      timeout: 120
-      stream_timeout: 60
-    model_info:
-      id: "managed-deepseek-v4-pro"
-
-  # 平台默认模型：同为 DeepSeek 托管凭证，按量计费低于 v4-pro
+  #
+  # DeepSeek 只保留 V4.1 Flash：v4-pro 单次结构化调用约 50s，多 Agent 串行会把
+  # 单轮推到 3 分钟以上，与演示目标冲突；目录侧已由 V27 停用 v4-pro。
   - model_name: "deepseek:deepseek-flash"
     litellm_params:
       model: "deepseek/deepseek-v4-flash"
@@ -96,8 +89,7 @@ model_list:
 
   - model_name: "probe:deepseek"
     litellm_params:
-      # 探测必须用默认模型：v4-pro 是推理模型，max_tokens=1 也要数秒，
-      # 会拖过 Java 的 verify-timeout 被误判为平台托管不可用。
+      # 探测必须用默认模型：flash 是当前唯一 DeepSeek 选项，直接验证真实链路所用模型。
       model: "deepseek/deepseek-v4-flash"
       # 必须给平台密钥：客户端不带 api_key 时回落到它，否则探测必然 401
       api_key: os.environ/LLM_API_KEY

@@ -21,12 +21,13 @@ public class ModelCatalogStore {
                 .toList();
     }
 
-    public long countVisible(UUID userPublicId) {
-        return modelCatalogMapper.countVisible(userPublicId);
+    public long countVisible(UUID userPublicId, boolean includeManaged) {
+        return modelCatalogMapper.countVisible(userPublicId, includeManaged);
     }
 
-    public List<ModelSnapshot> listVisiblePage(UUID userPublicId, long offset, int limit) {
-        return modelCatalogMapper.findVisiblePage(userPublicId, offset, limit).stream()
+    public List<ModelSnapshot> listVisiblePage(
+            UUID userPublicId, long offset, int limit, boolean includeManaged) {
+        return modelCatalogMapper.findVisiblePage(userPublicId, offset, limit, includeManaged).stream()
                 .map(ModelCatalogStore::toSnapshot)
                 .toList();
     }
@@ -35,8 +36,10 @@ public class ModelCatalogStore {
         return toSnapshot(modelCatalogMapper.findEnabledByKey(providerCode, modelKey));
     }
 
-    public ModelSnapshot findVisibleByKey(String providerCode, String modelKey, UUID userPublicId) {
-        return toSnapshot(modelCatalogMapper.findVisibleByKey(providerCode, modelKey, userPublicId));
+    public ModelSnapshot findVisibleByKey(
+            String providerCode, String modelKey, UUID userPublicId, boolean includeManaged) {
+        return toSnapshot(modelCatalogMapper.findVisibleByKey(
+                providerCode, modelKey, userPublicId, includeManaged));
     }
 
     private static ModelSnapshot toSnapshot(ModelRow row) {

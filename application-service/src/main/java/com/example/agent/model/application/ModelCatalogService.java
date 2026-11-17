@@ -1,18 +1,23 @@
 package com.example.agent.model.application;
 
+import com.example.agent.model.domain.ModelCatalogEntry;
 import com.example.agent.model.domain.ModelErrorCode;
 import com.example.agent.model.domain.ModelReference;
 import com.example.agent.model.domain.ModelSnapshot;
+import com.example.agent.model.domain.ProviderConnectionView;
 import com.example.agent.model.domain.ProviderSummary;
 import com.example.agent.model.domain.ResolvedModel;
 import com.example.agent.model.infrastructure.ModelCatalogStore;
 import com.example.agent.model.infrastructure.ProviderCatalogStore;
+import com.example.agent.model.infrastructure.ProviderConnectionStore;
 import com.example.agent.shared.api.PageQuery;
 import com.example.agent.shared.api.PageResult;
 import com.example.agent.shared.config.ModelRuntimeProperties;
 import com.example.agent.shared.error.BusinessException;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,21 +35,41 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class ModelCatalogService {
 
+    private static final String CREDENTIAL_STATUS_INVALID = "INVALID";
+
+    /** 没有平台模型时，Auto 最多检查这么多条 BYOK 模型，避免为了找推理模型无限翻页。 */
+    private static final int BYOK_AUTO_CANDIDATES = 50;
+
+    /** 推理内容可见的能力位；Auto 优先选用，保证用户能看到思考过程。 */
+    private static final String CAPABILITY_REASONING_VISIBLE = "reasoning_visible";
+
+    /** 未配置任何可用密钥时给用户的明确指引，不暴露内部错误码语义。 */
+    public static final String NO_MODEL_CREDENTIAL_MESSAGE =
+            "尚未配置可用的模型密钥，请先在设置中添加 API Key";
+
     private final ModelCatalogStore modelCatalogStore;
     private final ProviderCatalogStore providerCatalogStore;
+    private final ProviderConnectionStore connectionStore;
+    private final ManagedModelAvailability managedAvailability;
     private final ModelRuntimeProperties properties;
     private final ModelRuntimeGuard runtimeGuard;
     private final ObjectMapper objectMapper;
 
     /**
-     * 列出所有可用模型。
+     * 列出所有平台托管模型（v1 兼容接口，不含用户维度）。
      *
-     * @return 已启用且 Provider 已启用的模型，按 Provider 与模型排序
+     * @return 已启用且 Provider 已启用的平台模型；纯 BYOK 部署返回空列表
      */
     @Transactional(readOnly = true)
-    public List<ResolvedModel> listAvailable() {
+    public List<ModelCatalogEntry> listAvailable() {
         runtimeGuard.requireEnabled();
-        return modelCatalogStore.listEnabled().stream().map(this::toResolvedModel).toList();
+        if (!managedAvailability.isAvailable()) {
+            return List.of();
+        }
+        return modelCatalogStore.listEnabled().stream()
+                .map(row -> new ModelCatalogEntry(
+                        toResolvedModel(row), ModelCatalogEntry.SOURCE_MANAGED))
+                .toList();
     }
 
     /**
@@ -64,29 +89,37 @@ public class ModelCatalogService {
     /**
      * 分页列出「当前用户可见」的模型。
      *
-     * <p>平台托管模型对所有用户可见；BYOK 专用模型只有用户接入对应 Provider
-     * 之后才出现，避免模型选择器暴露实际不可用的条目。</p>
+     * <p>平台托管开关打开时，平台模型对所有用户可见；BYOK 专用模型只有用户接入
+     * 对应 Provider 且凭证未被撤销/拒绝后才出现。关闭平台托管后只返回 BYOK 模型。</p>
      *
      * @param query        分页参数
      * @param userPublicId 用户公开 ID
-     * @return 当前页模型与总数
+     * @return 当前页模型、凭证来源与总数
      */
     @Transactional(readOnly = true)
-    public PageResult<ResolvedModel> listAvailable(PageQuery query, UUID userPublicId) {
+    public PageResult<ModelCatalogEntry> listAvailable(PageQuery query, UUID userPublicId) {
         runtimeGuard.requireEnabled();
-        long total = modelCatalogStore.countVisible(userPublicId);
+        boolean includeManaged = managedAvailability.isAvailable();
+        long total = modelCatalogStore.countVisible(userPublicId, includeManaged);
         if (query.offset() >= total) {
             return PageResult.of(List.of(), total, query);
         }
-        List<ResolvedModel> models = modelCatalogStore
-                .listVisiblePage(userPublicId, query.offset(), query.getSize()).stream()
-                .map(this::toResolvedModel)
+        Set<String> byokProviders = byokProviderCodes(userPublicId);
+        List<ModelCatalogEntry> entries = modelCatalogStore
+                .listVisiblePage(userPublicId, query.offset(), query.getSize(), includeManaged).stream()
+                .map(row -> {
+                    ResolvedModel model = toResolvedModel(row);
+                    String source = byokProviders.contains(model.provider())
+                            ? ModelCatalogEntry.SOURCE_BYOK
+                            : ModelCatalogEntry.SOURCE_MANAGED;
+                    return new ModelCatalogEntry(model, source);
+                })
                 .toList();
-        return PageResult.of(models, total, query);
+        return PageResult.of(entries, total, query);
     }
 
     /**
-     * 校验并解析模型引用。
+     * 校验并解析模型引用（不含用户维度，仅用于平台默认模型）。
      *
      * @param reference {@code <provider>:<modelKey>}
      * @return 解析后的模型
@@ -118,7 +151,8 @@ public class ModelCatalogService {
         runtimeGuard.requireEnabled();
         ModelReference modelReference = ModelReference.parse(reference);
         ModelSnapshot row = modelCatalogStore.findVisibleByKey(
-                modelReference.provider(), modelReference.modelKey(), userPublicId);
+                modelReference.provider(), modelReference.modelKey(), userPublicId,
+                managedAvailability.isAvailable());
         if (row == null) {
             log.warn("请求的模型对当前用户不可用 reference={} userId={}", reference, userPublicId);
             throw new BusinessException(ModelErrorCode.MODEL_NOT_AVAILABLE);
@@ -127,14 +161,31 @@ public class ModelCatalogService {
     }
 
     /**
-     * 解析 Auto：返回平台默认模型。
+     * 解析 Auto。
      *
+     * <p>平台托管可用时使用配置的默认模型；纯 BYOK 部署返回该用户第一条可用 BYOK 模型。
+     * 两类都没有时明确失败，禁止在无密钥状态下继续创建任务。</p>
+     *
+     * @param userPublicId 用户公开 ID
      * @return 默认模型
-     * @throws BusinessException 默认模型被下架时抛出 {@link ModelErrorCode#MODEL_NOT_AVAILABLE}
+     * @throws BusinessException 默认模型不可用或用户没有任何 BYOK 模型时 403
      */
     @Transactional(readOnly = true)
-    public ResolvedModel resolveAuto() {
-        return requireAvailable(properties.getDefaultModelKey());
+    public ResolvedModel resolveAuto(UUID userPublicId) {
+        if (managedAvailability.isAvailable()) {
+            return requireAvailable(properties.getDefaultModelKey());
+        }
+        List<ModelSnapshot> candidates = modelCatalogStore
+                .listVisiblePage(userPublicId, 0, BYOK_AUTO_CANDIDATES, false);
+        ModelSnapshot first = candidates.stream()
+                .filter(model -> parseCapabilities(model.capabilitiesJson())
+                        .contains(CAPABILITY_REASONING_VISIBLE))
+                .findFirst()
+                .orElse(candidates.isEmpty() ? null : candidates.getFirst());
+        if (first == null) {
+            throw new BusinessException(ModelErrorCode.MODEL_NOT_AVAILABLE, NO_MODEL_CREDENTIAL_MESSAGE);
+        }
+        return toResolvedModel(first);
     }
 
     /**
@@ -153,6 +204,21 @@ public class ModelCatalogService {
         ModelSnapshot row = modelCatalogStore.findEnabledByKey(
                 modelReference.provider(), modelReference.modelKey());
         return row == null ? List.of() : parseCapabilities(row.capabilitiesJson());
+    }
+
+    /**
+     * 收集当前用户可用的 BYOK Provider：连接必须是 ACTIVE，且凭证不是已撤销/已失效。
+     */
+    private Set<String> byokProviderCodes(UUID userPublicId) {
+        if (!properties.isByokEnabled()) {
+            return Set.of();
+        }
+        return connectionStore.listActive(userPublicId).stream()
+                .filter(connection -> connection.credential() != null)
+                .filter(connection -> !CREDENTIAL_STATUS_INVALID.equals(
+                        connection.credential().status()))
+                .map(ProviderConnectionView::provider)
+                .collect(Collectors.toSet());
     }
 
     private ResolvedModel toResolvedModel(ModelSnapshot row) {

@@ -179,7 +179,8 @@ public class ProviderConnectionService {
      *
      * <p>先做本地校验（能解密、掩码一致），再按 {@code GET /models}（不支持时退化最小 chat）
      * 调一次 Provider。验证通过才写 {@code last_verified_at} 并把凭证置为 VERIFIED；
-     * 上游拒绝或不可达时不改状态，避免把临时故障写成永久失败。</p>
+     * 上游明确拒绝时把凭证置为 INVALID，网络不可达则不改状态，
+     * 避免把临时故障写成永久失败。</p>
      *
      * @param userPublicId 用户公开 ID
      * @param connectionId 连接标识
