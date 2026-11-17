@@ -347,6 +347,9 @@ def _emit_skipped(reason: str, as_json: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if sys.platform == "win32":
+        # psycopg 异步驱动不支持 Windows 默认的 ProactorEventLoop
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     args = _build_parser().parse_args(argv)
 
     try:

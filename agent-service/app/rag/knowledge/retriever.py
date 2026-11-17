@@ -42,6 +42,8 @@ MAX_SNIPPET_CHARS = 4000
 MAX_SOURCE_NAME_CHARS = 200
 MAX_CONFIDENCE_CHARS = 16
 MAX_EXACT_TERMS = 8
+# 单文档最多进入 top-k 的切片数：长文档的相似片段不应挤掉其他文档
+MAX_CHUNKS_PER_DOCUMENT = 2
 
 # 只看 ASCII 型号/Socket/芯片组；中文由向量通道负责
 EXACT_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]*")
@@ -172,6 +174,7 @@ class PgvectorRetriever:
                 keyword_weight=(
                     EXACT_KEYWORD_WEIGHT if exact_terms else DEFAULT_KEYWORD_WEIGHT
                 ),
+                max_per_document=MAX_CHUNKS_PER_DOCUMENT,
             )
             citations: list[Citation] = []
             for item in fused:

@@ -21,10 +21,16 @@ from app.rag.knowledge.retriever import (
 )
 
 
-def _hit(chunk_id: str, *, title: str = "文档", content: str | None = None) -> SearchHit:
+def _hit(
+    chunk_id: str,
+    *,
+    title: str = "文档",
+    content: str | None = None,
+    document_id: str | None = None,
+) -> SearchHit:
     return SearchHit(
         chunk_id=chunk_id,
-        document_id=f"doc-{chunk_id}",
+        document_id=document_id or f"doc-{chunk_id}",
         title=title,
         content=content or f"片段-{chunk_id}",
         score=0.5,
@@ -359,6 +365,24 @@ def test_rrf_validation_and_weighting() -> None:
         fuse_ranked_results(vector, keyword, limit=1, k=0)
     with pytest.raises(ValueError):
         fuse_ranked_results(vector, keyword, limit=1, vector_weight=0)
+
+
+def test_rrf_limits_chunks_per_document() -> None:
+    first = _hit("a1", document_id="doc-a")
+    second = _hit("a2", document_id="doc-a")
+    third = _hit("a3", document_id="doc-a")
+    other = _hit("b1", document_id="doc-b")
+
+    fused = fuse_ranked_results(
+        [first, second, third, other],
+        [],
+        limit=3,
+        max_per_document=2,
+    )
+
+    assert [item.hit.chunk_id for item in fused] == ["a1", "a2", "b1"]
+    with pytest.raises(ValueError):
+        fuse_ranked_results([first], [], limit=1, max_per_document=0)
 
 
 def test_extract_exact_terms_skips_plain_english() -> None:

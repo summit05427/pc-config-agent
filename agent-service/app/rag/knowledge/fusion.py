@@ -33,11 +33,15 @@ def fuse_ranked_results(
     k: int = DEFAULT_RRF_K,
     vector_weight: float = DEFAULT_VECTOR_WEIGHT,
     keyword_weight: float = DEFAULT_KEYWORD_WEIGHT,
+    max_per_document: int | None = None,
 ) -> list[FusedHit]:
     """按名次累加融合两个通道；同一 chunk 只输出一次。
 
     排序规则：分数降序，其次 chunk_id 升序。加入 chunk_id 是为了让
     相同分数下输出稳定，避免数据库返回顺序变化导致引用编号抖动。
+
+    `max_per_document` 限制单文档进入结果的切片数：长文档切出的多个相似
+    片段会挤占 top-k，让其他文档失去引用机会。
     """
     if limit < 1:
         raise ValueError("limit 必须大于 0")
@@ -45,6 +49,8 @@ def fuse_ranked_results(
         raise ValueError("rrf k 必须大于 0")
     if vector_weight <= 0 or keyword_weight <= 0:
         raise ValueError("通道权重必须大于 0")
+    if max_per_document is not None and max_per_document < 1:
+        raise ValueError("max_per_document 必须大于 0")
 
     scores: dict[str, float] = {}
     hits: dict[str, SearchHit] = {}
@@ -57,4 +63,15 @@ def fuse_ranked_results(
             hits.setdefault(hit.chunk_id, hit)
 
     ordered = sorted(scores.items(), key=lambda item: (-item[1], item[0]))
-    return [FusedHit(hit=hits[chunk_id], score=score) for chunk_id, score in ordered[:limit]]
+    fused: list[FusedHit] = []
+    per_document: dict[str, int] = {}
+    for chunk_id, score in ordered:
+        if len(fused) >= limit:
+            break
+        hit = hits[chunk_id]
+        used = per_document.get(hit.document_id, 0)
+        if max_per_document is not None and used >= max_per_document:
+            continue
+        per_document[hit.document_id] = used + 1
+        fused.append(FusedHit(hit=hit, score=score))
+    return fused
