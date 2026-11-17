@@ -37,7 +37,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       proxy: {
         '/api': {
-          target: env.VITE_API_PROXY_TARGET || 'http://localhost:18080',
+          target: env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
           // 保留浏览器原始 Host：Java 对 refresh/logout 做同源 Origin 校验，
           // 改写 Host 会让 localhost:5274 被判为跨域来源。
           changeOrigin: false,

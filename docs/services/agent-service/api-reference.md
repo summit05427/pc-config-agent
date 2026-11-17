@@ -103,6 +103,8 @@
 | --- | --- | --- |
 | `token` | `{"text": "..."}` | 模型输出的文本增量 |
 | `reasoning` | `{"text": "..."}` | 思考内容增量；由网关归一化 `reasoning_content` 后下发，与正文分离，仅部分模型提供 |
+| `stage` | `{"stage": "parsing \| strategizing \| ..."}` | 节点完成推进阶段指示器；未知值忽略，文案由前端映射 |
+| `citations` | `{"citations": [...]}` | RAG 引用；仅开启检索且有结果时下发，字段见根 `docs/api-contract.md` |
 | `tool_call` | `{"name": "...", "args": {...}}` | 模型发起工具调用（来自 `model` 节点） |
 | `tool_result` | `{"name": "...", "preview": "前 200 字符"}` | 工具返回 |
 | `done` | `{"thread_id": "客户端原值"}`，PC 配置成功时额外带可选 `build_result` | 正常结束；回传客户端 ID，不暴露服务端命名空间 |
@@ -135,7 +137,7 @@ Query：`page`（≥1，默认 1）、`size`（1–100，默认 20）、`archive
     {
       "thread_id": "my-thread",
       "title": "现在几点",
-      "model_key": "deepseek:deepseek-v4-pro",
+      "model_key": "deepseek:deepseek-flash",
       "last_active_at": "2026-10-28T12:00:00Z",
       "is_pinned": true,
       "is_archived": false
@@ -194,7 +196,7 @@ Path：`thread_id`（1–64）。
 请求体：
 
 ```json
-{ "model_key": "deepseek:deepseek-v4-pro" }
+{ "model_key": "deepseek:deepseek-flash" }
 ```
 
 | 字段 | 类型 | 约束 | 说明 |
@@ -206,11 +208,11 @@ Path：`thread_id`（1–64）。
 ```json
 {
   "thread_id": "my-thread",
-  "model_key": "deepseek:deepseek-v4-pro",
+  "model_key": "deepseek:deepseek-flash",
   "effective": "explicit",
   "model": {
     "provider": "deepseek",
-    "model_key": "deepseek:deepseek-v4-pro",
+    "model_key": "deepseek:deepseek-flash",
     "display_name": "GPT-4o mini",
     "capabilities": ["text", "tool_calling"],
     "context_window": 128000

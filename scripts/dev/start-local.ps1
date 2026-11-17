@@ -5,6 +5,7 @@
 1. 口令、JWT 密钥统一从仓库根 .env 读取，避免手工设置 DB_PASSWORD 时误用示例值或旧值。
 2. 启动 Java 前先用真实网络路径校验数据库口令，避免 Flyway 报错掩盖根因。
 3. 四端各自在独立后台进程运行，日志写到 logs/dev，便于排查。
+4. 默认跳过已在运行的服务；改完代码需要重启时加 -Restart，先停旧进程再拉新进程。
 #>
 
 [CmdletBinding()]
@@ -12,7 +13,10 @@ param(
     [ValidateSet('all', 'application', 'agent', 'frontend', 'admin')]
     [string]$Service = 'all',
 
-    [switch]$SkipMiddleware
+    [switch]$SkipMiddleware,
+
+    # 停止占用目标端口的本项目旧进程后再启动，避免「端口已占用被跳过」导致一直跑旧代码
+    [switch]$Restart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -60,6 +64,40 @@ function Test-PortInUse {
     param([int]$Port)
 
     return [bool](Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+}
+
+function Stop-PortOwner {
+    param(
+        [int]$Port,
+        [string]$Name,
+        [string]$CommandPattern
+    )
+
+    $owners = @(
+        Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique
+    )
+    if ($owners.Count -eq 0) { return }
+
+    foreach ($ownerId in $owners) {
+        $process = Get-CimInstance Win32_Process -Filter "ProcessId=$ownerId" -ErrorAction SilentlyContinue
+        if ($null -eq $process) { continue }
+        # 只停止命令行匹配本项目的进程，避免误杀同端口的其它工具
+        if ($process.CommandLine -notmatch $CommandPattern) {
+            throw "$Name 的端口 $Port 被非本项目进程占用（PID $ownerId）：$($process.CommandLine)。请手动处理后重试。"
+        }
+        Stop-Process -Id $ownerId -Force -ErrorAction Stop
+        Write-Host "已停止旧进程 $Name（PID $ownerId）" -ForegroundColor Yellow
+    }
+
+    # 端口释放有延迟，最多等 10 秒，避免新进程绑定失败
+    $deadline = (Get-Date).AddSeconds(10)
+    while ((Get-Date) -lt $deadline -and (Test-PortInUse -Port $Port)) {
+        Start-Sleep -Milliseconds 300
+    }
+    if (Test-PortInUse -Port $Port) {
+        throw "$Name 的端口 $Port 在停止旧进程后仍未释放。"
+    }
 }
 
 function Resolve-Executable {
@@ -195,19 +233,27 @@ Assert-RequiredKeys -Map $dotenv -Keys @(
     'JWT_PRIVATE_KEY', 'JWT_PUBLIC_KEY', 'AUTH_ADMIN_PASSWORD'
 )
 
-# 跨服务契约配置（JWT / 模型运行时 / OpenUI）不一致时直接失败：
-# 这类配置错了照样能启动，只会在用户登录或对话时才暴露
-$preflight = Join-Path $PSScriptRoot 'preflight.ps1'
-if (Test-Path -LiteralPath $preflight) {
-    & $preflight -RepoRoot $repoRoot -SkipPortCheck
+# 配置治理：先把根 .env 的契约配置派生到 Agent / 前端，再按 config/env.schema.json 校验。
+# 这类配置错了照样能启动，只会在用户登录或对话时才暴露，所以必须在启动前统一拦住。
+$generator = Join-Path $repoRoot 'scripts\config\generate-config.ps1'
+if (Test-Path -LiteralPath $generator) {
+    & $generator -RepoRoot $repoRoot
     if ($LASTEXITCODE -ne 0) {
-        throw '配置预检未通过，已中止启动。修复上方 [FAIL] 项后重试。'
+        throw '派生配置生成失败，已中止启动。'
+    }
+}
+
+$checker = Join-Path $repoRoot 'scripts\config\check-config.ps1'
+if (Test-Path -LiteralPath $checker) {
+    & $checker -RepoRoot $repoRoot -SkipPortCheck
+    if ($LASTEXITCODE -ne 0) {
+        throw '配置契约校验未通过，已中止启动。修复上方 [FAIL] 项后重试。'
     }
 }
 
 # 端口唯一来源是根 .env（与 docker-compose.yml 的宿主映射保持一致），避免脚本与编排漂移
-$backendPort = if ($dotenv['BACKEND_PORT']) { [int]$dotenv['BACKEND_PORT'] } else { 18080 }
-$agentPort = if ($dotenv['AGENT_PORT']) { [int]$dotenv['AGENT_PORT'] } else { 18000 }
+$backendPort = if ($dotenv['BACKEND_PORT']) { [int]$dotenv['BACKEND_PORT'] } else { 8080 }
+$agentPort = if ($dotenv['AGENT_PORT']) { [int]$dotenv['AGENT_PORT'] } else { 8000 }
 
 if (-not $SkipMiddleware) {
     Write-Host '启动中间件 postgres / pgvector / redis ...' -ForegroundColor Cyan
@@ -228,6 +274,10 @@ if ($targets -contains 'application') {
 '@
     }
 
+    if ($Restart) {
+        Stop-PortOwner -Port $backendPort -Name 'application-service' `
+            -CommandPattern 'AgentApplicationServiceApplication'
+    }
     if (Test-PortInUse -Port $backendPort) {
         $rows['application-service'] = @{ Url = "http://localhost:$backendPort"; Status = '已在运行，跳过' }
     } else {
@@ -241,6 +291,9 @@ if ($targets -contains 'application') {
 }
 
 if ($targets -contains 'agent') {
+    if ($Restart) {
+        Stop-PortOwner -Port $agentPort -Name 'agent-service' -CommandPattern 'run\.py'
+    }
     if (Test-PortInUse -Port $agentPort) {
         $rows['agent-service'] = @{ Url = "http://localhost:$agentPort"; Status = '已在运行，跳过' }
     } else {
@@ -264,6 +317,9 @@ if ($targets -contains 'frontend' -or $targets -contains 'admin') {
 }
 
 if ($targets -contains 'frontend') {
+    if ($Restart) {
+        Stop-PortOwner -Port $frontendPort -Name 'frontend' -CommandPattern 'vite'
+    }
     if (Test-PortInUse -Port $frontendPort) {
         $rows['frontend'] = @{ Url = "http://localhost:$frontendPort"; Status = '已在运行，跳过' }
     } else {
@@ -275,6 +331,9 @@ if ($targets -contains 'frontend') {
 }
 
 if ($targets -contains 'admin') {
+    if ($Restart) {
+        Stop-PortOwner -Port $adminPort -Name 'admin' -CommandPattern 'vite'
+    }
     if (Test-PortInUse -Port $adminPort) {
         $rows['admin'] = @{ Url = "http://localhost:$adminPort"; Status = '已在运行，跳过' }
     } else {

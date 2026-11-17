@@ -422,6 +422,8 @@ Java 信封（顶层新增可选字段，成功响应不输出）：
 | --- | --- |
 | Java 控制面不可达，且请求为 Auto（未指定模型） | 记录 `warning`，显式降级到进程默认模型，SSE 正常 |
 | Java 控制面不可达，且请求显式指定模型（Managed 或 BYOK） | 流前 503 `control_plane_unavailable`，不降级 |
+| 会话 `model_key` 已被目录停用（`model_not_available`）且本次请求未显式选模型 | 记录 `warning`，回退 Auto（不再带模型）重新建任务；首次任务未创建成功，不产生重复扣费 |
+| 请求级显式模型不可用（用户刚选中） | 流前 403 `model_not_available`，不降级 |
 | 凭证无效/撤销/过期 | 流前 401/403 语义码，提示用户重新配置 |
 | 能力不满足（如工具调用） | 流前 422 `capability_unsupported` |
 | 额度超限 | 流前 429 `quota_exceeded`，响应体带 `quota_type`/`limit`/`used`/`reset_at`（见 §9.2） |
@@ -471,7 +473,7 @@ Java 信封（顶层新增可选字段，成功响应不输出）：
 - 能力位下发链路：`models` → `GET /api/v1/models` / `/api/v2/models` / `/internal/v1/model-access/check` / `/internal/v1/model-tasks`（P3 新增）→ Agent `ResolvedRuntime.capabilities`。会话级设置只在校验时经过 `model-access/check`，覆盖不到请求级 `model`，因此门控必须依赖**本次 `model-tasks` 返回的能力位**。
 - 门控在 Agent 侧、流建立前完成（`prepare_agent` → `_ensure_reasoning_supported`），缺 `reasoning` 返回 422 `capability_unsupported`，且早于 BYOK 凭证兑换。**不能让 LiteLLM 兜底**：网关 `drop_params: true` 会静默丢弃不支持的参数，用户会看到「已开启思考」但没有任何思考内容，无法归因。
 - P3 只做门控，不向网关下发开启参数；各厂商的 `reasoning_effort` / thinking budget 取值待多厂商矩阵实测（P4）后再按 Provider 白名单补，避免把未验证的参数当成已生效能力。
-- 目录数据先只标注 P1 真实链路验证过的 `deepseek:deepseek-v4-pro`（V23），其余模型待实测后补；未标注的模型收到 `reasoning=true` 会被明确拒绝，而不是静默不生效。
+- 目录只标注真实链路验证过的模型：2026-11-17 起 DeepSeek 仅保留 `deepseek:deepseek-flash`（V27 停用 v4-pro，并补齐 `reasoning` / `reasoning_visible`），其余模型待实测后补；未标注的模型收到 `reasoning=true` 会被明确拒绝，而不是静默不生效。
 
 ## 11. PR1–PR6 计划、依赖、验收与回滚
 
@@ -584,7 +586,9 @@ PR5 后收尾（2026-10-31）：`estimatedCost` 曾加 `@Digits(integer = 6, fra
 | Agent | `CONTROL_PLANE__CLIENT_ID` / `CONTROL_PLANE__CLIENT_SECRET` | 换取服务令牌 |
 | Agent | `LLM__GATEWAY_BASE_URL` / `LLM__GATEWAY_API_KEY` | 模型统一出口；配置网关密钥后所有请求经 LiteLLM，未配置时退化为直连（Solo）。Provider 协议与默认地址由网关负责，Agent 不再维护白名单 |
 
-> 2026-11-01：`deepseek-chat` 已被上游下架，`V17__fix_deepseek_model_catalog.sql` 追加 `deepseek-v4-pro` / `deepseek-flash` 并停用旧行。沿用 `MODEL_DEFAULT_KEY=deepseek:deepseek-chat` 的部署会因启动校验被拒绝启动，需同步改为 `deepseek:deepseek-v4-pro`（或 `deepseek:deepseek-flash`）。
+> 2026-11-01：`deepseek-chat` 已被上游下架，`V17__fix_deepseek_model_catalog.sql` 追加 `deepseek-v4-pro` / `deepseek-flash` 并停用旧行。沿用 `MODEL_DEFAULT_KEY=deepseek:deepseek-chat` 的部署会因启动校验被拒绝启动，需同步改为 `deepseek:deepseek-flash`。
+>
+> 2026-11-17：`V27__disable_deepseek_v4_pro.sql` 停用 `deepseek-v4-pro`，DeepSeek 仅保留 `deepseek:deepseek-flash`；选型理由是 v4-pro 单次结构化调用约 50s，多 Agent 串行会突破单轮超时。LiteLLM `model_list` 同步只保留 flash。
 
 ## 13. 决策状态（Round 2）
 

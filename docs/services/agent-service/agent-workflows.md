@@ -185,9 +185,9 @@ START
 
 ## 13. 未实现与默认关闭的能力
 
-- 多 Agent 骨架已实现并默认关闭（`AGENT__MULTI_AGENT_ENABLED=false`）：`specialist_panel` 并行运行 Performance / Platform 两个分析角色，`critic_review` 只评审不修正；策略上由确定性场景枚举决定是否启用，不是 Strategist 自由裁量。
-  - 未完成：Power & Storage Specialist、Critic 触发的受限修正、多 Agent 与单 Agent 的 A/B 对照评测。
-- RAG 检索链路（切块 → embedding → pgvector → 词法+向量 RRF → Architect 注入 → citations）已实现，默认关闭：LiteLLM 已注册 `qwen:text-embedding-v4`（百炼，需根 `.env` 的 `QWEN_API_KEY`），配置齐备即可开启；语料为 `knowledge/cards/` 的 19 张卡片（9 张内部方法论 + 10 张数据集快照）。未完成：rerank、引用正确性的持续回归。
+- 多 Agent 骨架已实现并默认开启（`AGENT__MULTI_AGENT_ENABLED=true`）：`specialist_panel` 并行运行 Performance / Platform 两个分析角色，`critic_review` 独立评审首提案；仅 `REVISE` 且存在 `HIGH`/`MEDIUM` 问题时回 `build_architect` 做一次受限修正（重提案 + 最多 1 次内部修正），LOW 问题只披露。策略上由确定性场景枚举决定是否启用，不是 Strategist 自由裁量。
+  - 未完成：Power & Storage Specialist、多 Agent 与单 Agent 的 A/B 对照评测。
+- RAG 检索链路（切块 → embedding → pgvector → 词法+向量 RRF → 相关性阈值 → Architect 注入 → citations）已实现，默认关闭：LiteLLM 已注册 `qwen:text-embedding-v4`（百炼，需根 `.env` 的 `QWEN_API_KEY`），配置齐备即可开启；语料为 `knowledge/cards/` 的 19 张卡片（9 张内部方法论 + 10 张数据集快照）。已加最小相关性阈值（`RAG__MIN_RELEVANCE_SCORE`，默认 0.2）与演示冻结题集 `evals/rag_cases/rag-demo.yaml`；未完成：rerank。
 - MCP 仅保留经网关的客户端接缝，默认关闭【未实现业务用途】。
 
 ### 13.1 RAG 数据流（已实现，默认关闭）

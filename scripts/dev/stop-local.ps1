@@ -21,8 +21,8 @@ if (Test-Path -LiteralPath $envFile) {
         }
     }
 }
-$backendPort = if ($envMap['BACKEND_PORT']) { [int]$envMap['BACKEND_PORT'] } else { 18080 }
-$agentPort = if ($envMap['AGENT_PORT']) { [int]$envMap['AGENT_PORT'] } else { 18000 }
+$backendPort = if ($envMap['BACKEND_PORT']) { [int]$envMap['BACKEND_PORT'] } else { 8080 }
+$agentPort = if ($envMap['AGENT_PORT']) { [int]$envMap['AGENT_PORT'] } else { 8000 }
 $frontendPort = 5273
 $adminPort = 5274
 

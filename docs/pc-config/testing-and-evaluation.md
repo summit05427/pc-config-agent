@@ -33,6 +33,11 @@ uv --directory agent-service run python -m evals --real
 uv --directory agent-service run python -m evals --real --case-id s11_basic_build
 uv --directory agent-service run python -m evals --real --cases evals/acceptance --case-id ma_gaming_streaming
 
+# HTTP/SSE 端到端评测（evals/e2e）
+uv --directory agent-service run python -m evals.e2e --mode local   # 零费用，CI 契约门禁
+$env:EVALS__E2E__PASSWORD = '<本地口令>'
+uv --directory agent-service run python -m evals.e2e --mode service --case-id e2e_contract_smoke
+
 # 前端
 corepack pnpm --dir frontend lint:ci
 corepack pnpm --dir frontend type-check
@@ -119,6 +124,30 @@ corepack pnpm --dir frontend e2e:critical
 结论：通过 / 失败原因 / 下一步动作
 ```
 
+### HTTP/SSE 端到端评测
+
+`evals/e2e/` 与 `evals/runners/real_model.py` 分工不同：后者在进程内直接调用图节点，只验证「图跑得对不对」；前者经过真实 FastAPI 路由、SSE 编码与会话落库，验证「客户端看到的事件流与落库结果对不对」。
+
+| 模式 | 入口 | 覆盖范围 | 费用 |
+| --- | --- | --- | --- |
+| `local` | `python -m evals.e2e --mode local` | 进程内 ASGI + 确定性假图：HTTP 路由、SSE 契约、会话落库与清理；鉴权用依赖覆盖 | 零 |
+| `service` | `python -m evals.e2e --mode service` | Java 登录 → `POST /api/v1/chat/stream` → 真实 SSE → 历史/列表查询 → 删除会话 | 真实 token |
+
+断言分三层，任一不满足即失败：
+
+- 契约层：事件类型白名单、`id` 从 1 连续递增、`schema_version` 一致、各事件必填字段、心跳注释忽略、终态事件唯一且在末尾。
+- 事实层：`done.build_result` 八类齐全、分项合计等于总价、总价不超预算、`overall_status` 在 `PASS/WARNING/FAIL/UNKNOWN` 内。
+- 语义层：兼容性非 `PASS` 时正文不得出现「兼容性通过 / 完全兼容」等表述；用例可声明 `tool_names`、`must_contain`、`must_not_contain`、`max_latency_ms`。
+
+其他口径：
+
+- 每条用例使用唯一 `thread_id`（`e2e-<case>-<随机后缀>`），结束后自动 `DELETE` 会话；删除失败单独记为 `cleanup` 失败，不掩盖其他断言。
+- HITL 用例在 `resume` 块声明恢复内容：首轮断言 `interrupt` 事件，随后自动用同一 `thread_id` 提交恢复并断言 `done`；local 模式临时放开 HITL 校验以验证恢复协议，service 模式要求服务端已启用 HITL + postgres。
+- `service` 模式的登录令牌按 `expiresIn` 提前续期，遇 401 自动重登一次后重试；口令只从 `EVALS__E2E__PASSWORD` 读取。
+- 流建立前的错误（401/409/422/429/503）走 HTTP + JSON，报告记录状态码与业务码；流内错误以 `error` 事件判定。
+- 用例位于 `evals/e2e/cases/baseline.yaml`：`e2e_contract_smoke` 只验证契约，`e2e_pc_build_contract` 额外验证工具事件与 `build_result`，`e2e_hitl_clarify` 验证中断与恢复。
+- CI 已执行 `python -m evals.e2e --mode local`（零费用），作为 SSE 契约与落库的固定门禁。
+
 ### RAG 检索评测
 
 RAG 未启用或检索器构造失败时整组记为 `skipped`、退出码 0，不伪装成通过；单条检索异常只算该条未命中。指标为 `recall@5`（top5 命中任一期望来源）与 `MRR@5`，默认阈值 0.8 / 0.6，未达标退出码 1。
@@ -136,7 +165,7 @@ RAG 未启用或检索器构造失败时整组记为 `skipped`、退出码 0，�
 
 ## 7. 已知未覆盖
 
-- **HTTP/SSE 端到端**：现有 `--real` 在进程内直接构建图并调用节点，不经过真实 `POST /v1/chat`、SSE 事件、会话落库与前端消费；`frontend/e2e` 只覆盖 UI 视觉与表单，不覆盖真实模型。
+- **HTTP/SSE 端到端**：`evals/e2e` 已覆盖 local（进程内契约 + HITL 恢复）与 service（真实登录 + SSE + 落库）两种模式，并进入 CI 零费用门禁；仍缺「限流/额度耗尽、断开重连、真实模型触发 HITL」这几类场景，以及 service 模式接入 CI 的夜间/手动门禁。
 - 真实市场核验价的端到端验证：当前无 `OWNER_VERIFIED`，只能验证平台观测价链路。
 - 真实模型评测的 CI 门禁：`--real` 仍需本地手动执行。
 - 多 Agent 目前只完成 1 条复杂场景单例验收；Power & Storage Specialist、Critic 受限修正与 A/B 对照未覆盖。

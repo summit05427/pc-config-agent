@@ -17,7 +17,7 @@ Agent 平台的运营管理端，基于 [satnaing/shadcn-admin](https://github.c
 ## 环境要求
 
 - Node.js 20+ 与 pnpm（仓库根通过 `corepack` 固定版本）
-- 本机可访问 `application-service`（默认 `http://localhost:18080`）
+- 本机可访问 `application-service`（默认 `http://localhost:8080`）
 - 首次运行测试前安装浏览器：`corepack pnpm --dir admin test:browser:install`
 
 ## 本地启动

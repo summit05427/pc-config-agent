@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 适用范围 | PC 配置从「Java 求解器选型」迁移到「Agent LLM 选型、Java 事实权威」的重构记录与后续计划 |
-| 状态 | Current（主体与 RAG 代码已落地；RAG 默认关闭；多 Agent 骨架已实现、默认关闭） |
+| 状态 | Current（主体与 RAG 代码已落地；RAG 默认关闭；多 Agent 骨架已实现、默认开启） |
 | 最后更新 | 2026-11-17 |
 | 权威性 | 本文记录重构目标、落地结果与边界；当前行为以代码与 [agent-workflows.md](../services/agent-service/agent-workflows.md) 为准 |
 
@@ -55,8 +55,8 @@
 | Stage 0 审计与契约冻结 | 完成 | 代码、契约与基线已核对；历史端到端报告已删除 |
 | Stage 1 LLM 参与选型 | 完成 | 候选集内选型、Java 校验、有限修正、门禁度量 |
 | Stage 2 Strategist 与增量校验 | 完成 | `build_strategist`、`check_partial_compatibility`、结构化修正反馈 |
-| Stage 3 RAG 知识体系 | 部分 | 混合检索、引用、离线检索评测完成；rerank 与引用正确性回归未完成 |
-| Stage 4 多 Agent | 部分 | 2 个 Specialist + Critic 默认关闭；缺 Power & Storage Specialist、Critic 修正、A/B 对照 |
+| Stage 3 RAG 知识体系 | 部分 | 混合检索、引用、相关性阈值与冻结题集回归完成；rerank 未完成 |
+| Stage 4 多 Agent | 部分 | 2 个 Specialist + Critic（含一次受限修正）已默认开启；缺 Power & Storage Specialist、A/B 对照 |
 | Stage 5 生产化与稳态 | 部分 | 构建快照已有；调用预算、Prompt/模型版本、离线回放、灰度未完成 |
 
 ### 3.2 Stage 1 门禁快照（2026-11-17）
@@ -95,11 +95,12 @@ Java 只保证「装得下、预算内」，不保证「搭得合理」。低端
 
 | 项 | 状态 | 下一步 |
 | --- | --- | --- |
-| RAG 知识库 | 本地已完成 | 确认语料许可与引用规范；视评测决定是否引入 rerank |
-| 多 Agent（Specialist / Critic） | 骨架已实现，默认关闭，完成 1 条单例真实验收 | 逐条验收第二条复杂场景；再决定 Critic 是否触发受限修正 |
-| 多方案对比与交互式换件 | 未实现 | 需要前端与快照链路改造 |
-| 报价核验闭环 | 未实现 | 补 `OWNER_VERIFIED` 与过期清理 |
-| 真实模型评测门禁 | 未实现 | 先扩用例，再评估 CI 成本 |
+| RAG 知识库 | 本地已完成 | 已加最小相关性阈值（`RAG__MIN_RELEVANCE_SCORE`）与演示冻结题集；视评测决定是否引入 rerank |
+| 多 Agent（Specialist / Critic） | 骨架已实现，默认开启，完成 1 条单例真实验收 | 逐条验收第二条复杂场景；再决定 Critic 是否触发受限修正 |
+| 报价核验闭环 | 未实现（演示后迭代） | 补 `OWNER_VERIFIED` 与过期清理 |
+| 真实模型评测门禁 | 未实现（演示后迭代） | 先扩用例，再评估 CI 成本 |
+
+> 2026-11-17 收尾决策：多方案对比 / 交互式换件移出计划；复杂场景单轮 LLM 调用上限放宽到 9 次（ADR 0030）；token 用量统计延后实现；演示直接用服务器部署，不再单独维护演示环境。
 
 ## 6. 验收口径
 

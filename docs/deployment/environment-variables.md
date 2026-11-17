@@ -109,8 +109,8 @@
 | `AGENT__SYSTEM_PROMPT` / `AGENT__PROFILES_DIR` / `AGENT__DEFAULT_PROFILE` | `agent-system` / `app/agents` / `pc-config` | Profile 加载 |
 | `AGENT__TOOL_TIMEOUT_SECONDS` / `TOOL_MAX_RETRIES` / `TOOL_MAX_OUTPUT_TOKENS` / `TOOL_MAX_CALLS_PER_TURN` | `10` / `1` / `4000` / `40` | 工具治理 |
 | `AGENT__TOOL_REDACT_OUTPUT` | `true` | 工具输出脱敏 |
-| `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `3` / `2` / `4096` | `build_architect` 配额 |
-| `AGENT__MULTI_AGENT_ENABLED` / `AGENT__CRITIC_ENABLED` | `false` / `true` | 多 Agent 骨架：默认关闭；开启后 Specialist 并行分析、Critic 只评审不改方案 |
+| `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `4` / `2` / `4096` | `build_architect` 配额 |
+| `AGENT__MULTI_AGENT_ENABLED` / `AGENT__CRITIC_ENABLED` | `true` / `true` | 多 Agent：默认开启；开启后 Specialist 并行分析、Critic 只评审不改方案 |
 | `AGENT__SUMMARY_ENABLED` / `TRIGGER_TOKENS` | `true` / `4000` | 历史摘要 |
 | `AGENT__SESSION_INDEX_TTL_SECONDS` / `MAX` | `300` / `200` | 会话索引缓存 |
 | `HITL__ENABLED` / `HITL__INTERRUPT_TTL_SECONDS` | `false` / `1800` | 人在回路 |
@@ -118,11 +118,15 @@
 | `MCP__ENABLED` / `GATEWAY_URL` / `ALLOWED_TOOLS` | `false` / 空 / `[]` | 仅网关拓扑 |
 | `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 检索器已实现，默认关闭；`RAG_ENABLED` 在根 `.env`，宿主直跑时写在 `agent-service/.env` |
 | `RAG__EMBEDDING_MODEL` / `DIMENSIONS` / `BATCH_SIZE` | 空 / `0` / `10` | 启用内置检索器时模型与维度必填；默认示例 `qwen:text-embedding-v4` / `1024`（百炼单次最多 10 条） |
+| `RAG__MIN_RELEVANCE_SCORE` | `0.2` | 引用最小相关性阈值：向量余弦相似度低于该值的片段不展示；精确型号命中不受限制；`0` 关闭过滤 |
 | `QWEN_API_KEY` | 空 | 根 `.env` 写入；Compose 映射为 LiteLLM 容器内 `DASHSCOPE_API_KEY`，供 embedding 条目使用 |
 | `GUARD__ENABLED` / `MAX_INPUT_CHARS` / `BLOCK_ON_INJECTION` | `true` / `4000` / `true` | 输入护栏 |
 | `RATE_LIMIT__ENABLED` / `CHAT_PER_MINUTE` / `WINDOW_SECONDS` / `FAIL_OPEN` | `true` / `20` / `60` / `true` | 对话限流 |
 | `EVALS__USER_TOKEN` / `EVALS__USER_ID` | 空 | `--real` 评测 |
 | `EVALS__PRICE_INPUT_PER_MILLION` / `EVALS__PRICE_OUTPUT_PER_MILLION` / `EVALS__PRICE_CURRENCY` | 空 / 空 / `CNY` | 评测报告折算成本；未配置时显示「未定价」 |
+| `EVALS__E2E__AGENT_BASE_URL` / `EVALS__E2E__JAVA_BASE_URL` | `http://127.0.0.1:8000` / `http://127.0.0.1:8080` | `python -m evals.e2e --mode service` 的目标地址 |
+| `EVALS__E2E__USERNAME` / `EVALS__E2E__PASSWORD` | `admin` / 空 | E2E 登录身份；口令只放本地 `.env`，未配置时退出码 2 |
+| `EVALS__E2E__TIMEOUT_SECONDS` | `120` | 单轮 SSE 读取超时（1–600 秒） |
 | `METRICS__ENABLED` | `true` | Prometheus 指标 |
 
 ### 2.7 前端与管理端

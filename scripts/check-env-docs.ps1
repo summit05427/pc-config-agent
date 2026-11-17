@@ -49,6 +49,10 @@ $allowedMissing = @(
     'AUTH__JWT_ISSUER'
     'AUTH__JWT_ALGORITHM'
     'AUTH__JWT_SECRET'
+    # Solver path removed on 2026-11-17 (commit dda3829). ADR 0028 and the PC handoff
+    # docs quote these names only to record the superseded transition-period design.
+    'AGENT__MAX_SOLVE_RETRIES'
+    'AGENT__PC_SELECTION_MODE'
     # Rotation placeholder: the code only verifies one public key by kid and never reads
     # this key; environment-variables.md mentions it to explain the single-kid limitation.
     'JWT_PREVIOUS_PUBLIC_KEY'

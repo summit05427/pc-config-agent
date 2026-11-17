@@ -179,7 +179,7 @@ Agent 401 使用字符串码（`agent-service/app/core/security.py`）：
 
 | 方法 | 路径 | 鉴权 | 请求 | 响应（`data`） |
 | --- | --- | --- | --- | --- |
-| GET | `/api/v1/models` | 需登录（`token_use=access`） | 无 | `[{ "provider": "deepseek", "modelKey": "deepseek:deepseek-v4-pro", "displayName": "DeepSeek 4.1 Pro", "capabilities": ["text", "tool_calling"], "contextWindow": 128000, "credentialSource": "MANAGED" }]` |
+| GET | `/api/v1/models` | 需登录（`token_use=access`） | 无 | `[{ "provider": "deepseek", "modelKey": "deepseek:deepseek-flash", "displayName": "DeepSeek 4.1 Flash", "capabilities": ["text", "tool_calling", "reasoning", "reasoning_visible"], "contextWindow": 128000, "credentialSource": "MANAGED" }]` |
 
 - `modelKey` 是完整引用 `<provider>:<modelKey>`，与 Agent 侧请求的 `model` 字段取值一致；`null` 表示 Auto。
 - `capabilities` 是开放字符串数组，未知值必须忽略，禁止按 Provider 推断能力。当前约定：`text`（可对话）、`tool_calling`（支持工具调用）、`reasoning`（可产生思考，可被请求开启）、`reasoning_visible`（思考文本会经 SSE `reasoning` 事件下发，前端可展示）。`reasoning_visible` 只在同时具备 `reasoning` 时出现；OpenAI 推理类模型只有 reasoning tokens、无可展示文本，因此只标 `reasoning`。
@@ -218,7 +218,7 @@ Agent 401 使用字符串码（`agent-service/app/core/security.py`）：
 
 | 方法 | 路径 | 请求 | 响应（`data`） |
 | --- | --- | --- | --- |
-| GET | `/api/v1/users/me/model-usage` | 查询参数 `page`（默认 1）、`size`（默认 20，最大 100）、`from` / `to`（可选，`YYYY-MM-DD`，按 UTC 自然日） | `{ "quota": { "quotaType": "daily_requests", "limit": 100, "used": 3, "resetAt": "2026-11-01T00:00:00Z" }, "list": [{ "invocationId": "...", "taskId": "...", "threadId": "t-demo", "modelRole": "conversation", "provider": "deepseek", "modelKey": "deepseek:deepseek-v4-pro", "credentialSource": "MANAGED", "promptTokens": 120, "completionTokens": 30, "latencyMs": 850, "status": "success", "errorType": null, "costStatus": "ESTIMATED", "costBearer": "PLATFORM", "currency": "USD", "estimatedCost": 0.000036, "occurredAt": "2026-10-30T08:00:00Z" }], "total": 5, "page": 1, "size": 20, "totalTokens": 150 }` |
+| GET | `/api/v1/users/me/model-usage` | 查询参数 `page`（默认 1）、`size`（默认 20，最大 100）、`from` / `to`（可选，`YYYY-MM-DD`，按 UTC 自然日） | `{ "quota": { "quotaType": "daily_requests", "limit": 100, "used": 3, "resetAt": "2026-11-01T00:00:00Z" }, "list": [{ "invocationId": "...", "taskId": "...", "threadId": "t-demo", "modelRole": "conversation", "provider": "deepseek", "modelKey": "deepseek:deepseek-flash", "credentialSource": "MANAGED", "promptTokens": 120, "completionTokens": 30, "latencyMs": 850, "status": "success", "errorType": null, "costStatus": "ESTIMATED", "costBearer": "PLATFORM", "currency": "USD", "estimatedCost": 0.000036, "occurredAt": "2026-10-30T08:00:00Z" }], "total": 5, "page": 1, "size": 20, "totalTokens": 150 }` |
 
 - 额度快照取 UTC 当日：当日尚无额度行时 `used=0`、`limit` 回落到 `MODEL_QUOTA_DAILY_REQUESTS`、`resetAt` 为次日 00:00Z。
 - 明细按 `occurredAt` 倒序；`from` / `to` 是闭区间自然日，服务端转成 `[from 00:00Z, to+1 00:00Z)` 的半开区间。
@@ -287,7 +287,7 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 | GET | `/internal/v1/pc/hardware/{hardwareId}` | 单条硬件详情，含规格与数据质量状态 |
 | GET | `/internal/v1/pc/benchmarks?category=&hardwareId=` | PassMark 跑分；无数据返回空结果，不猜测分数 |
 | GET | `/internal/v1/pc/offers?category=&hardwareId=&verifiedOnly=` | 报价列表，`verifiedOnly=true` 时只返回 `priceSource=OWNER_VERIFIED` |
-| POST | `/internal/v1/pc/builds/compose` | 按调用方给定的 8 类硬件生成方案并落快照；请求体 `{"components":{八类硬件标识},"budgetMaxFen":可选}` |
+| POST | `/internal/v1/pc/builds/compose` | 按调用方给定的 8 类硬件生成方案并落快照；请求体 `{"components":{八类硬件标识},"budgetMaxFen":可选,"workloadProfile":可选}`；`budgetMaxFen` 与 `workloadProfile` 会写入需求快照，缺失时回落为“无预算 + GENERAL” |
 | POST | `/internal/v1/pc/builds/validate` | 复核完整性与兼容性，返回 `checks[]`、`overallStatus`、`ruleVersion` |
 | POST | `/internal/v1/pc/builds/validate-partial` | 任意已选组件子集的部分兼容性校验；不落库、不需用户令牌 |
 | GET | `/internal/v1/pc/builds/{buildId}` | 读取快照；仅所属用户可见，越权返回 403 `40302` |
@@ -362,7 +362,7 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 | PATCH | `/agent/api/v1/sessions/{thread_id}` | 需登录 | 重命名会话，body `{ "title": "..." }` |
 | PUT | `/agent/api/v1/sessions/{thread_id}/pin` | 需登录 | 置顶/取消置顶，body `{ "pinned": true }` |
 | PUT | `/agent/api/v1/sessions/{thread_id}/archive` | 需登录 | 归档/恢复，body `{ "archived": true }` |
-| PUT | `/agent/api/v1/sessions/{thread_id}/model` | 需登录 | 设置会话级模型，body `{ "model_key": "deepseek:deepseek-v4-pro" }`，`null` 表示 Auto |
+| PUT | `/agent/api/v1/sessions/{thread_id}/model` | 需登录 | 设置会话级模型，body `{ "model_key": "deepseek:deepseek-flash" }`，`null` 表示 Auto |
 | DELETE | `/agent/api/v1/sessions/{thread_id}` | 需登录 | 删除会话（元数据 + 消息 + checkpoint），204 |
 | GET | `/agent/api/v1/sessions/{thread_id}/messages` | 需登录 | 历史消息，按窗口分页，支持 `order=asc\|desc`；每条消息携带稳定 `message_id`（`{thread_id}:{seq}`），用于消息反馈绑定 |
 
@@ -373,7 +373,7 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 **会话列表**：
 
 ```json
-{ "list": [{ "thread_id": "3f0c...", "title": "帮我查一下天气", "model_key": "deepseek:deepseek-v4-pro", "last_active_at": "2026-10-26T08:00:00Z", "is_pinned": false, "is_archived": false }], "total": 1, "page": 1, "size": 20 }
+{ "list": [{ "thread_id": "3f0c...", "title": "帮我查一下天气", "model_key": "deepseek:deepseek-flash", "last_active_at": "2026-10-26T08:00:00Z", "is_pinned": false, "is_archived": false }], "total": 1, "page": 1, "size": 20 }
 ```
 
 数据源是 Postgres 表 `session_meta`（2026-10-29 起，`app/services/session_store/postgres.py`）；`title` 取首条用户消息前 40 个字符，尚未生成时为 `null`；`model_key` 为会话级模型选择（`<provider>:<model_key>`），`null` 表示 Auto。
@@ -385,15 +385,15 @@ PUT /agent/api/v1/sessions/{thread_id}/model
 Content-Type: application/json
 Authorization: Bearer <access_token>
 
-{ "model_key": "deepseek:deepseek-v4-pro" }   // null 表示恢复 Auto
+{ "model_key": "deepseek:deepseek-flash" }   // null 表示恢复 Auto
 ```
 
 ```json
 {
   "thread_id": "3f0c...",
-  "model_key": "deepseek:deepseek-v4-pro",
+  "model_key": "deepseek:deepseek-flash",
   "effective": "explicit",
-  "model": { "provider": "deepseek", "model_key": "deepseek:deepseek-v4-pro", "display_name": "GPT-4o mini", "capabilities": ["text", "tool_calling"], "context_window": 128000 },
+  "model": { "provider": "deepseek", "model_key": "deepseek:deepseek-flash", "display_name": "GPT-4o mini", "capabilities": ["text", "tool_calling"], "context_window": 128000 },
   "updated_at": "2026-10-30T08:00:00Z"
 }
 ```
@@ -445,6 +445,7 @@ Content-Type: application/json
 
 - 数据源是 `session_messages` 表，查询条件同时带 `user_id` 与 `thread_id`；没有任何记录时返回 404 `session_not_found`。
 - `role` 取值 `user` / `assistant` / `tool` / `system`；`tool_calls` 与 `name` 为可选字段；`created_at` 为落库时间（ISO 8601），用于前端「显示消息时间」。
+- 助手消息可选携带 `build_result`（结构化配置）与 `citations`（RAG 引用，字段同 SSE `citations` 事件）；`had_reasoning=true` 表示该回合产生过思考内容，但思考正文不落库，只在当轮流式期间可见。
 - `order` 默认 `asc`；传 `desc` 时按 `seq` 倒序返回窗口（供长会话从最新一页向前翻），响应中的 `order` 回显请求值。
 - 该接口不读 checkpointer，因此只返回本轮落库后的完整消息。
 
@@ -526,6 +527,7 @@ data: {"interrupt_id": "int-1", "interaction_type": "clarify_requirements", "que
 | --- | --- | --- |
 | `token` | `{ "text": "...", "schema_version": "1" }` | 增量文本，前端按序拼接 |
 | `reasoning` | `{ "text": "...", "schema_version": "1" }` | 增量思考内容；由 LiteLLM 归一化 `reasoning_content` 后下发，与 `token` 严格分离。仅部分模型提供，前端必须容忍该事件缺失；不得并入正文、不得写入历史消息 |
+| `stage` | `{ "stage": "parsing \| strategizing \| retrieving \| analyzing \| composing \| validating \| reviewing \| generating", "schema_version": "1" }` | 节点完成时推进阶段指示器；工具事件成批返回时前端仍能显示当前阶段。未知值必须忽略，文案由前端映射，服务端不下发中文 |
 | `tool_call` | `{ "name": "...", "args": {}, "schema_version": "1" }` | 模型发起工具调用 |
 | `tool_result` | `{ "name": "...", "preview": "...", "schema_version": "1" }` | 工具结果摘要，`preview` 截断到 200 字符 |
 | `citations` | `{ "citations": [{ "source_id": "...", "title": "...", "snippet": "...", "score": 0.9 }], "schema_version": "1" }` | 可选：仅 `RAG__ENABLED=true` 且检索到结果时发送，位于首个 `token` 之前；`score` 可省略 |
@@ -566,7 +568,7 @@ data: {"interrupt_id": "int-1", "interaction_type": "clarify_requirements", "que
 - `done` 之前先写 `session_messages`，因此前端收到 `done` 立即查历史即可看到本轮消息；写入失败只记 warning，不改变流结果。
 - 客户端断开时服务端取消图执行并释放锁，避免无效模型调用与计费。
 - 未识别事件必须忽略，保证新增事件类型时旧前端仍可用。
-- `citations` 只在 `RAG__ENABLED=true` 且检索到结果时出现；检索按 `user_id` / `roles` 在检索前过滤，检索异常降级为「无引用」，不影响 `token`/`done` 流程。引用片段只进入本轮提示词，不写历史；前端按 `sourceId` 去重后以折叠面板附在当前助手消息正文之后，刷新页面即消失。
+- `citations` 只在 `RAG__ENABLED=true` 且检索到结果时出现；检索按 `user_id` / `roles` 在检索前过滤，检索异常降级为「无引用」，不影响 `token`/`done` 流程。本轮已下发的引用会随消息写入 `session_messages.metadata`，历史接口以 `citations` 字段回放，刷新页面后仍可查看来源；前端按 `sourceId` 去重后以折叠面板附在当前助手消息正文之后。
 
 流建立前的错误走 HTTP + JSON：
 
@@ -677,7 +679,7 @@ data: {"interrupt_id": "int-1", "interaction_type": "clarify_requirements", "que
 | 会话与消息路径 | 一致：`/sessions`、`/sessions/{id}/messages` | `frontend/src/features/sessions/api/sessions.ts`、`agent-service/app/api/v1/sessions.py` |
 | 登录字段与 `tokenType` | 一致：Java 返回 `accessToken` + `tokenType=Bearer` + `user`，前端按 Bearer 拼接 | `AuthService.java`、`frontend/src/features/auth/api/auth.ts` |
 | 用户身份传递 | 一致：Token 由前端携带；Agent 用 `sub`（公开 UUID）做命名空间 | `agent-service/app/core/security.py`、`frontend/src/features/auth/model/auth-session.ts` |
-| 历史消息字段 | 一致：`message_id/role/content/tool_calls/name/created_at` 与前端 `SessionMessage` 对齐；`message_id` 缺失时前端退回会话下标 key 并隐藏反馈入口 | `session_store/mapping.py`、`frontend/src/features/sessions/api/types.ts` |
+| 历史消息字段 | 一致：`message_id/role/content/tool_calls/name/created_at/build_result/citations/had_reasoning` 与前端 `SessionMessage` 对齐；`message_id` 缺失时前端退回会话下标 key 并隐藏反馈入口 | `session_store/mapping.py`、`frontend/src/features/sessions/api/types.ts` |
 | SSE 事件与结束语义 | 一致：8 类事件，正常回合以 `done` 收尾、HITL 回合以 `interrupt` 收尾；`done.message_id` 为本轮助手消息标识，缺失时前端忽略；未知事件忽略 | 第 7 节 |
 | 消息反馈 | 一致：前端 `PUT/DELETE /api/v1/messages/{messageId}/feedback`、`GET /api/v1/feedback` 与 Java `MessageFeedbackController` 同名同形；管理端用 `/api/v1/admin/feedback*` | 第 5.8 节、`frontend/src/features/feedback/api/feedback.ts`、`admin/src/features/feedback/api/admin-feedback-api.ts` |
 | 输入护栏与限流 | 一致：Agent 在建流前返回 422 `input_rejected` / 429 `rate_limited`（带 `Retry-After`）；前端把 `ApiError.message` 直接展示在助手气泡，未做按码分支，新增码不会破坏渲染 | 第 7、8 节、`agent-service/app/services/{input_guard,rate_limit}.py` |

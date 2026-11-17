@@ -561,7 +561,7 @@ SET instructions   = EXCLUDED.instructions,
       "threadId": "t-demo",
       "modelRole": "conversation",
       "provider": "deepseek",
-      "modelKey": "deepseek:deepseek-v4-pro",
+      "modelKey": "deepseek:deepseek-flash",
       "credentialSource": "MANAGED",
       "promptTokens": 120,
       "completionTokens": 30,
@@ -623,10 +623,10 @@ v1 的 `/api/v1/models`、`/api/v1/model-connections` 继续返回全量数组�
 | 方法 | 路径 | 鉴权 | 请求 | 响应（`data`） |
 | --- | --- | --- | --- | --- |
 | `POST` | `/internal/v1/auth/service-token` | 放行（凭 client 凭据） | 表单 `client_id`、`client_secret`，均 `@NotBlank` | `{ "accessToken": "...", "tokenType": "Bearer", "expiresIn": 300 }` |
-| `POST` | `/internal/v1/model-tasks` | 服务令牌 + `X-User-Token`；可选 `Idempotency-Key` | `{ "threadId": "...", "model": "deepseek:deepseek-v4-pro" }`；`threadId` 必填 ≤128，`model` 可空 ≤64 | `{ "taskId": "...", "provider": "deepseek", "modelKey": "...", "credentialSource": "MANAGED\|BYOK", "credentialId": "...", "baseUrl": "...", "expiresAt": "...", "capabilities": ["text", "reasoning", "reasoning_visible"] }`；`credentialId` / `baseUrl` 仅 BYOK 有值；`capabilities` 供 Agent 做请求侧能力门控，取值为开放字符串数组 |
+| `POST` | `/internal/v1/model-tasks` | 服务令牌 + `X-User-Token`；可选 `Idempotency-Key` | `{ "threadId": "...", "model": "deepseek:deepseek-flash" }`；`threadId` 必填 ≤128，`model` 可空 ≤64 | `{ "taskId": "...", "provider": "deepseek", "modelKey": "...", "credentialSource": "MANAGED\|BYOK", "credentialId": "...", "baseUrl": "...", "expiresAt": "...", "capabilities": ["text", "reasoning", "reasoning_visible"] }`；`credentialId` / `baseUrl` 仅 BYOK 有值；`capabilities` 供 Agent 做请求侧能力门控，取值为开放字符串数组 |
 | `GET` | `/internal/v1/model-tasks/{taskId}` | 服务令牌 + `X-User-Token` | 路径 `taskId` 为 UUID | 同任务结构；能力位按 `modelKey` 回查目录，模型随后下架时返回空数组（任务本身仍有效） |
 | `POST` | `/internal/v1/model-tasks/{taskId}/credential-lease` | 仅服务令牌 | 路径 `taskId` 为 UUID | `{ "credentialType": "api_key", "secret": "sk-...", "expiresIn": 300 }`；明文只出现一次 |
-| `POST` | `/internal/v1/model-access/check` | 服务令牌 + `X-User-Token` | `{ "modelKey": "deepseek:deepseek-v4-pro" }`，必填 ≤64 | `{ "available": true, "provider": "...", "modelKey": "...", "displayName": "...", "capabilities": ["text","tool_calling"], "contextWindow": 128000 }` |
+| `POST` | `/internal/v1/model-access/check` | 服务令牌 + `X-User-Token` | `{ "modelKey": "deepseek:deepseek-flash" }`，必填 ≤64 | `{ "available": true, "provider": "...", "modelKey": "...", "displayName": "...", "capabilities": ["text","tool_calling"], "contextWindow": 128000 }` |
 | `POST` | `/internal/v1/model-usage` | 服务令牌（`model-usage:write`） | `{ "records": [ ... ] }`，单批 1..20 条 | `{ "accepted": 1, "duplicated": 0, "rejected": 0 }` |
 
 单条用量记录字段（`UsageRecordRequest`）：`invocationId`（UUID）、`taskId`（UUID）、`modelRole`（≤32）、`provider`（≤32）、`modelKey`（≤64）、`credentialSource`（≤16）、`promptTokens` / `completionTokens` / `latencyMs`（可空、非负）、`status`（`success` / `failure`）、`errorType`（可空 ≤64）、`occurredAt`（必填）。费用不在上报中传递，由 Java 按 `model_pricing` 计算。
