@@ -380,8 +380,14 @@ async def test_partial_fail_then_pass_composes_once(
     assert len(partial_tool.calls) == 2
     assert len(compose_tool.calls) == 1
     assert result["architect_repair_count"] == 1
-    # 增量校验只提交核心组件，ID 来自提案
-    assert set(partial_tool.calls[0]) == {"cpu", "motherboard", "memory", "gpu"}
+    # 增量校验只提交核心组件（含散热器插槽），ID 来自提案
+    assert set(partial_tool.calls[0]) == {
+        "cpu",
+        "motherboard",
+        "memory",
+        "gpu",
+        "cooler",
+    }
 
 
 async def test_partial_unknown_does_not_block_compose(

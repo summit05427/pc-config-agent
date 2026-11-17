@@ -106,14 +106,29 @@ MAX_CANDIDATE_ITEMS_DEFAULT = 10
 MAX_CANDIDATE_ITEMS_BY_CATEGORY: dict[str, int] = {"CPU": 20, "GPU": 20}
 # 摘要字段白名单：键为 State 中的规范名，值为工具输出里的候选字段名。
 # Java 规格用 snake_case 且 TDP 字段名为 `tdp_w`，State 统一成 `tdp_watt`。
+# 必须覆盖九条阻断级兼容规则读取的字段（插槽/内存代际/板型/长度/高度/功率/接口/条数），
+# 否则模型只能靠型号猜测，而 compose 会直接判 COMPATIBILITY_CONFLICT。
 _KEY_SPEC_FIELDS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("socket", ("socket",)),
+    ("supported_sockets", ("supported_sockets",)),
     ("memory_type", ("memory_type",)),
     ("form_factor", ("form_factor",)),
+    ("supported_mainboard_form_factors", ("supported_mainboard_form_factors",)),
     ("tdp_watt", ("tdp_watt", "tdp_w")),
     ("vram_gb", ("vram_gb",)),
     ("length_mm", ("length_mm",)),
+    ("max_gpu_length_mm", ("max_gpu_length_mm",)),
+    ("height_mm", ("height_mm",)),
+    ("max_cooler_height_mm", ("max_cooler_height_mm",)),
     ("capacity_gb", ("capacity_gb",)),
+    ("wattage_w", ("wattage_w",)),
+    ("module_count", ("module_count",)),
+    ("memory_slots", ("memory_slots",)),
+    ("m2_slot_count", ("m2_slot_count",)),
+    ("sata_ports", ("sata_ports",)),
+    ("interface", ("interface", "interface_type")),
+    ("pcie_8pin_count", ("pcie_8pin_count",)),
+    ("pcie_12vhpwr_count", ("pcie_12vhpwr_count",)),
 )
 
 # 兜底解析：模型不可用时仍要能从「8000 元、打游戏」得到可用需求
@@ -182,12 +197,14 @@ _KNOWLEDGE_FAILURE_TERMS: dict[str, str] = {
     FAILURE_OUTPUT_TRUNCATED: "结果截断 修正 原则",
     FAILURE_MODEL_UNAVAILABLE: "模型不可用 修正 原则",
 }
-# 增量校验覆盖的核心组件：插槽、内存代际、显卡供电等冲突都在这一组里交叉判定
+# 增量校验覆盖的核心组件：插槽、内存代际、显卡供电等冲突都在这一组里交叉判定。
+# 散热器插槽也在此预检：否则候选摘要缺失插槽信息时只能等到 compose 才暴露冲突。
 ARCHITECT_PARTIAL_CORE_CATEGORIES: tuple[HardwareCategory, ...] = (
     HardwareCategory.CPU,
     HardwareCategory.MOTHERBOARD,
     HardwareCategory.MEMORY,
     HardwareCategory.GPU,
+    HardwareCategory.COOLER,
 )
 # 模型不可用时的确定性默认策略；来源标记为 DEFAULT，不得伪装成模型产物
 DEFAULT_STRATEGY_RATIONALE = "未获得可用策略，按预算内性能与价格平衡的默认方向组装。"
@@ -200,12 +217,26 @@ PARTIAL_STATUS_UNKNOWN = "UNKNOWN"
 # 候选清单注入模型的摘要字段；与 `_candidate_summary` 的白名单保持一致
 _ARCHITECT_SPEC_FIELDS: tuple[tuple[str, str], ...] = (
     ("socket", "插槽"),
+    ("supported_sockets", "支持插槽"),
     ("memory_type", "内存类型"),
     ("form_factor", "板型"),
+    ("supported_mainboard_form_factors", "支持板型"),
+    ("memory_slots", "内存槽"),
+    ("module_count", "条数"),
     ("tdp_watt", "TDP(W)"),
     ("vram_gb", "显存GB"),
     ("length_mm", "长度MM"),
+    ("max_gpu_length_mm", "限长MM"),
+    ("height_mm", "高MM"),
+    ("max_cooler_height_mm", "限高MM"),
     ("capacity_gb", "容量GB"),
+    ("wattage_w", "功率W"),
+    ("pcie_8pin_count", "8pin数"),
+    ("pcie_12vhpwr_count", "12VHPWR数"),
+    ("external_power", "外接供电"),
+    ("m2_slot_count", "M.2数"),
+    ("sata_ports", "SATA数"),
+    ("interface", "接口"),
 )
 # 结构化失败类型 → 被违反的规则标识，供修正提示使用
 _FAILURE_RULE_IDS: dict[str, tuple[str, ...]] = {
@@ -697,6 +728,35 @@ def _candidate_items(data: dict[str, Any]) -> tuple[list[dict[str, Any]] | None,
     return raw_items, None
 
 
+def _compact_spec_value(value: object) -> str | int | None:
+    """把规格值压成可进提示词的短文本：列表用 `/` 连接，空值与布尔值丢弃。
+
+    兼容规则读取的 `supported_sockets` / `supported_mainboard_form_factors` 都是数组，
+    只接受标量会让这些字段整段消失，模型只能靠型号名猜兼容性。
+    """
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        return value or None
+    if isinstance(value, (list, tuple)):
+        parts = [as_text(item) for item in value]
+        text = "/".join(part for part in parts if part)
+        return text or None
+    return None
+
+
+def _external_power_text(value: object) -> str | None:
+    """显卡外接供电压成 `PCIE_8PIN×1`：供电规则同时看接口类型与数量。"""
+    payload = as_mapping(value)
+    connector = as_text(payload.get("connector_type"))
+    count = as_int(payload.get("count"))
+    if not connector:
+        return None
+    return f"{connector}×{count}" if count and count > 0 else connector
+
+
 def _candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
     """按白名单生成候选摘要；型号文本、链接与整段规格都不进入 State。"""
     specifications = as_mapping(item.get("specifications"))
@@ -706,10 +766,13 @@ def _candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
     }
     for output_key, source_keys in _KEY_SPEC_FIELDS:
         for source_key in source_keys:
-            value = specifications.get(source_key)
-            if isinstance(value, (str, int)) and not isinstance(value, bool):
-                summary[output_key] = value
+            compact = _compact_spec_value(specifications.get(source_key))
+            if compact is not None:
+                summary[output_key] = compact
                 break
+    external_power = _external_power_text(specifications.get("external_power"))
+    if external_power is not None:
+        summary["external_power"] = external_power
     price_fen = item.get("priceFen")
     if isinstance(price_fen, int) and not isinstance(price_fen, bool):
         summary["price_fen"] = price_fen
@@ -1436,6 +1499,11 @@ async def _request_architect_proposal(
         purpose="build_architect",
         # 推理模型的思考 token 计入输出：Architect 单独放大预算，其他节点保持全局值
         max_tokens=get_settings().agent.architect_max_tokens,
+        # 选型是 8 类组合决策，长思考会把单次请求拖过 60s 客户端超时，SDK 再重试
+        # 超时 2 次，一次选型就变成数分钟。Architect 关闭思考并禁用超时重试，
+        # 把最坏耗时压到单次请求上限内；失败仍按 build_failure 正常上报。
+        reasoning_effort="none",
+        max_retries=0,
     )
 
 

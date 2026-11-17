@@ -160,19 +160,32 @@ def _message_text(message: BaseMessage | None) -> str | None:
 _TRUNCATION_FINISH_REASONS = frozenset({"length", "max_tokens", "max_output_tokens"})
 
 
-def _with_max_tokens(model: BaseChatModel, max_tokens: int | None) -> BaseChatModel:
-    """按次调用覆盖输出预算：复制实例而不是改原件，其他节点仍用全局预算。
+def _with_request_options(
+    model: BaseChatModel,
+    *,
+    max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    max_retries: int | None = None,
+) -> BaseChatModel:
+    """按次覆盖请求参数：复制实例而不是改原件，其他节点仍用全局预算。
 
     `with_structured_output` 内部是 RunnableMap，调用期 kwargs 不会透传给模型，
-    所以只能在实例上覆盖 `max_tokens`；测试替身等非 pydantic 模型没有
-    `model_copy`，此时保持原实例。
+    所以只能在实例上覆盖 `max_tokens`。`reasoning_effort` 同理必须建连前设置，
+    否则不会进入请求体。测试替身等非 pydantic 模型没有 `model_copy`，此时保持原实例。
     """
-    if max_tokens is None:
+    updates: dict[str, object] = {}
+    if max_tokens is not None:
+        updates["max_tokens"] = max_tokens
+    if reasoning_effort is not None:
+        updates["reasoning_effort"] = reasoning_effort
+    if max_retries is not None:
+        updates["max_retries"] = max_retries
+    if not updates:
         return model
     model_copy = getattr(model, "model_copy", None)
     if not callable(model_copy):
         return model
-    return model_copy(update={"max_tokens": max_tokens})
+    return model_copy(update=updates)
 
 
 def _finish_reason(message: BaseMessage | None) -> str | None:
@@ -268,17 +281,18 @@ async def _invoke_text_message(
     error_type: str | None = None
     http_status: int | None = None
     try:
-        response = await _with_max_tokens(model, max_tokens).ainvoke(
+        response = await _with_request_options(model, max_tokens=max_tokens).ainvoke(
             messages, config={"tags": [TAG_NOSTREAM]}
         )
     except Exception as exc:
-        # 只记录类型与状态码：异常文本可能含上游地址、对话内容或密钥片段
+        # 只记录类型、状态码与耗时：异常文本可能含上游地址、对话内容或密钥片段
         error_type, http_status = _error_diagnostics(exc)
         logger.warning(
             "pc.llm_failed",
             purpose=purpose,
             error_type=error_type,
             http_status=http_status,
+            latency_ms=int((perf_counter() - started_at) * 1000),
         )
     finally:
         latency_ms = int((perf_counter() - started_at) * 1000)
@@ -475,6 +489,8 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     agent_id: str,
     purpose: str,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
+    max_retries: int | None = None,
 ) -> StructuredOutcome[SchemaT]:
     """结构化调用：失败时做一次文本兜底，并返回可诊断的失败阶段。
 
@@ -483,7 +499,10 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     改走普通文本调用，再用 `extract_json_object` 严格解析并交给 Pydantic 校验。
     兜底只允许一次，仍失败才返回空结果。
 
-    `max_tokens` 只作用于本次调用（复制实例），其他节点仍用全局预算。
+    `max_tokens` / `reasoning_effort` / `max_retries` 只作用于本次调用（复制实例），
+    其他节点仍用全局配置。推理模型的长思考会把单次请求拖过客户端超时，SDK 再按
+    `max_retries` 重试超时，最终把一次选型放大成数分钟；需要低延迟的节点显式传入
+    `reasoning_effort="none"` 与 `max_retries=0` 来约束上限。
     输出被截断时返回 `output_truncated`，不能误报成「Provider 不支持」。
 
     结构化结果与兜底 JSON 都不能进入 `stream_mode=messages`，否则前端会把中间
@@ -492,6 +511,11 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     if model is None:
         return StructuredOutcome(None, FAILURE_STAGE_MODEL_MISSING)
 
+    bounded_model = _with_request_options(
+        model,
+        reasoning_effort=reasoning_effort,
+        max_retries=max_retries,
+    )
     thread_id = _thread_id(config)
     await run_hooks(
         HookContext(
@@ -514,7 +538,9 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     output_hash: str | None = None
     is_truncated = False
     try:
-        structured_model = _with_max_tokens(model, max_tokens).with_structured_output(
+        structured_model = _with_request_options(
+            bounded_model, max_tokens=max_tokens
+        ).with_structured_output(
             schema, include_raw=True
         )
         result = await structured_model.ainvoke(messages, config={"tags": [TAG_NOSTREAM]})
@@ -547,6 +573,7 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
             failure_stage=failure_stage,
             error_type=error_type,
             http_status=http_status,
+            latency_ms=int((perf_counter() - started_at) * 1000),
             has_raw=raw_message is not None,
             finish_reason=finish_reason,
             is_truncated=is_truncated,
@@ -554,7 +581,7 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
             output_sha256_prefix=output_hash,
         )
         fallback = await _structured_text_fallback(
-            model,
+            bounded_model,
             messages,
             schema=schema,
             config=config,
@@ -564,12 +591,15 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
         )
         if fallback.value is not None:
             return StructuredOutcome(fallback.value, None)
-        # 两次都失败时以最后一次（兜底）异常为准：它才是「没有模型输出」的直接原因
+        # 两次都失败时以最后一次（兜底）异常为准：它才是「没有模型输出」的直接原因。
+        # 类型与状态码必须成对取值，否则会把结构化调用的 400 和兜底的超时拼成假信号。
+        if fallback.error_type is not None:
+            error_type, http_status = fallback.error_type, fallback.http_status
         return StructuredOutcome(
             None,
             FAILURE_STAGE_OUTPUT_TRUNCATED if fallback.is_truncated else failure_stage,
-            error_type=fallback.error_type or error_type,
-            http_status=fallback.http_status if fallback.http_status is not None else http_status,
+            error_type=error_type,
+            http_status=http_status,
         )
 
     await run_hooks(

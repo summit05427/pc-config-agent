@@ -483,3 +483,51 @@ async def test_structured_failure_exposes_error_type_and_status() -> None:
     assert outcome.http_status == 401
     # 结构化调用 + 文本兜底各一次
     assert model.runnable.calls == 2
+
+
+def test_candidate_summary_keeps_blocking_compatibility_fields() -> None:
+    """列表型兼容字段必须进入摘要：否则模型只能靠型号猜插槽，compose 必冲突。"""
+    cooler = nodes_module._candidate_summary(
+        {
+            "hardwareId": "cooler-x",
+            "displayName": "示例散热器",
+            "specifications": {
+                "supported_sockets": ["AM4", "AM5"],
+                "height_mm": 160,
+            },
+            "dataQualityStatus": "VERIFIED_STRUCTURED",
+            "lifecycleStatus": "CURRENT",
+            "missingFields": [],
+        }
+    )
+    assert cooler["supported_sockets"] == "AM4/AM5"
+    line = nodes_module._architect_candidate_line(cooler)
+    assert "支持插槽=AM4/AM5" in line
+    assert "高MM=160" in line
+
+    gpu = nodes_module._candidate_summary(
+        {
+            "hardwareId": "gpu-x",
+            "displayName": "示例显卡",
+            "specifications": {
+                "external_power": {"connector_type": "PCIE_8PIN", "count": 1}
+            },
+        }
+    )
+    assert gpu["external_power"] == "PCIE_8PIN×1"
+
+
+def test_partial_check_covers_cooler_socket() -> None:
+    """散热器必须在增量校验范围内：插槽冲突要在 compose 前暴露并驱动修正。"""
+    proposal = BuildProposal(
+        selected_components=[
+            SelectedComponent(
+                category=category,
+                hardware_id=f"{category.value.lower()}-x",
+                reason_summary="示例理由",
+            )
+            for category in REQUIRED_CATEGORIES
+        ]
+    )
+
+    assert "cooler" in nodes_module._partial_check_args(proposal)
