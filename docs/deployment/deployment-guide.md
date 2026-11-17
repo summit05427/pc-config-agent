@@ -51,6 +51,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/start-local.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/start-local.ps1 -Service admin -SkipMiddleware
 ```
 
+改完代码后重启单端（默认检测到端口已占用会跳过，加 `-Restart` 才会先停旧进程）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/start-local.ps1 -Service agent -Restart
+```
+
 停止四端（默认保留中间件与数据卷）：
 
 ```powershell
@@ -62,24 +68,32 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/stop-local.ps1
 - 端口已占用时自动跳过，不会重复启动。
 - 日志写入 `logs/dev/*.log`；`logs/` 已被 `.gitignore` 排除。
 - 启动 Java 前会用容器网络（`scram-sha-256`）真实校验 `POSTGRES_PASSWORD`，口令不一致时直接给出提示，不让 Flyway 报错掩盖根因。
-- 启动前会先执行 `scripts/dev/preflight.ps1`，比对根 `.env`、`agent-service/.env`、`frontend/.env` 之间的契约型配置，存在阻断项时中止启动。
+- 启动前会先执行 `scripts/config/generate-config.ps1`，把根 `.env` 中的契约项写入 `agent-service/.env` 与 `frontend/.env` 的「自动生成块」，再执行 `scripts/config/check-config.ps1` 校验；存在阻断项时中止启动。
 - 脚本只做进程编排，不替代下面的手工命令；需要理解每一步时按 2.2–2.6 操作。
 
-预检可以单独执行，适合部署前或 CI 中调用（存在阻断项时退出码为 1）：
+配置治理可以单独执行，适合部署前或 CI 中调用（存在阻断项时退出码为 1）：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/preflight.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/config/generate-config.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/config/check-config.ps1
 ```
 
-预检覆盖的范围：
+配置的唯一真源是根 `.env`，规则集中在 `config/env.schema.json`：
 
-- `COMPOSE_PROJECT_NAME` 合法性与 `IMAGE_PREFIX` 是否仍为模板默认值（防止与同机其它项目共用容器、卷、镜像）
-- 八个宿主端口是否互不重复，并提示已被占用的端口
-- JWT KID 与公钥在根 `.env` 和 `agent-service/.env` 中是否一致（不一致会导致 Agent 验签失败，前端把 401 当登录失效）
-- `MODEL_RUNTIME_ENABLED` 与 Agent 的 `MODEL_RUNTIME__ENABLED` 是否一致；`BYOK_ENABLED` 开启时 `MODEL_CRED_MASTER_KEY` 是否为 32 字节 base64
-- `MODEL_GATEWAY_MASTER_KEY` 是否与 `LITELLM_MASTER_KEY` 一致
-- OpenUI 开关在根 `.env`、`agent-service/.env`、`frontend/.env` 中是否同步
-- `LLM_API_KEY` 是否仍为空、过短或示例值（仅告警，BYOK 场景可接受）
+- 根 `.env` 是唯一可编辑入口；`agent-service/.env` 与 `frontend/.env` 的托管块由生成器派生，手改会在下次校验时被判为过期。
+- 新增必填项、枚举或跨端契约时，先登记到 `config/env.schema.json`，校验器会自动覆盖，不需要再改脚本。
+- CI 用 `check-config.ps1 -ExampleOnly` 校验 `.env.example` 是否登记了契约需要的全部键。
+
+校验覆盖的范围：
+
+- 必填项：数据库与管理员口令、JWT 私钥/公钥 PEM、服务间凭据等缺失或是占位符时直接阻断
+- 八个宿主端口是否齐全、为合法整数且互不重复，并提示已被占用的端口
+- 布尔开关与枚举是否拼写正确（如 `SPRING_PROFILES_ACTIVE`、`APP_ENV`、`STORAGE__BACKEND`）
+- 跨端契约：JWT KID/公钥/签发方/受众、模型运行时、OpenUI、HITL、MCP、RAG 开关在根 `.env`、`agent-service/.env`、`frontend/.env` 中是否一致
+- 结构化连接串（控制面地址、Redis、Agent 会话库、LLM 网关）能否由根 `.env` 重新算出，换端口后不会残留旧地址
+- `BYOK_ENABLED` 开启时 `MODEL_RUNTIME_ENABLED` 必须开启且 `MODEL_CRED_MASTER_KEY` 为 32 字节 base64
+- `MODEL_GATEWAY_MASTER_KEY` 与 `LITELLM_MASTER_KEY` 是否一致
+- `agent-service/.env`、`frontend/.env` 的托管块是否与根 `.env` 同步
 
 ### 2.2 启动基础设施
 
@@ -87,7 +101,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/preflight.ps1
 docker compose --env-file .env up -d postgres pgvector redis
 ```
 
-只启动三个中间件，复用根 `docker-compose.yml` 的数据卷（`postgres_data`、`agent_pg_data`、`redis_data`）。不要用不带服务名的 `docker compose up -d`：那会连带启动四端容器。宿主机端口分别为 `5432`、`5433`、`6379`，均只绑 `127.0.0.1`（`docker-compose.yml` L32、L59、L85）。
+只启动三个中间件，复用根 `docker-compose.yml` 的数据卷（`postgres_data`、`agent_pg_data`、`redis_data`）。不要用不带服务名的 `docker compose up -d`：那会连带启动四端容器。宿主机端口由根 `.env` 的 `POSTGRES_PORT` / `AGENT_POSTGRES_PORT` / `REDIS_PORT` 决定，均只绑 `127.0.0.1`（`docker-compose.yml` L32、L59、L85）；本仓库模板显式设为 `15432` / `15433` / `16379`，未设置时才退回默认的 `5432` / `5433` / `6379`。宿主机直跑服务连的是**带前缀的这些端口**，不是 `5432`。
 
 若之前启动过整栈，先停四端容器：
 
@@ -106,7 +120,7 @@ corepack pnpm --dir frontend dev                 # Vite 开发服务器，端口
 
 corepack pnpm --dir admin install
 cp admin/.env.example admin/.env                 # VITE_BASE_PATH 保持 /
-corepack pnpm --dir admin dev                    # 端口 5274，/api 代理到 18080
+corepack pnpm --dir admin dev                    # 端口 5274，/api 代理到 8080
 ```
 
 ### 2.4 Java（`application-service/`）
@@ -117,27 +131,29 @@ corepack pnpm --dir admin dev                    # 端口 5274，/api 代理到 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/start-local.ps1 -Service application
 ```
 
-手工启动时，`local` profile 只声明 `${DB_PASSWORD}` 占位符、没有默认值，必须由启动者注入，且必须与数据库实际口令一致：
+手工启动也已不需要逐项 export：`local` / `dev` profile 配置了 `spring.config.import: optional:file:../.env[.properties]`，从 `application-service/` 目录启动时 Spring 会直接读取仓库根 `.env`，把 `POSTGRES_PASSWORD`、`JWT_*`、`AUTH_*` 等一并注入：
 
 ```powershell
-$env:SPRING_PROFILES_ACTIVE="local"
-$env:DB_USERNAME="agent"
-$env:DB_PASSWORD="<根 .env 的 POSTGRES_PASSWORD>"
-$env:JWT_PRIVATE_KEY=(Get-Content jwt-private.pem -Raw)
-$env:JWT_PUBLIC_KEY=(Get-Content jwt-public.pem -Raw)
-$env:AUTH_ADMIN_PASSWORD="<根 .env 的 AUTH_ADMIN_PASSWORD>"
-.\mvnw.cmd spring-boot:run
+cd application-service
+.\mvnw.cmd spring-boot:run          # 默认 local profile；IDE 里直接 Run 同样生效
 ```
 
 ```bash
 # Linux/macOS
-DB_PASSWORD="<根 .env 的 POSTGRES_PASSWORD>" JWT_PRIVATE_KEY="$(cat jwt-private.pem)" JWT_PUBLIC_KEY="$(cat jwt-public.pem)" \
-  AUTH_ADMIN_PASSWORD="<根 .env 的 AUTH_ADMIN_PASSWORD>" ./mvnw spring-boot:run
+cd application-service && ./mvnw spring-boot:run
 ```
+
+前提与例外：
+
+- 工作目录必须是 `application-service/`（`.env` 用相对路径 `../.env` 引用）；在别处启动时改用环境变量，或显式加 `--spring.config.import=optional:file:<path>[.properties]`。
+- `.env` 按 `.properties` 解析：值**不要加引号**（两个 cron 变量已按此调整，见 [environment-variables.md](environment-variables.md#28-模型运行时-java)），否则引号会成为值的一部分导致解析失败。
+- `test` / `prod` profile 不加载该 import，测试与生产配置保持隔离；容器内不存在 `../.env`，`optional` 前缀让 import 静默跳过，仍由 Compose 注入变量。
+- 数据库端口取根 `.env` 的 `POSTGRES_PORT`（模板为 `15432`）。直接连 `127.0.0.1:5432` 会 `Connection refused`——`5432` 只是容器内端口，宿主机上不监听。
+- 没有 `.env` 的环境（CI 等）仍需显式注入：`SPRING_PROFILES_ACTIVE`、`DB_URL`、`DB_USERNAME`、`DB_PASSWORD`、`JWT_PRIVATE_KEY`、`JWT_PUBLIC_KEY`；`prod` 另需 `MODEL_CRED_MASTER_KEY`、`INTERNAL_AUTH_CLIENT_SECRET` 等。
 
 > 口令一致性：`POSTGRES_PASSWORD` 只在数据卷首次初始化时写入数据库，之后修改根 `.env` 不会改变已有角色口令。若报 `password authentication failed for user "agent"`，优先用脚本启动（脚本会预检并给出明确提示）；确需更换口令时，先在库里 `ALTER ROLE`，再同步根 `.env`。不要用 `application-service/.env.example` 中的 `change-me` 作为实际口令。
 
-- 默认 `local` profile，端口 `8080`；`local` 的 `DB_URL` 默认 `jdbc:postgresql://localhost:5432/agent`（`application-local.yaml` L3）。
+- 默认 `local` profile，端口 `8080`；`local` 的 `DB_URL` 默认 `jdbc:postgresql://127.0.0.1:${POSTGRES_PORT:5432}/agent`，账号默认取 `POSTGRES_USER`（缺省 `agent`），口令默认取 `POSTGRES_PASSWORD`（`application-local.yaml` L2-L15）。
 - `local` profile 默认放开 `http://localhost:5173` 跨域，便于前端直连。
 - 启动后 `/swagger-ui.html`、`/v3/api-docs`、`/actuator/health` 可用；首次启动由 Flyway 建表并播种引导账号。
 
@@ -162,7 +178,7 @@ Windows 必须用 `run.py`：它把事件循环切换为 Selector，否则 psyco
 
 ### 2.6 登录与联调
 
-用 `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` 登录（前端 `frontend/README.md`）。前端经 Nginx 或本地 Vite 代理（`/api` → 18080、`/agent` → 18000）访问后端；只有需要绕过代理时才把 `VITE_AGENT_BASE_URL` 改为 `http://localhost:18000/api/v1`，此时属于跨源，`/auth/refresh` 依赖的 HttpOnly Cookie 不会生效，刷新页面即掉登录。
+用 `AUTH_ADMIN_USERNAME` / `AUTH_ADMIN_PASSWORD` 登录（前端 `frontend/README.md`）。前端经 Nginx 或本地 Vite 代理（`/api` → 8080、`/agent` → 8000）访问后端；只有需要绕过代理时才把 `VITE_AGENT_BASE_URL` 改为 `http://localhost:8000/api/v1`，此时属于跨源，`/auth/refresh` 依赖的 HttpOnly Cookie 不会生效，刷新页面即掉登录。
 
 ---
 
@@ -183,6 +199,8 @@ Windows 必须用 `run.py`：它把事件循环切换为 Selector，否则 psyco
 | `frontend` | `agent/frontend:local`（本地构建） | 80 | `WEB_PORT`（默认 80） | `application-service` healthy、`agent-service` started、`admin` started | `/healthz` 返回 `ok` |
 
 启动顺序由 `depends_on` + `healthcheck` 决定；`frontend` 对 Agent 只要求 `service_started`，因此 Agent 就绪前访问 `/agent/` 可能短暂 502。`admin` 是纯静态站点，无外部依赖。
+
+> 上表「宿主机端口」列写的是 Compose 默认值。本仓库根 `.env` 把中间件改成了 `15432` / `15433` / `16379`（`POSTGRES_PORT` / `AGENT_POSTGRES_PORT` / `REDIS_PORT`），以实际生效值为准。
 
 profile 归属：`postgres`、`pgvector`、`redis` 同时属于 `infra` 与 `full`；`application-service`、`admin`、`frontend` 只属于 `full`；`agent-service` **不带 profile**，因此默认可用（Solo 依赖这一点）。不带 `--profile` 的 `docker compose up -d` 只会启动 `agent-service`。
 
@@ -218,7 +236,7 @@ docker compose --env-file .env.solo up -d --build agent-service
 | 项 | 容器内 | 本地直跑 |
 | --- | --- | --- |
 | Java profile | `SPRING_PROFILES_ACTIVE` 默认 `prod`，`DEBUG` 固定 `"false"` | 默认 `local`，可注入 `DEBUG` |
-| Java 数据库 | `DB_URL` 指向服务名 `postgres:5432` | `localhost:5432` |
+| Java 数据库 | `DB_URL` 指向服务名 `postgres:5432` | `127.0.0.1:${POSTGRES_PORT}`（模板 `15432`），自动读根 `.env` |
 | Agent 环境 | `APP_ENV` 默认 `prod`，`DEBUG` 固定 `"false"`，Redis 必需 | `.env` 默认 `dev`，Redis 可选 |
 | Agent 数据库 | `STORAGE__POSTGRES_URL` 指向 `pgvector:5432` | `127.0.0.1:5433` |
 | Agent 控制面 | `CONTROL_PLANE__BASE_URL=http://application-service:8080` | `http://127.0.0.1:8080` |

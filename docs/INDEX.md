@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 状态 | Current |
-| 最后核验 | 2026-11-08 |
+| 最后更新 | 2026-11-17 |
 | 用途 | 按任务给出最小必读清单，避免加载无关文档与整目录浏览 |
 
 **读取规则**：先查本表命中任务 → 只读「必读」列出的 1–3 份 → 用 Grep 定位章节后按 offset/limit 读取命中段。禁止整目录读取。
@@ -12,25 +12,25 @@
 
 | 任务 | 必读（按顺序） | 补充（仅命中细节时读） |
 | --- | --- | --- |
-| 改前端页面 / 组件 / 样式 | `frontend/CODEMAP.md` → `docs/services/frontend/development-guide.md` → `docs/services/frontend/ui-quick-reference.md` | `ui-design-system.md` 对应章节 |
-| 改前端接口调用 / SSE | `docs/api-contract-quick-reference.md` → `docs/services/frontend/development-guide.md` | `api-contract.md` 对应端点、`generative-ui.md` |
-| 改管理端 | `admin/CODEMAP.md` → `docs/services/admin/development-guide.md` → `docs/services/admin/architecture.md` | `docs/api-contract-quick-reference.md` |
-| 改 Java 接口 / 业务 | `.trae/rules-on-demand/20-backend-java.md` → `application-service/CODEMAP.md` → `docs/services/application-service/architecture.md` | `api-reference.md` 对应端点、`security.md` |
-| 改 Agent 节点 / 工具 / 流式 | `.trae/rules-on-demand/30-agent-python.md` → `agent-service/CODEMAP.md` → `docs/services/agent-service/agent-workflows.md` | `api-reference.md`、`model-runtime-architecture.md` |
-| 改 PC 配置需求解析 / 求解 / 推荐 | `docs/pc-config/README.md` → `docs/pc-config/agent.md` → `docs/pc-config/solver-and-compatibility.md` | `docs/pc-config/data.md`、`docs/api-contract.md` §5.7 |
-| 改报价数据 / 核验报价 | `docs/pc-config/market-offer-management.md` → `docs/pc-config/data.md` §6/§14 → `docs/planning/roadmap.md` §5.4 | `scripts/data-cleaning/stage4-price-observations.jsonl`、`scripts/data-cleaning/build_offers_from_shortlist.py`（旧入口 `scripts/pc-config/ingest_offers.py` 已不参与运行时） |
-| 硬件主数据治理 / 生命周期分类 / 发布候选池 | `docs/quality/hardware-data-governance-report.md` → `data/pc-config/README.md` | `docs/planning/roadmap.md` §4、`docs/adr/0027-pc-config-decisions.md` §3、`docs/pc-config/data.md` §13 |
-| 跨端契约变更 | `docs/development-rules.md` §1 → `docs/api-contract-quick-reference.md` | `docs/api-contract.md` 全文 |
-| 环境变量 / 部署 / 排障 | `docs/deployment/env-quick-reference.md` | `deployment-guide.md`、`environment-variables.md` |
-| Solo（只跑 Agent，dev-token 体验） | `docs/deployment/solo-mode.md` | `deployment-guide.md` §3.3 |
-| 模型运行时 / BYOK | `docs/model-runtime-architecture.md` | `docs/services/application-service/api-reference.md` |
-| OpenUI 生成式 UI | `docs/services/frontend/generative-ui.md` | `docs/api-contract.md` §7.1、`docs/services/frontend/ui-design-system.md` |
-| 文档一致性 / 治理 | `docs/documentation-governance.md` | `docs/README.md` |
-| 企业级达标自检 / 对外介绍前评估 | `docs/planning/roadmap.md` §2 与 §8 | `docs/architecture-overview.md` §7 |
-| 对外介绍 / Agent 能力盘点与创新点 | `docs/planning/roadmap.md` §6–§7 | `docs/architecture-overview.md` |
-| 看阶段状态 / 当前待办 / 遗留问题 | `docs/planning/roadmap.md` §8 | — |
-| Agent 模板遗留 / 边界 / 已完成事项依据 | `docs/planning/roadmap.md` | `docs/adr/0004-extension-config-file-first.md`、`0005-agent-profile-first-class.md`、`0006-mechanism-vs-content-boundary.md` |
-| 第一次接触项目 | `docs/architecture-overview.md` → 所在端 `CODEMAP.md` | `docs/README.md` 全量清单 |
+| 第一次接触项目 | [architecture-overview.md](architecture-overview.md) → 所在端 `CODEMAP.md` | [README.md](README.md) 全量清单 |
+| 改前端页面 / 组件 / 样式 | `frontend/CODEMAP.md` → [frontend/development-guide.md](services/frontend/development-guide.md) → [frontend/ui-quick-reference.md](services/frontend/ui-quick-reference.md) | [ui-design-system.md](services/frontend/ui-design-system.md) |
+| 改前端接口调用 / SSE | [api-contract-quick-reference.md](api-contract-quick-reference.md) → [frontend/development-guide.md](services/frontend/development-guide.md) | [api-contract.md](api-contract.md) 对应端点、[generative-ui.md](services/frontend/generative-ui.md) |
+| 改管理端 | `admin/CODEMAP.md` → [admin/development-guide.md](services/admin/development-guide.md) → [admin/architecture.md](services/admin/architecture.md) | [api-contract-quick-reference.md](api-contract-quick-reference.md) |
+| 改 Java 接口 / 业务 | `.trae/rules-on-demand/20-backend-java.md` → `application-service/CODEMAP.md` → [application-service/architecture.md](services/application-service/architecture.md) | [api-reference.md](services/application-service/api-reference.md)、[security.md](services/application-service/security.md) |
+| 改 Agent 节点 / 工具 / 流式 | `.trae/rules-on-demand/30-agent-python.md` → `agent-service/CODEMAP.md` → [agent-workflows.md](services/agent-service/agent-workflows.md) | [agent-service/architecture.md](services/agent-service/architecture.md)、[api-reference.md](services/agent-service/api-reference.md) |
+| 改 PC 配置需求解析 / 选型 / 推荐 | [pc-config/README.md](pc-config/README.md) → [agent-workflows.md](services/agent-service/agent-workflows.md) → [compatibility-rules.md](pc-config/compatibility-rules.md) | [pc-config/architecture.md](pc-config/architecture.md)、[data.md](pc-config/data.md) |
+| 查兼容性规则 / UNKNOWN 语义 | [compatibility-rules.md](pc-config/compatibility-rules.md) | [api-contract.md](api-contract.md) §5.7 |
+| 改候选、报价、跑分、快照数据 | [pc-config/data.md](pc-config/data.md) → [pc-config/market-offer-management.md](pc-config/market-offer-management.md) | [hardware-data-governance-report.md](quality/hardware-data-governance-report.md) |
+| 硬件主数据治理 / 发布候选池 | [hardware-data-governance-report.md](quality/hardware-data-governance-report.md) → [pc-config/data.md](pc-config/data.md) §10 | [adr/0027-pc-config-decisions.md](adr/0027-pc-config-decisions.md) §3 |
+| 评测 / 回归 / 真实模型验证 | [pc-config/testing-and-evaluation.md](pc-config/testing-and-evaluation.md) | `agent-service/evals/`、[agent-workflows.md](services/agent-service/agent-workflows.md) §13 |
+| 跨端契约变更 | [development-rules.md](development-rules.md) §1 → [api-contract.md](api-contract.md) | [api-contract-quick-reference.md](api-contract-quick-reference.md) |
+| 环境变量 / 部署 / 排障 | [deployment/env-quick-reference.md](deployment/env-quick-reference.md) | [deployment/environment-variables.md](deployment/environment-variables.md)、[deployment/deployment-guide.md](deployment/deployment-guide.md) |
+| Solo（只跑 Agent，dev-token 体验） | [deployment/solo-mode.md](deployment/solo-mode.md) | [deployment/deployment-guide.md](deployment/deployment-guide.md) §3.3 |
+| 模型运行时 / BYOK | [model-runtime-architecture.md](model-runtime-architecture.md) | [api-reference.md](services/application-service/api-reference.md) |
+| OpenUI 生成式 UI | [generative-ui.md](services/frontend/generative-ui.md) | [api-contract.md](api-contract.md) §7.1、[ui-design-system.md](services/frontend/ui-design-system.md) |
+| 文档一致性 / 治理 | [documentation-governance.md](documentation-governance.md) | [README.md](README.md) |
+| 看阶段状态 / 当前待办 / 遗留问题 | [roadmap.md](planning/roadmap.md) §5 | — |
+| 了解选型权迁移方案 | [pc-config-agent-refactor-plan-v1.md](planning/pc-config-agent-refactor-plan-v1.md) | [adr/0028-llm-led-build-selection.md](adr/0028-llm-led-build-selection.md) |
 
 ## 2. 规则文件路由
 
@@ -44,4 +44,4 @@
 
 ## 3. 派生文档说明
 
-`docs/api-contract-quick-reference.md`、`docs/services/frontend/ui-quick-reference.md`、`docs/deployment/env-quick-reference.md` 是速查派生视图：与源文件冲突时以源文件为准，源文件变更时同步更新这三份。
+[api-contract-quick-reference.md](api-contract-quick-reference.md)、[ui-quick-reference.md](services/frontend/ui-quick-reference.md)、[env-quick-reference.md](deployment/env-quick-reference.md) 是速查派生视图：与源文件冲突时以源文件为准，源文件变更时同步更新这三份。

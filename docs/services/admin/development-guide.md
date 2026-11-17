@@ -12,7 +12,7 @@
 ## 1. 环境要求
 
 - Node.js 20+；pnpm 由仓库根 `packageManager` 固定，统一用 `corepack pnpm`。
-- 本机可访问 `application-service`（默认 `http://localhost:18080`）。
+- 本机可访问 `application-service`（默认 `http://localhost:8080`）。
 - 首次运行测试前安装浏览器：`corepack pnpm --dir admin test:browser:install`（Playwright chromium）。
 
 ## 2. 安装与启动
@@ -49,7 +49,7 @@ corepack pnpm --dir admin build         # tsc -b && vite build
 | `VITE_APP_TITLE` | 否 | 浏览器标题与侧边栏标题，默认「Agent 管理后台」 |
 | `VITE_API_BASE_URL` | 否 | 接口基地址，默认 `/api/v1` |
 | `VITE_BASE_PATH` | 否 | 部署前缀，默认 `/`；生产镜像由 Compose 传 `/admin/`，同时作为 Vite `base` 与 Router `basepath` |
-| `VITE_API_PROXY_TARGET` | 否 | 仅本地开发代理目标，默认 `http://localhost:18080`，不进入客户端产物 |
+| `VITE_API_PROXY_TARGET` | 否 | 仅本地开发代理目标，默认 `http://localhost:8080`，不进入客户端产物 |
 
 - 环境变量只从 `src/lib/env.ts` 读取，由 zod 校验；业务代码禁止直接访问 `import.meta.env`。
 - `VITE_*` 在构建期写入静态文件，修改后必须重新构建，重启进程无效。

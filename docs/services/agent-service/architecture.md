@@ -1,199 +1,143 @@
-# Agent 端架构
+# Agent Service 架构
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | 已验证（源码级） |
-| 基线 | 分支 `fix/post-refactor-bugfix`，HEAD `397b1fb`，含未提交改动 |
-| 最后核验 | 2026-11-01（§9 测试数字为 2026-10-31 快照，未复测） |
-| 主要证据 | `agent-service/{pyproject.toml,Dockerfile,run.py}`、`app/main.py`、`app/{api,agent,services,core}/**`、`tests/*.py` |
+| 适用范围 | `agent-service/` 的分层、生命周期、工具治理、数据归属与 PC 图接入 |
+| 状态 | Current |
+| 最后更新 | 2026-11-17 |
+| 权威性 | 本文是 Agent 服务级事实源；节点行为见 [agent-workflows.md](./agent-workflows.md)，接口见 [api-reference.md](./api-reference.md) |
+| 主要证据 | `app/main.py`、`app/api/**`、`app/services/turn.py`、`app/agent/**`、`app/services/pc_client.py` |
 
-## 权威文档导航
+## 1. 结论先行
 
-| 主题 | 权威文档 |
+- Python 3.12 + FastAPI；唯一生产图是 `pc-config` 的 9 节点确定性流水线。
+- HTTP 层只做鉴权、限流、输入护栏与协议转换；一轮对话的全部编排在 `app/services/turn.py`。
+- 工具必须经 `tool_governance` 取得，统一超时、重试、角色、配额、脱敏与截断。
+- 状态与消息分两层：LangGraph checkpointer 存图状态，业务表存会话与消息。
+- 多 Agent 与 RAG 知识库【规划中】；当前 RAG 只有可插拔接缝，默认无知识库。
+
+## 2. 目录结构
+
+```text
+agent-service/
+├── app/
+│   ├── main.py                  FastAPI 入口、生命周期、路由注册
+│   ├── api/                     协议层：chat、sessions、auth、models、health、metrics
+│   ├── core/                    配置、日志、异常、安全、SSE、中间件
+│   ├── services/                turn 生命周期、pc_client、会话存储、锁、摘要、缓存
+│   ├── agent/                   profile/registry、pc 图、工具治理、prompts
+│   ├── rag/                     检索器接缝（默认 Noop）
+│   └── models/                  Pydantic Schema
+├── evals/                       评测入口、用例与断言
+├── tests/                       单测与契约测试
+└── run.py                       本地启动
+```
+
+## 3. 请求生命周期
+
+```text
+POST /api/v1/chat/stream
+  → JWT 验签（RS256，公钥）
+  → 输入护栏（长度、控制字符、注入）
+  → 限流（Redis 固定窗口，可 fail-open）
+  → turn.py
+       ├─ 解析偏好片段、决定是否注入历史
+       ├─ 获取 thread 锁（Redis）
+       ├─ 调用 LangGraph.astream_events
+       │    ├─ custom → reasoning / token
+       │    └─ tool_events → tool_call / tool_result
+       ├─ aget_state 读取最终状态
+       ├─ 落库消息与产物
+       └─ done / error
+```
+
+- 同一 `thread_id` 并发请求在锁等待超时后返回冲突错误，不并发写同一会话。
+- 客户端断开时取消图任务；已产生的工具副作用不补偿，快照由 Java 侧 append-only。
+- 错误统一 `{code, message, requestId}`，不泄露内部地址或堆栈。
+
+## 4. 鉴权与令牌
+
+| 令牌 | 来源 | 用途 |
+| --- | --- | --- |
+| 用户 Access Token | Java 签发 | 校验用户身份；`sub` 即 `user_id` |
+| 服务令牌 | Java `/internal/v1/auth/exchange` | 调 Java 内部接口，`token_use=service` |
+| `X-User-Token` | 当前请求的用户 Access Token | 用户维度内部接口（compose、快照读取） |
+| dev-token | Solo 模式本地生成 | 仅本地体验，生产禁用 |
+
+- 服务令牌按 `client_id` 缓存并单飞刷新，不随每轮请求重新兑换。
+- `user_token` 只存在于 `TurnRequest`，不写入图状态、日志或业务表。
+
+## 5. 工具治理
+
+`get_governed_tool(name)` 统一包装：
+
+| 能力 | 行为 |
 | --- | --- |
-| 全仓文档入口 | [docs/README.md](../../README.md) |
-| 系统架构、服务边界、通信链路 | [docs/architecture-overview.md](../../architecture-overview.md) |
-| 对外 HTTP / SSE 契约、错误码映射 | [docs/api-contract.md](../../api-contract.md) |
-| Agent 端点与错误码实现细节 | [api-reference.md](./api-reference.md) |
-| Agent 图结构、裁剪、工具治理、时序 | [agent-workflows.md](./agent-workflows.md) |
-| 环境变量（唯一定义与默认值来源） | [docs/deployment/environment-variables.md](../../deployment/environment-variables.md) |
-| Agent 编码硬约束 | [.trae/rules-on-demand/30-agent-python.md](../../../.trae/rules-on-demand/30-agent-python.md) |
+| 白名单 | 只允许 Profile 绑定的工具 |
+| 超时 | 单工具超时，`compose` 30s，其余 10s |
+| 重试 | 只读工具最多 1 次；非只读工具不自动重试 |
+| 配额 | 单轮工具调用上限与单工具配额 |
+| 脱敏 | 日志与 SSE 预览去除令牌、Cookie、内部地址 |
+| 截断 | 输出按工具上限截断，避免撑爆上下文 |
+| 错误 | 统一 `ToolExecutionError` 安全文案 |
 
-本文只描述本服务的结构事实；契约字段、环境变量与编码约束各由其权威文档承载，冲突时以代码为准。
+节点禁止直接使用 `httpx`；Java 访问只经 `PcApiClient`。
 
-## 1. 定位
+## 6. 存储
 
-对话编排服务：接收前端 SSE 请求，驱动 LangGraph 的 ReAct 图调用大模型与工具，并把会话状态持久化到独立的 PostgreSQL（或内存，测试用）。
-
-**明确不负责**：用户注册登录、Token 签发、业务数据读写、权限模型定义。这些属于 Java 端；Agent 只校验 Java 签发的 JWT。
-
-## 2. 技术栈
-
-| 项 | 版本约束 | 证据 |
+| 数据 | 位置 | 说明 |
 | --- | --- | --- |
-| Python | `>=3.12` | `pyproject.toml` |
-| FastAPI | `>=0.161.1` | 同上 |
-| LangGraph | `>=1.2.16` | 同上 |
-| LangChain OpenAI | `>=1.7.2` | 同上 |
-| langgraph-checkpoint-postgres | `>=3.2.0` | 同上 |
-| psycopg（pool + binary） | `>=3.3.6` | 同上 |
-| redis[hiredis] | `>=8.1.0` | 同上 |
-| PyJWT[crypto] | `>=2.15.1` | 同上 |
-| pydantic-settings | `>=2.16.1` | 同上 |
-| structlog | `>=26.1.0` | 同上 |
-| tiktoken | `>=0.14.0` | 同上 |
-| prometheus-client | `>=0.26.0` | 同上 |
-| uvicorn | `>=0.54.0` | 同上 |
-| 工具链 | uv / ruff（line-length 100，`E,F,I,UP,B,ASYNC`） / mypy（`files=["app"]`） / pytest（`asyncio_mode=auto`，覆盖率 `fail_under=90`） | `pyproject.toml` |
+| 图状态 / 消息历史 | checkpointer | `MemorySaver` 或 `AsyncPostgresSaver` |
+| 会话、消息、运行记录 | `agent_service` 业务表 | 由 `SessionStore` 统一写入 |
+| 会话索引缓存 | 进程内 TTL / Redis | 可失效重建 |
+| 分布式锁 | Redis | 同一 `thread_id` 串行 |
 
-**已声明但零引用**：`mcp`、`langchain-mcp-adapters`、`python-multipart`、`openai`（`openai` 是 LangChain 的传递依赖，可直接引用但当前未用）。SSE 由 `sse-starlette` 的 `EventSourceResponse` 实现（2026-10-28 由自研编码器迁移，事件格式不变）。
+- `STORAGE__BACKEND=postgres` 时 checkpointer 使用连接池，必须 `autocommit=True`。
+- `agent_service` 库不得访问 Java 的 `agent` 库；跨端只走 HTTP 契约。
+- 不保存模型密钥、服务令牌或完整 JWT。
 
-## 3. 目录与分层
+## 7. 模型与 Profile
 
-| 层 | 目录 | 职责 | 禁止 |
-| --- | --- | --- | --- |
-| 接口层 | `app/api/v1/` | 参数校验、鉴权依赖、SSE 编码、响应组装 | 写 SQL、直接建模型客户端、写业务规则 |
-| Agent 层 | `app/agent/` | 图、状态、上下文裁剪、工具注册与治理、提示词、checkpointer | 处理 HTTP、读写请求对象 |
-| 服务层 | `app/services/` | 可复用领域能力：LLM 客户端、会话元数据、历史消息存储、分布式锁、幂等、缓存 | 依赖 `api`、依赖具体路由 |
-| 基础设施层 | `app/core/` | 配置、日志、中间件、鉴权、异常、Redis 客户端、key/TTL、指标 | 依赖任何业务模块 |
-
-依赖方向 `api → agent / services → core`。自检方法：删除 `app/api/` 后，其余模块仍能正常 import。`app/main.py` 是唯一的装配层，可以同时引用 `agent` 与 `core`（`app_lifespan` 正是为此存在）。
-
-## 4. 请求到响应的装配
-
-`create_app()`（[main.py](file:///f:/agent-project-template/agent-service/app/main.py)）负责：
-
-1. `configure_logging(settings)`；
-2. **启动期校验提示词**：基础提示词与（开关开启时的）OpenUI 契约加载失败均抛 `RuntimeError`，让问题在进程启动时暴露；
-3. 注册中间件（后添加的先执行，因此 CORS 在最外层）：
-
-```
-CORSMiddleware
-  └ MetricsMiddleware（条件注册：METRICS__ENABLED）
-      └ RequestIDMiddleware
-          └ 路由
-```
-
-4. `register_exception_handlers` 挂 4 类处理器：`AppError` / `RequestValidationError` / `StarletteHTTPException` / `Exception`；
-5. `include_router(api_router, prefix=API_PREFIX)`。
-
-中间件选择纯 ASGI 实现而非 `BaseHTTPMiddleware`，原因是后者会对响应再包一层，历史上与流式响应存在缓冲/兼容问题，而本服务核心接口就是 SSE。
-
-CORS：`allow_credentials=True` + 显式 `cors_origins` 白名单（默认 `http://localhost:5173`），`expose_headers` 暴露 `x-request-id`；`allow_methods` / `allow_headers` 为 `*`。
-
-## 5. 生命周期
-
-```
-lifespan (AsyncExitStack)
-  ├─ checkpointer_lifespan：memory → MemorySaver；postgres → 建池 + 自动 setup
-  ├─ setup_session_store：复用 checkpointer 的连接池建 session_meta / session_messages；memory 后端走进程内适配器
-  ├─ setup_usage_outbox：同一连接池建 usage_outbox（用量待投递事件）
-  ├─ setup_session_deletion：同一连接池建 session_deletion_tasks（检查点删除墓碑；实现拆分为 `app/services/session_deletion/` 的队列适配器 + 后台 worker）
-  ├─ redis_lifespan：未配置→告警跳过；REQUIRED=true 且连不上→拒绝启动
-  └─ yield → 逆序释放连接池 + 停止用量投递循环与会话删除重试循环
-```
-
-- `AsyncExitStack` 保证任一依赖启动失败时已建立资源被依次释放。
-- 顺序固定为 checkpointer 先于 Redis（`app_lifespan` 显式顺序写死）。
-- 提示词、路径白名单、配置校验都在启动期完成，运行期不再重复判断。
-
-## 5.1 请求前置检查：输入护栏与限流
-
-对话接口在**建流、占会话锁、写幂等键之前**依次做两步纯入口检查，顺序固定：
-
-```
-resolve_profile（模型与用户解析）
-  ├─ enforce_input_guard(message)     # 超长 / 控制字符 / 零宽字符 / 高置信度注入 → 422 input_rejected
-  ├─ enforce_chat_rate_limit(user_id) # Redis 固定窗口 INCR+EXPIRE → 429 rate_limited + Retry-After
-  └─ _claim_idempotency → 会话锁 → 图执行
-```
-
-- 先护栏后限流：护栏是纯计算、成本最低，被拒绝的请求不应消耗配额。
-- 限流按登录用户（`X-User-Token` 解析出的 `sub`）计数，key 走 `build_key("ratelimit", "chat", user_id, window_index)`；Redis 不可用时按 `RATE_LIMIT__FAIL_OPEN` 决定放行或直接 429，与幂等/会话锁的降级策略一致。
-- 护栏只做高置信度规则匹配（7 条注入模式 + 字符类校验），命中记 `agent_input_guard_violations_total{rule}` 并打印**不含原文**的 warning 日志；不做内容改写，避免「静默篡改用户输入」。
-- 两个错误码都是项目自有 `AppError`，`AppError` 支持透传 `headers`，`Retry-After` 由此下发。
-
-## 6. 与外部系统的关系
-
-| 对端 | 方向 | 当前事实 |
-| --- | --- | --- |
-| 前端 | 入站 | 经 Nginx `/agent/` 去前缀转发；浏览器直连 SSE |
-| Java `application-service` | 单向信任 | 出站 HTTP 客户端仅在 `app/services/control_plane.py`：创建模型任务、上报用量、校验/兑换模型访问；必带服务令牌。同时共享 `AUTH__JWT_PUBLIC_KEY`（及 `AUTH__JWT_KID` / `AUTH__ISSUER` / `AUTH__AUDIENCE`）约定 |
-| PostgreSQL（业务库） | 不访问 | 只连自己的 `STORAGE__POSTGRES_URL`，禁止查 Java 的 `agent` 库 |
-| Redis | 可选依赖 | 幂等键、会话锁、可选缓存；未配置时按设计降级；会话列表与历史已迁至 Postgres，不再依赖 Redis |
-| LLM Provider | 出站 | `ChatOpenAI`，进程内单例；未配置或占位符 → 503 |
-| MCP Server | 无 | 依赖已声明，代码零引用 |
-
-## 7. 数据归属
-
-| 数据 | 存储 | 生命周期 |
-| --- | --- | --- |
-| 对话状态（messages） | checkpointer（`postgres` 或 `memory`） | 长期；memory 重启即丢 |
-| 历史消息（可展示的窗口） | `session_messages` 表（每轮结束写入，主键 `(user_id, thread_id, seq)`；`thread_id` **只存客户端原始值**，隔离由 `user_id` 承担） | 长期；与 checkpointer 同库 |
-| 会话元数据（thread_id、标题、最近活跃、会话级 `model_key`） | `session_meta` 表（每轮对话 upsert，主键 `(user_id, thread_id)`；`thread_id` 存客户端原始值；`model_key` 为 NULL 表示 Auto） | 长期；与消息表同库，列表与历史都不依赖 Redis |
-| 幂等记录 | Redis `<prefix>:<env>:idempotency:...` | 默认 86400s |
-| 用量待投递事件 | `usage_outbox` 表（主键 `invocation_id`；`pending`/`dispatched`/`dead`） | `dispatched` 保留 7 天；`dead` 保留待人工排查；**不是用量台账**，Java 为唯一事实源 |
-| 会话删除墓碑 | `session_deletion_tasks` 表（主键 `(user_id, thread_id)`；`pending`/`completed`/`failed`/`cancelled`），实现在 `app/services/session_deletion/{interface,memory,postgres,worker}.py`（队列适配器 + worker） | `completed`/`cancelled` 保留 7 天、`failed` 保留 30 天；后台按退避重试删除检查点 |
-| 会话锁 | Redis `<prefix>:<env>:lock:thread:<sha256(thread_id)>` | 默认 300s，不自动续期 |
-| 用户身份 | **不落库** | 每次从 JWT 解析 |
-
-## 8. 可观测
-
-- 结构化日志（structlog）：每条请求绑定 `request_id` / `method` / `path`，鉴权后再绑 `user_id`；请求结束记录 `request.finished` 与耗时；`finally` 中 `clear_contextvars()` 防泄漏。
-- 指标：18 个指标族，见 [api-reference.md](./api-reference.md) §6；标签只允许 method/route/status/tool/model/type/node/rule/scope，**禁止 user_id / thread_id**。
-- 日志分级：`warning` 用于可恢复异常（Redis 探活失败、工具重试、幂等收尾失败），`exception` 只用于流内未预期异常与兜底 500，同一异常只打一次堆栈。
-
-## 9. 测试结构
-
-`tests/` 共 38 个文件：37 个 `test_*.py` + `conftest.py`，按能力拆分：
-
-| 模块 | 覆盖面 |
+| 项 | 值 |
 | --- | --- |
-| `test_chat_stream` | SSE 事件、幂等 409、锁、超时、断开 |
-| `test_sessions` | 会话列表（`session_meta` + 标题）、重命名/删除、历史消息 `asc`/`desc`、分页、404、归属隔离、删除锁冲突；历史接口在 HITL 开启时把待恢复中断附到窗口内最新助手消息（TTL 过期不附） |
-| `test_hitl` | 门控开启必须配 postgres 后端、未开启时澄清走原路径、澄清中断与恢复、空答案拒绝、未知兼容性中断与终止、图重建后中断仍可恢复、恢复请求校验（禁用 / 内存后端 / 无中断 / ID 不匹配 / 过期） |
-| `test_hitl_postgres` | 真实 Postgres 重启演练：触发中断后丢弃连接池与图，用全新连接池与图恢复并完成求解；未设 `AGENT_TEST_POSTGRES_URL` 时跳过 |
-| `test_health` / `test_metrics` | 存活/就绪判定、指标输出（含 outbox Gauge/Counter） |
-| `test_auth` | JWT 校验、401、dev-token 守卫 |
-| `test_agent_graph` / `test_context` | 图结构、裁剪策略、token 估算 |
-| `test_tool_registry` | 超时、重试、权限、错误包装 |
-| `test_prompts` | 名称白名单、路径穿越、缺失/空文件 |
-| `test_persistence` | memory/postgres 切换、setup、探活 |
-| `test_model_usage` / `test_usage_outbox` | 批量投递、退避重试、dead 终态、降级内存、持久化跨重连、领取租约、purge |
-| `test_session_deletion` | 墓碑入队、后台重试到 failed、检查点不支持删除、会话复用取消、锁冲突顺延、终态清理、Gauge、Postgres 跨重连与租约；实现拆分为 `app/services/session_deletion/` 包，测试只走公开 API |
-| `test_control_plane` / `test_model_resolver` / `test_model_runtime` | 内部接口调用、服务令牌、运行时解析与降级、门面装配顺序 |
-| `test_preferences` | 偏好提示词注入与长度限制 |
-| `test_redis` / `test_redis_primitives` / `test_redis_primitives_integration` | 客户端生命周期、key/TTL、锁与幂等（真实 Redis） |
-| `test_config` / `test_errors` / `test_llm` | 生产守卫、异常信封、LLM 配置校验 |
+| 默认模型 | `deepseek:deepseek-flash` |
+| 网关 | LiteLLM，OpenAI 兼容 |
+| 默认 Profile | `AGENT__DEFAULT_PROFILE=pc-config` |
+| Profile 目录 | `AGENT__PROFILES_DIR=app/agents` |
+| 图选择 | Profile 不能选图；`build_agent` 固定装配 `pc-config` |
 
-**测试数字为 2026-10-31 实测快照，未在 2026-11-01 复测，不得当作当前状态**：`pytest -q --cov=app` 共 303 例全部通过，总覆盖率 93.30%（阈值 `fail_under=90`）；`ruff check app tests run.py` 与 `mypy`（`files=["app"]`）均通过。`test_usage_outbox` 的 5 个与 `test_session_deletion` 的 5 个 PostgreSQL 用例在本地真实库执行，未跳过。需要当前数字时请重新执行 `.trae/rules` 与 `docs/development-rules.md` 中的门禁命令，不要引用本快照。
+模型运行时关闭时走 Agent 单例模型；开启时由 Java 控制面解析模型与凭证。
 
-会话删除墓碑已按「队列 + worker」拆分：`app/services/session_deletion/` 下 `constants.py`（状态与重试常量）、`interface.py`（队列协议）、`memory.py` / `postgres.py`（两个适配器）、`worker.py`（领取、锁、退避与后台循环）；`app/services/session_deletion/__init__.py` 保留原模块级函数名做装配门面。
+## 8. PC 图接入
 
-## 10. 已知问题与偏差
+- `app/agent/pc/graph.py` 定义 9 个节点与条件边。
+- `app/agent/pc/nodes.py` 实现需求解析、校验、策略、检索、LLM 选型、质量评审、渲染。
+- `app/services/pc_client.py` 封装 Java `/internal/v1/pc/**`。
+- 选型在 `build_architect` 完成；Java 只提供事实与组装，不存在旧求解器或独立校验节点。
+- 兼容规则与 `UNKNOWN` 语义见 [compatibility-rules.md](../../pc-config/compatibility-rules.md)。
 
-| 编号 | 问题 | 影响 |
-| --- | --- | --- |
-| A-01 | `.env.example` 的 `AUTH__JWT_ISSUER` / `AUTH__JWT_ALGORITHM` 与字段名不匹配 | **已解决（2026-10-28）**：统一改为 `AUTH__ISSUER` / `AUTH__ALGORITHM` |
-| A-02 | `extra="ignore"` 让所有拼错变量静默失效 | 与「启动即校验」设计目标相悖 |
-| A-03 | 4 个依赖声明但零引用（`mcp`、`langchain-mcp-adapters`、`python-multipart`、`openai`） | 镜像体积与供应链面增大，无功能收益 |
-| A-04 | 会话锁不做自动续期，TTL 300s 是硬上限 | 单轮生成超过 300s 时锁会提前释放，并发写入风险（当前总超时 120s，尚未触发） |
-| A-05 | 会话历史曾在内存中切窗，读取量随会话长度增长 | **已解决（2026-10-28）**：新增 `session_messages` 表，历史接口改为数据库侧窗口查询 |
-| A-06 | 500 响应在 `DEBUG=true` 时返回异常类名与消息 | 仅 dev/staging 可接受；`prod` 配置守卫强制 `DEBUG=false` |
-| A-07 | 再次暴露的旧文档死链：`agent-service/README.md` 索引的 `docs/01-*.md` ~ `docs/20-*.md` 全部不存在（`agent-service/docs/` 目录不存在） | 已在 README 改写中替换 |
+## 9. 可观测与降级
 
-## 11. 明确不存在的能力
-
-无 RAG 实现（仅有 `app/rag/` 的可插拔检索器接缝，默认 `RAG__ENABLED=false`，无知识库、切块与向量化实现；部署的 pgvector 未被使用）、MCP 仅支持经 LiteLLM 网关的客户端接入（默认关闭，不对外暴露 MCP Server）、无多 Agent 编排、无人工审批节点、无 Token 刷新、无审计日志、无服务间鉴权重放防护。会话删除已实现，检查点删除通过 `session_deletion_tasks` 墓碑后台重试（实现见 `app/services/session_deletion/`，队列 + worker；审计 P1-06 已修复）。
-
-## 12. 深模块检查表（2026-11-05 架构审查）
-
-重构后固定按此表自查；违反项的修复方案记录在 `.trae/rules-on-demand/30-agent-python.md` §9。
-
-| 检查项 | 当前落点 |
+| 能力 | 实现 |
 | --- | --- |
-| 路由是否只做传输 | `app/api/v1/chat.py` 只保留参数校验、锁/幂等生命周期与 SSE 编码；回合编排在 `app/services/turn.py` |
-| 请求级状态是否成对进入/退出 | `app/agent/tool_context.py` 的 `ToolTurn` 同时管理角色与工具调用计数，异常/超时/取消都会复位 |
-| 状态机是否与调度分离 | `app/services/session_deletion/` = 协议 `interface.py` + 适配器 `memory.py` / `postgres.py` + `worker.py` |
-| 多步装配是否收口 | `app/services/model_runtime.py::prepare_agent`（解析运行时 → 兑换凭证 → 构图，撤销时同步清图与模型实例缓存） |
-| 跨原语规则是否单一实现 | `app/services/redis_value.py`（TTL、JSON 编解码、坏值删除）；锁保留 token / Lua 语义，不并入 |
+| 结构化日志 | `request_id`、`user_id`、`thread_id`、节点、耗时、状态；敏感字段脱敏 |
+| 指标 | `/api/v1/metrics` 暴露 Prometheus 文本 |
+| SSE 心跳 | `AGENT__SSE_HEARTBEAT_SECONDS`，防代理超时断流 |
+| 模型失败 | 解析回退正则；策略回退默认；选型明确失败，不伪造 |
+| Redis 失败 | 限流可 fail-open；锁不可用则拒绝并发写 |
+| RAG 未启用 | `search_knowledge` 返回空引用，不阻断主流程 |
+
+## 10. 已知问题与边界
+
+- 多 Agent、工具并行执行、人工审批流【规划中】。
+- RAG 无知识库、无向量化、无引用治理【规划中】。
+- MCP 仅有网关客户端接缝，默认关闭【未实现业务用途】。
+- `--real` 评测未进 CI，语义回归依赖人工。
+- 会话摘要与长期记忆只做上下文压缩，不是跨会话用户画像【未实现】。
+
+## 11. 相关文档
+
+- 工作流：[agent-workflows.md](./agent-workflows.md)
+- 接口：[api-reference.md](./api-reference.md)
+- PC 模块：[pc-config/README.md](../../pc-config/README.md)
+- 总体架构：[architecture-overview.md](../../architecture-overview.md)

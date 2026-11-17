@@ -656,7 +656,7 @@ v1 的 `/api/v1/models`、`/api/v1/model-connections` 继续返回全量数组�
 
 - 错误码：`40301` 硬件不存在、`40302` 快照不存在或非本人、`40303` 配置不完整、`40305` 目录不可用、`40306` 用户令牌无效、`40307` 所选硬件缺少可用报价、`40308` 所选硬件存在兼容性冲突、`40309` 配置总价超过预算上限。
 - 金额一律人民币整数分；`priceSource=OWNER_VERIFIED` 表示人工核验价，`MOCK_DEMO` 表示演示占位价，**不得表述为已核验**。
-- scope 复用 `model-runtime:read`（服务令牌默认携带）；实现细节见 [docs/pc-config/api-contract.md](../../pc-config/api-contract.md)。
+- scope 复用 `model-runtime:read`（服务令牌默认携带）；实现细节见 [api-contract.md](../../api-contract.md) §5.7。
 
 ## 9. 管理端接口（已实现）
 

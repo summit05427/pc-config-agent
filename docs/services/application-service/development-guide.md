@@ -15,7 +15,7 @@
 
 | 命令 | 作用 | 备注 |
 | --- | --- | --- |
-| `.\mvnw.cmd spring-boot:run` | 本地启动，默认 `local` profile | 需先注入必填环境变量 |
+| `.\mvnw.cmd spring-boot:run` | 本地启动，默认 `local` profile | 自动读取仓库根 `.env`（须在 `application-service/` 目录启动）；无 `.env` 时需手注入变量 |
 | `.\mvnw.cmd test` | 仅跑测试 | `test` profile 不连库，可离线执行；Testcontainers 用例需要 Docker |
 | `.\mvnw.cmd verify` | 编译 + 测试 + 生成 JaCoCo 报告 | 提交前必须通过 |
 | `.\mvnw.cmd package` | 打包可执行 JAR 到 `target/` | 生产镜像由 Dockerfile 构建 |
@@ -32,8 +32,8 @@ Maven Wrapper 已锁定 Maven 版本（`.mvn/wrapper/`），无需本地安装 M
 
 | profile | 数据库 | Flyway | springdoc | 用途 |
 | --- | --- | --- | --- | --- |
-| `local`（默认） | `DB_URL` 默认 `jdbc:postgresql://localhost:5432/agent`，账号默认 `agent` | 开启 | 开启 | 日常开发，配合 `application-service/docker-compose.yml` 起本地 PostgreSQL |
-| `dev` | `DB_URL` 默认 `jdbc:postgresql://127.0.0.1:5432/agent` | 开启 | 开启 | 服务器同机联调 |
+| `local`（默认） | `DB_URL` 默认 `jdbc:postgresql://127.0.0.1:${POSTGRES_PORT:5432}/agent`，账号取 `POSTGRES_USER`、口令取 `POSTGRES_PASSWORD` | 开启 | 开启 | 日常开发，配合根 Compose 的 `postgres`（模板宿主端口 15432） |
+| `dev` | `DB_URL` 默认同上，读根 `.env` | 开启 | 开启 | 服务器同机联调 |
 | `prod` | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` 无默认值，缺失即启动失败 | 开启 | 关闭 | 生产发布，受 `ProdConfigGuard` 前置校验 |
 | `test` | 默认指向 `agent_test`，`initialization-fail-timeout: -1` 让连接池不在启动期建连 | **关闭** | 开启 | 自动化测试，不依赖真实数据库 |
 
@@ -55,7 +55,7 @@ Maven Wrapper 已锁定 Maven 版本（`.mvn/wrapper/`），无需本地安装 M
 | `MODEL_CRED_MASTER_KEY` / `MODEL_CRED_MASTER_KEYS` / `MODEL_CRED_KEY_VERSION` | BYOK 凭证加密主密钥与轮换密钥环 | 启用 BYOK 时缺失即启动失败 |
 | `INTERNAL_AUTH_CLIENT_ID` / `INTERNAL_AUTH_CLIENT_SECRET` / `INTERNAL_AUTH_TOKEN_TTL` | Agent 换取服务令牌的客户端凭据 | 启用模型运行时后密钥为空即启动失败 |
 | `MODEL_TASK_TTL` / `MODEL_QUOTA_DAILY_REQUESTS` / `MODEL_DEFAULT_KEY` | 任务 TTL、每日额度、Auto 默认模型 | 影响内部接口行为 |
-| `MODEL_RECONCILE_*` / `MODEL_TASK_CLEANUP_*` | 对账与任务清理定时任务 | cron 为 UTC，含空格必须整体加引号 |
+| `MODEL_RECONCILE_*` / `MODEL_TASK_CLEANUP_*` | 对账与任务清理定时任务 | cron 为 UTC；yaml 里加引号，根 `.env` 里**不要**加引号（`.env` 由 properties 解析） |
 | `MODEL_GATEWAY_BASE_URL` / `MODEL_GATEWAY_MASTER_KEY` | LiteLLM 网关地址与 master key | 凭证探测经网关完成，Java 不再持有 Provider 默认地址 |
 
 `test` profile 把测试用 JWT 密钥对、引导账号口令与 CORS 白名单写死在 `application-test.yaml`，所以跑测试不需要外部环境变量。测试密钥仅供本地/CI，禁止复用到生产。

@@ -2,11 +2,11 @@
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | Accepted（附质量门禁，未通过则回退为 Proposed） |
+| 状态 | Superseded（2026-11-17 起求解器路径已移除，LLM 选型为唯一路径；本文保留决策记录） |
 | 决策日期 | 2026-11-16 |
 | 相关 | [ADR 0027](./0027-pc-config-decisions.md) §1、[重构方案](../planning/pc-config-agent-refactor-plan-v1.md)、[PC 配置术语](../pc-config/glossary.md) |
 
-过渡期：本决策推翻 [PC 配置术语](../pc-config/glossary.md) 中「求解器不允许 LLM 选择最终 SKU」的表述。`AGENT__PC_SELECTION_MODE` 默认 `llm`；设为 `solver` 可显式回到确定性求解器路径，两条路径不得在同一次回合内混用或互相冒充。
+过渡期方案：本决策推翻 [PC 配置术语](../pc-config/glossary.md) 中「求解器不允许 LLM 选择最终 SKU」的表述。当年引入的 `AGENT__PC_SELECTION_MODE` 用于在 `llm` 与 `solver` 两条路径间切换；该配置项与求解器路径已于 2026-11-17 一并移除，仅保留 `BuildSolver` 作为离线基线对照臂。
 
 ## 背景
 

@@ -1,97 +1,87 @@
-# PC 配置市场报价管理
+# 市场报价管理
 
 | 项 | 内容 |
 | --- | --- |
-| 状态 | 已验证（对照 2026-11-08 `offers.json` 与入库脚本） |
-| 最后核验 | 2026-11-08 |
-| 权威性 | 本文件描述人工核验报价的选品口径、录入与校验流程；字段结构见 [data.md](./data.md)，术语见 [glossary.md](./glossary.md) |
-| 主要证据 | `scripts/pc-config/ingest_offers.py`、`scripts/pc-config/tests/test_offers.py`、[offers.template.json](./offers.template.json)、`pc-config/offers.json` |
+| 适用范围 | 运行时 `offers.json` 的来源、平台观测价口径、核验升级与发布 |
+| 状态 | Current |
+| 最后更新 | 2026-11-17 |
+| 权威性 | 本文描述报价运营流程；字段结构见 [data.md](./data.md)，接口字段以 [docs/api-contract.md](../api-contract.md) §5.7 为准 |
+| 主要证据 | `scripts/data-cleaning/build_offers_from_shortlist.py`、`scripts/data-cleaning/stage4-price-observations.jsonl`、`application-service/src/main/resources/pc-config/offers.json` |
 
-> **2026-11-12 前置说明**：当前运行时 `offers.json` 由 `scripts/data-cleaning/build_offers_from_shortlist.py` 从 Stage 4 短名单自动生成（402 条，`data_status=PLATFORM_OBSERVED_ONLY`），本文件描述的人工核验流程尚未在这 402 条上执行过。本流程适用于后续把部分条目升级为 `OWNER_VERIFIED` 时使用；执行前请先确认 `catalog_version` 与自动生成的版本一致。
+## 1. 结论先行
 
-## 1. 选品口径
+- 当前报价 **402 条全部为 `PLATFORM_OBSERVED`**，`data_status=PLATFORM_OBSERVED_ONLY`，没有任何 `OWNER_VERIFIED`。
+- 平台观测价只能作为参考价展示，不能表述为人工核验价。
+- 同一硬件允许多条报价；运行时取最低有效报价，价格相同按 `offer_id` 升序。
+- `offers.json` 是价格唯一运行时出口，`catalog.json` 的参考价不参与预算。
+- 购买链接不是入库门槛；链接只用于来源展示。
 
-- 收录标准零售型号即可，**不限定店铺类型**：第三方店铺、旗舰店、自营店都可用于参考价。
-- 不再因为标题含「二手」「套装」「配件」「海淘」等字样在采集阶段排除；价格可用性由 `price_basis` 与匹配置信度分层控制，见 §3。
-- CPU 只收**盒装 / 原包**，不收散片；主板、显卡、内存、存储、散热、机箱、电源按标准零售型号收录。
-- 优先与 `catalog.json` 的 `model_name` 完全一致的型号。若只能买到同系列升级版或同芯片的其他品牌，必须在 `notes` 写明差异，例如当前 5060 Ti 收七彩虹战斧版、9070 XT 收华硕 PRIME、B850 收 MAX WIFI II。
-- 价格只记录页面可见的到手价，币种固定 `CNY`；满减、满赠、会员价不折算，`price_type` 如实选择 `NORMAL` / `PROMO` / `MEMBER`。
-- 同一硬件允许多条报价，`hardware_id` 保持不变，`offer_id` 用 `-01`、`-02` 后缀区分。
-- **购买链接不是入库门槛**：`purchase_url` 可以为空，也可以指向搜索页或店铺页；链接只用于来源展示，不参与价格有效性判断。
+## 2. 价格来源
 
-## 2. 采集与核验流程
+| `price_source` | 含义 | 用户侧表述 |
+| --- | --- | --- |
+| `OWNER_VERIFIED` | 人工核验价，`match_status=VERIFIED` | 已核验价 |
+| `PLATFORM_OBSERVED` | 平台检索/估算得到的参考价，`match_status=OBSERVED` | 参考价（平台观测，未经人工核验） |
+| `MOCK_DEMO` | 演示占位价 | 演示价格，非真实在售 |
 
-1. 用浏览器打开商品页，核对型号、规格、SKU、页面价与活动说明；店铺类型与链接形式不作要求。
-2. 在 [offers.template.json](./offers.template.json) 中填写条目；不确定或未采购的条目保持 `match_status=PENDING`。
-3. 从仓库根运行 `python scripts/pc-config/ingest_offers.py`；可先用 `--dry-run` 只校验不写文件。
-4. 脚本读取 `catalog.json` 校验 `hardware_id`，通过后覆写 `application-service/src/main/resources/pc-config/offers.json`。
-5. 重启 application-service，让启动期夹具缓存重新加载；求解快照不会回填。
+`verified_offer_count` 只统计 `OWNER_VERIFIED`；`PLATFORM_OBSERVED` 与 `MOCK_DEMO` 都不计入。`BuildResult.demoOfferCount` 统计非 `OWNER_VERIFIED` 条目，因此当前快照中该值会把平台观测价一并计入，不能据此判定「演示价」。
 
-脚本默认路径：模板 `docs/pc-config/offers.template.json`、目录 `application-service/src/main/resources/pc-config/catalog.json`、输出 `.../pc-config/offers.json`，可用 `--template`、`--catalog`、`--output` 覆盖。
+## 3. 运行时生成链路
 
-## 3. 脚本校验规则
+```text
+data/pc-config/cleaning/stage4-shortlist.jsonl          （候选与价格来源）
+  → stage4-price-observations.jsonl                     （人工/脚本追加价格观测）
+  → apply_price_observations.py
+  → stage4_price_fallback.py
+  → export_runtime_catalog.py        → catalog.json
+  → build_offers_from_shortlist.py   → offers.json
+```
 
-| 规则 | `VERIFIED` | `MOCK` |
+- `build_offers_from_shortlist.py` 读取短名单，`price_cny × 100 → price_fen`，并写整体 `data_status`。
+- 当前短名单 402 条，因此 catalog 与 offers 都是 402 条，一一对应。
+- `scripts/pc-config/ingest_offers.py` 是旧入口，不在运行时链路中；不要在未确认的情况下用它覆盖现有 `offers.json`。
+
+## 4. 录入与核验规则（升级 `OWNER_VERIFIED` 时）
+
+| 规则 | `OWNER_VERIFIED` | `MOCK_DEMO` |
 | --- | --- | --- |
 | `hardware_id` | 必须存在于 catalog | 必须存在于 catalog |
 | 必填文本 | `offer_id`、`category`、`platform`、`seller`、`title` | `offer_id`、`category`、`title` |
-| 价格 | `price_cny > 0`，最多两位小数，换算为整数分 | 同左 |
-| `price_type` | 仅 `NORMAL` / `PROMO` / `MEMBER` | 强制 `NORMAL` |
-| 日期 | `verified_at`、`valid_until` 为 `YYYY-MM-DD`，且后者不早于前者 | 不校验，强制 `null` |
-| 链接 | 可空；填写时只校验 `http(s)` 协议与主机名 | 可空，不校验 |
+| 价格 | `price_cny > 0`，最多两位小数，换算整数分 | 同左 |
+| `price_type` | `NORMAL` / `PROMO` / `MEMBER` | 强制 `NORMAL` |
+| 日期 | `verified_at`、`valid_until` 为 `YYYY-MM-DD`，后者不早于前者 | 强制 `null` |
+| 链接 | 可空；非空时只接受 `http(s)` | 可空 |
 | 输出标记 | `match_status=VERIFIED`、`price_source=OWNER_VERIFIED` | `match_status=MOCK`、`price_source=MOCK_DEMO` |
 
-> 链接不再要求 https、不禁止 PCPartPicker、不做店铺白名单、可达性与 SKU 唯一性校验。只有 `purchase_url` 会被前端当链接渲染，因此保留「非空时必须是 http(s)」这一条安全校验，防止 `javascript:` 注入。
+- CPU 只收盒装/原包，不收散片；其余类别按标准零售型号收录。
+- 型号必须与 `model_name` 对齐；只能买到同系列升级版或同芯片其他品牌时，在 `notes` 写明差异。
+- 价格只记录页面可见到手价，币种固定 `CNY`；满减、会员价按 `price_type` 如实选择。
+- 任一条目校验失败时脚本应整体拒绝写文件，不产生半套报价。
 
-`PENDING` 条目被跳过并计入 `skipped_pending`。任一条目校验失败时脚本打印全部问题并以退出码 1 结束，不写文件；没有有效报价时拒绝覆盖 `offers.json`。`offer_id` 重复同样报错。
+## 5. 升级与复核步骤
 
-## 4. 匹配陷阱
+1. 打开商品页，核对型号、规格、SKU、页面价与有效期。
+2. 在 `stage4-price-observations.jsonl` 追加观测；修正历史值用 `"overwrite": true`。
+3. 重新运行 §3 的短名单与 offers 生成脚本，确保 `catalog_version` 与 catalog 一致。
+4. 用 `--dry-run`（如脚本支持）或测试校验 `hardware_id`、价格、日期与重复 `offer_id`。
+5. 重启 application-service，使夹具缓存重新加载；旧快照不回填。
+6. 只有人工逐件核验完成后，`data_status` 才可能变为 `OWNER_VERIFIED`。
 
-采集阶段不再按标题关键词排除二手、套装、配件与海淘商品；这些链接可以进入候选池，但**不能直接作为单型号成交价**。价格可信度改由两层控制：
+## 6. 匹配陷阱
 
-1. `price_basis`：只有 `ITEM_DETAIL`、`SKU_PANEL` 与 `EXACT_MATCH` 可作为可采购参考价；`BUCKET`、`FALLBACK`、`WEB_ANCHOR` 一律降级为区间参考价。
-2. `confidence`：混卖多型号、多显存、多芯片组的链接标记为 `MULTI_MODEL`，不参与单型号定价。
+- 型号后缀噪声（`GRE`、`O8G` 等）可能对应不同芯片或显存版本，必须核对 `chipset` 与 `vram_gb`。
+- 外接显卡盒、整机与套装价格不是单件价；若用于定价，必须在 `notes` 标注并降级。
+- 同型号多来源价格差异过大时，不取平均值伪装成观测价；保留来源与日期，交给人工复核。
 
-仍需人工留意的只剩型号歧义：
-
-- 型号后缀噪声：`GRE`、`O8G` 等系列或超频后缀可能对应不同芯片/显存版本；必须核对 `chipset` 与 `vram_gb`，不能只看标题前缀。
-- 外接显卡盒、整机与套装的价格不是单件价；如果它们的链接被用于定价，必须在 `notes` 标注并降级为估计价。
-
-## 5. 当前 10 条已核验报价
-
-全部 `verified_at=2026-11-08`、`valid_until=2026-11-15`，`price_type=NORMAL`。
-
-| 类别 | 目录型号 | 价格（元） | `platform_sku` | 店铺 |
-| --- | --- | --- | --- | --- |
-| CPU | AMD Ryzen 5 9600X | 1269 | 100110580225 | AMD京东自营旗舰店 |
-| CPU | AMD Ryzen 7 9800X3D | 2999 | 100147630258 | AMD京东自营旗舰店 |
-| CPU | Intel Core Ultra 5 245K | 1229 | 100145512964 | 英特尔京东自营旗舰店 |
-| CPU | Intel Core Ultra 7 265K | 1869 | 100120799071 | 英特尔京东自营旗舰店 |
-| GPU | GeForce RTX 5060 Ti 16GB | 6649 | 100160762603 | 七彩虹京东自营旗舰店 |
-| GPU | GeForce RTX 5070 Ti 16GB | 13999 | 100200707220 | 微星京东自营旗舰店 |
-| GPU | Radeon RX 9060 XT 16GB | 5199 | 100216218685 | 撼讯京东自营旗舰店 |
-| GPU | Radeon RX 9070 XT 16GB | 7299 | 100193357148 | 华硕京东自营旗舰店 |
-| MOTHERBOARD | MSI MAG B850 TOMAHAWK MAX WIFI | 1849 | 100430896544 | 微星京东自营旗舰店 |
-| MOTHERBOARD | Asus TUF GAMING B860M-PLUS WIFI | 1299 | 10134850633266 | 华硕官方旗舰店 |
-
-其中 9 条为京东自营，1 条为品牌官方旗舰店；RTX 5070 Ti 页面价明显高于参考价，已记录待复核。
-
-## 6. 18 条 MOCK 说明
-
-18 条 MOCK 覆盖主板 2、内存 4、存储 3、散热 3、机箱 3、电源 3，均为 `platform=MOCK_DEMO`、`seller=演示数据`、`purchase_url=null`、`verified_at=null`、`valid_until=null`、`match_status=MOCK`。它们只为打通端到端链路，价格是占位值，不能用于采购或预算结论；替换前会持续参与演示求解。
-
-## 7. 复核与替换步骤
-
-1. 先检查 `valid_until`，临近或已过期的条目重新打开商品页核验。
-2. 更新 `price_cny`、`platform_sku`、`title`、`verified_at`、`valid_until`，必要时补充 `notes`。
-3. 把 MOCK 条目改为 `match_status=VERIFIED`，补齐 `platform`、`seller`、`shop_name`、日期与 `price_type`；`purchase_url` 按需填写，可留空。
-4. 先跑 `python scripts/pc-config/ingest_offers.py --dry-run`，确认无校验问题再正式运行。
-5. 重启 Java 并复跑一次求解；MOCK 归零后 `data_status` 才会从 `MIXED_DEMO` 变为 `OWNER_VERIFIED`。
-
-## 8. 【未实现】
+## 7. 未实现
 
 - 自动抓取、定时复核、价格历史与降价提醒。
-- 价格异常检测（如明显偏离同型号多源中位价）与核验截图留存。
-- 过期报价的自动清理或状态流转。
+- 价格异常检测与核验截图留存。
+- 过期报价自动清理与状态流转。
+- 管理端报价维护页面。
 
-> `purchase_url` 的可达性、SKU 唯一性与卖家白名单校验**不再列为待办**：链接真实性已明确不属于价格数据质量目标。
+## 8. 相关文档
+
+- 数据结构与可用性：[data.md](./data.md)
+- 兼容规则：[compatibility-rules.md](./compatibility-rules.md)
+- 治理报告：[hardware-data-governance-report.md](../quality/hardware-data-governance-report.md)

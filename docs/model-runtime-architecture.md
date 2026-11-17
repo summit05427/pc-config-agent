@@ -185,7 +185,7 @@ Java（`agent` 库，Flyway V7+）：
 | 表 | 关键列 | 说明 |
 | --- | --- | --- |
 | `providers` | `code`(PK)、`display_name`、`protocol`、`default_base_url`、`enabled`、`created_at` | 静态种子（OpenAI / DeepSeek / Qwen / Volcengine / Gemini 走 `openai-compatible`，Anthropic 走 `anthropic-messages`，V22）；设置页供应商选择器以本表为权威；V14 已清空写死的第三方域名，新连接地址来自配置 `app.model.provider-default-base-urls` 或用户输入 |
-| `models` | `id`、`provider_code`、`model_key`、`display_name`、`context_window`、`capabilities`(jsonb)、`capability_source`、`verified_at`、`enabled`、`byok_only`(V22) | 目录唯一权威；`byok_only=true` 的条目只在用户接入对应 Provider 后可见 |
+| `models` | `id`、`provider_code`、`model_key`、`display_name`、`context_window`、`capabilities`(jsonb)、`capability_source`、`verified_at`、`enabled`、`byok_only`(V22) | 目录唯一权威；`byok_only=true` 的条目只在用户接入对应 Provider 后可见；`byok_only=false` 的平台条目还要求 `ManagedModelAvailability` 真实探测平台密钥可用 |
 | `provider_connections` | `id`、`user_id`、`provider_code`、`base_url`、`status`、`last_verified_at` | Phase 1 每 Provider 每用户 1 条 |
 | `provider_credentials` | `id`、`connection_id`、`user_id`、`credential_type`、`ciphertext`、`key_version`、`masked_hint`、`status`、`created_at`、`revoked_at` | 只存密文；`key_version` 对应密钥环中的版本，支持多版本兼容解密 |
 | `model_runtime_tasks` | `id`、`user_id`、`thread_id`、`requested_model`、`resolved_model`、`credential_source`、`credential_id`、`status`、`expires_at`、`created_at`、`leased_at`(V13)、`base_url`(V13) | 凭证授权凭据；`leased_at` 非空即表示已一次性兑换，条件 UPDATE 兜底并发重复兑换；`base_url` 为 BYOK 任务创建时的地址快照 |

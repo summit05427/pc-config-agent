@@ -1,137 +1,70 @@
-# PC 配置领域
+# PC 配置领域术语
 
-本上下文描述"从自然语言需求到一套可购买 PC 配置"的业务语言。它只定义概念，不描述实现；跨端通用术语见根 `GLOSSARY.md` 与 `docs/README.md` §3。
+| 项 | 内容 |
+| --- | --- |
+| 适用范围 | PC 配置模块的领域语言与中文命名 |
+| 状态 | Current |
+| 最后更新 | 2026-11-17 |
+| 权威性 | 本文只定义概念，不描述实现；跨端通用术语见 [docs/README.md](../README.md) §3 与根 `GLOSSARY.md` |
 
-## Language
+## 1. 数据与商品
 
-**硬件（Hardware）**：
-一个标准硬件实体，具有唯一 `hardware_id`、类别、品牌、型号与规格。它是跑分与商品的挂载点，不等同于任何平台上的在售商品。
-_Avoid_: 商品、SKU、产品
+**硬件（Hardware）**：具有唯一 `hardware_id`、类别、品牌、型号与规格的标准实体。它是跑分与商品的挂载点，不等同于任何平台商品。避免说「商品」「SKU」。
 
-**候选硬件（Candidate Hardware）**：
-进入本次求解范围、允许被组合的硬件子集。候选集由选品脚本从全量数据中筛出，不是全量硬件库。
-_Avoid_: 硬件池、库存
+**候选硬件（Candidate Hardware）**：本轮交给 LLM 的硬件子集，来自 Java 候选接口；只在本次推荐内有效。避免说「库存」。
 
-**候选池（Candidate Pool）**：
-一次求解中按结构化需求过滤后的硬件集合，用 `candidate_pool_id` 标识。它属于单次求解，不是持久化业务实体。
-_Avoid_: 候选列表、硬件集合
+**跑分（Benchmark）**：硬件在特定基准下的性能记录，含类型、分数、来源与匹配置信度。它是性能代理指标，不等于实际帧率或专业软件得分。
 
-**发布候选池（Published Pool）**：
-由数据治理流程按生命周期与推荐资格规则离线生成的持久化硬件清单，用 `pool_id` 与 `pool_version` 标识，分为标准、预算、旧平台升级、归档四类。它是 Stage 9 商品映射的输入，不是某次求解的中间结果。
-_Avoid_: 候选池、硬件池（与"候选池"混用会产生口径歧义）
+**商品 / 报价（Marketplace Offer）**：某硬件在某个平台上的销售记录，含平台、商家、标题、人民币分价、链接、来源与有效期。同一硬件可有多条。
 
-**跑分（Benchmark）**：
-某个硬件在特定基准下的性能记录，包含类型、分数、来源与匹配置信度。跑分是性能代理指标，不等于实际游戏帧率或专业软件得分。
-_Avoid_: 性能分、评分、测试结果
+**价格来源（Price Source）**：`OWNER_VERIFIED`（人工核验）、`PLATFORM_OBSERVED`（平台观测/参考价）、`MOCK_DEMO`（演示占位价）。只有 `OWNER_VERIFIED` 计入已核验报价。
 
-**商品（Marketplace Offer）**：
-某个标准硬件在中国区某个平台上的实际销售记录，包含平台、商家、标题、人民币分价、购买链接与核验时间。同一硬件可以有多个商品。
-_Avoid_: 硬件、SKU、链接
+**核验报价（Verified Quote）**：`price_source=OWNER_VERIFIED` 且报价可用的商品价格。当前运行时没有核验报价。
 
-**核验报价（Verified Quote）**：
-经过人工核验、`match_status=VERIFIED` 且在有效期内的商品价格。只有核验报价才能参与严格预算计算。
-_Avoid_: 参考价、估算价、市场价
+## 2. 方案与流程
 
-**价格类型（Price Type）**：
-报价的适用条件，取值为普通价、促销价或会员价。不同价格类型不得混用为"所有人都能拿到的价格"。
-_Avoid_: 优惠价、折扣
+**配置方案（PC Build）**：恰好包含 CPU、主板、内存、显卡、电源、机箱、散热、存储各一件的完整组合，用 `build_id` 标识。
 
-**配置方案（PC Build）**：
-恰好包含 CPU、GPU、主板、内存、存储、散热器、机箱、电源各一件的完整组合，用 `build_id` 标识。
-_Avoid_: 配置单、装机单、方案
+**方案提案（Build Proposal）**：Agent LLM 输出的 8 类 `hardware_id` 组合，尚未经 Java 组装校验。它与配置方案不是同一实体。
 
-**配置结果（Build Result）**：
-求解器返回并通过校验的配置方案及其总价、预算报告、兼容性报告、跑分快照与商品快照。它是 `response_generator` 的唯一结构化输入。
-_Avoid_: 推荐结果、答案
+**配置结果（Build Result）**：Java `compose` 成功后的方案，含总价、预算状态、兼容性报告、跑分快照、报价快照与逐件理由。它是渲染层的唯一结构化输入。
 
-**配置快照（Build Snapshot）**：
-配置结果在创建时刻的不可变副本，用于回放、对比、瓶颈分析与硬件替换。它一经创建不再更新。
-_Avoid_: 历史记录、缓存
+**配置快照（Build Snapshot）**：配置结果在创建时刻的不可变副本，写入 `pc_build_snapshots`，只追加不更新。
 
-**求解器（Build Solver）**：
-在候选池上执行确定性搜索、兼容性剪枝、预算剪枝与场景评分的业务组件。它是基线求解器与离线对照，默认不拥有最终选型权，见 [ADR 0028](../adr/0028-llm-led-build-selection.md)。
-_Avoid_: 推荐模型、AI 选配
+**选型决策权（Selection Authority）**：决定「选哪一个 `hardware_id`」的权力，归 Agent 侧 LLM；只覆盖取舍，不含事实判定。
 
-**选型决策权（Selection Authority）**：
-一次推荐中决定"选哪一个 `hardware_id`"的权力。它只覆盖取舍，不包含定义事实。
-_Avoid_: 决策、选型结果
+**事实权威（Fact Authority）**：对型号、规格、跑分、报价、链接、预算与兼容性结论的最终判定权，归 Java。选型方只能引用，不能改写。
 
-**事实权威（Fact Authority）**：
-对型号、规格、跑分、报价、链接、预算与兼容性结论的最终判定权。选型决策权拥有者只能引用它，不能改写它。
-_Avoid_: 数据源、权威数据
+**配置策略（Build Strategy）**：`build_strategist` 产出的方向性建议，含策略标识、预算倾向、组件优先级与取舍原则；不给出具体型号或金额。
 
-**候选召回集（Retrieved Candidate Set）**：
-一次推荐中为选型召回的本轮硬件子集，是选择域的上界。它不是候选池，也不是发布候选池。
-_Avoid_: 候选列表、候选池
+**兼容性报告（Compatibility Report）**：逐条记录 9 条规则结论的结构化报告，状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。`UNKNOWN` 不得当作通过。
 
-**方案提案（Build Proposal）**：
-尚未通过 Java 校验的八类硬件组合，由选型决策权持有者产出。它与配置方案（PC Build）不是同一实体。
-_Avoid_: 配置方案、草稿方案
+**预算状态（Budget Status）**：`WITHIN_BUDGET` 或 `NO_BUDGET`；超预算直接失败，不返回方案。
 
-**兼容性报告（Compatibility Report）**：
-逐条记录硬件组合兼容性检查结果的结构化报告，状态为通过、警告、失败或未知。未知不得当作通过。
-_Avoid_: 兼容性说明、检查结果
+**澄清（Clarification）**：结构化需求缺少关键信息时的追问状态，不是无解也不是错误。
 
-**预算报告（Budget Report）**：
-记录总价、预算上限与预算状态的结构化报告。所有金额以人民币分为单位。
-_Avoid_: 价格分析、费用说明
+**工作流状态（Workflow Status）**：图当前阶段结果，取值为 `parsed` / `clarification` / `invalid` / `validated` / `retrieved` / `no_candidates` / `success` / `retry` / `architect_failed` / `aborted` / `upstream_error`。
 
-**硬约束（Hard Constraint）**：
-必须满足否则方案无效的条件，例如八类齐全、严格预算、已知兼容性、用户明确要求"必须使用 AMD CPU"。
-_Avoid_: 强偏好、必要偏好
+**结构化失败（Structured Failure）**：`build_failure` 中的失败类型、阶段与可修正标记；用于驱动 `build_architect` 的有限修正，不直接展示给用户。
 
-**软偏好（Soft Preference）**：
-可以权衡并需要在推荐理由中解释的条件，例如品牌优先、静音、外观、升级空间。
-_Avoid_: 弱约束、可选条件
+**工具事件（Tool Event）**：节点累积的工具调用进度，由 `turn.py` 翻译成 `tool_call` / `tool_result`；不包含工具原始输出。
 
-**场景（Usage Scenario）**：
-需求的主用途分类，取值为游戏、视频剪辑、编程开发、工作站或通用。场景决定评分权重，权重存放在可配置策略中，不写死在 Prompt 里。
-_Avoid_: 用途、需求类型
+**无解（Infeasible）**：在硬约束下不存在可用完整配置。无解必须返回结构化原因，不得放宽预算、删除类别或编造价格。
 
-**结构化需求（Structured Requirement）**：
-从自然语言解析出的、可被代码校验的需求对象，包含预算区间、场景、硬约束与软偏好。它是求解输入，不是用户原话。
-_Avoid_: 用户意图、提示词
+## 3. 数据治理
 
-**澄清（Clarification）**：
-结构化需求缺少求解必需信息时的追问状态。澄清既不是无解，也不是错误。
-_Avoid_: 追问、补充说明
+**数据质量状态（Data Quality Status）**：`VERIFIED_STRUCTURED` / `PARTIAL` / `BLOCKED`，标记规格是否完整。关键字段缺失时相关兼容规则返回 `UNKNOWN`。
 
-**工作流状态（Workflow Status）**：
-一次配置工作流当前阶段的结果，取值为成功、澄清、无候选、无解、上游不可用。
-_Avoid_: 任务状态、进度
+**治理状态（Governance Status）**：离线治理结论，`VALID` / `INCOMPLETE` / `INVALID` / `CONFLICT`。
 
-**工具事件（Tool Event）**：
-工作流节点对外发布的工具调用进度，映射为既有的工具调用与工具结果事件；不包含工具原始输出。
-_Avoid_: 日志、调试信息
+**生命周期状态（Lifecycle Status）**：`CURRENT` / `MATURE` / `LEGACY` / `DISCONTINUED` / `UNKNOWN`。`UNKNOWN` 不代表不可推荐。
 
-**无解（Infeasible）**：
-在硬约束下不存在任何完整配置的状态。无解时必须返回结构化原因，不得放宽预算、删除硬件或编造价格。
-_Avoid_: 失败、找不到
+**市场状态（Market Status）**：`AVAILABLE` / `UNVERIFIED` / `EOL`；未核验不得写成可购。
 
-**数据质量状态（Data Quality Status）**：
-标记硬件规格是否足够参与求解的状态。关键字段缺失时，相关兼容性检查必须返回未知，而不是跳过规则。
-_Avoid_: 数据状态、完整度
+**推荐资格（Recommendation Status）**：`ELIGIBLE` / `RESTRICTED` / `EXCLUDED` / `ARCHIVED`，由类别规则派生，与生命周期不是等价关系。
 
-**硬件主数据（Hardware Master）**：
-经标准化与治理后、可长期维护的硬件资产全集，用 `hardware_id` 标识，保留原始规格与来源，只增不改语义。它不含价格与购买链接。
-_Avoid_: 硬件库、商品库
+**发布候选池（Published Pool）**：离线治理按生命周期与推荐资格生成的持久化清单，分 standard / budget / legacy / archived 四类；尚未接入运行时。
 
-**治理状态（Governance Status）**：
-数据治理流程对一条硬件记录给出的结论，取值为有效、不完整、无效或冲突。它与数据质量状态、生命周期状态相互独立。
-_Avoid_: 数据质量、质检结果
+**硬件主数据（Hardware Master）**：经标准化治理的硬件全集，用 `hardware_id` 标识；不含价格与购买链接。
 
-**生命周期状态（Lifecycle Status）**：
-描述硬件处于产品代际的哪个阶段，取值包含在售、成熟、旧平台、停产与未知。未知表示无法从可追溯数据判定，不代表不可推荐。
-_Avoid_: 新旧程度、是否过时
-
-**市场状态（Market Status）**：
-描述硬件在当前市场是否可得，取值为可购、不可购与未核验。未核验不得写成可购。
-_Avoid_: 库存、在售情况
-
-**推荐资格（Recommendation Status）**：
-按类别规则决定硬件能否进入发布候选池的结论，取值为可推荐、受限、排除与归档。它与生命周期状态不是等价关系。
-_Avoid_: 是否推荐、推荐等级
-
-**匹配范围（Match Scope）**：
-跑分与硬件建立关联的粒度，取值为单品级或芯片级。显卡跑分按芯片级映射，同一芯片的多个厂商板卡共享一条跑分，不得表述为单卡实测分。
-_Avoid_: 匹配精度、关联方式
+**匹配范围（Match Scope）**：跑分与硬件的关联粒度，`ITEM` 或 `CHIPSET`。显卡按芯片级共享跑分，不得表述为单卡实测分。

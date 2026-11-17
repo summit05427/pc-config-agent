@@ -286,7 +286,7 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 | GET | `/internal/v1/pc/hardware/candidates?category=` | 返回候选硬件摘要，含 `priceFen`（最低可用报价，无报价为 `null`）与 `missingFields`（兼容性关键字段缺失项） |
 | GET | `/internal/v1/pc/hardware/{hardwareId}` | 单条硬件详情，含规格与数据质量状态 |
 | GET | `/internal/v1/pc/benchmarks?category=&hardwareId=` | PassMark 跑分；无数据返回空结果，不猜测分数 |
-| GET | `/internal/v1/pc/offers?category=&hardwareId=&verifiedOnly=` | 报价列表，`verifiedOnly=true` 时只返回 `matchStatus=VERIFIED` |
+| GET | `/internal/v1/pc/offers?category=&hardwareId=&verifiedOnly=` | 报价列表，`verifiedOnly=true` 时只返回 `priceSource=OWNER_VERIFIED` |
 | POST | `/internal/v1/pc/builds/compose` | 按调用方给定的 8 类硬件生成方案并落快照；请求体 `{"components":{八类硬件标识},"budgetMaxFen":可选}` |
 | POST | `/internal/v1/pc/builds/validate` | 复核完整性与兼容性，返回 `checks[]`、`overallStatus`、`ruleVersion` |
 | POST | `/internal/v1/pc/builds/validate-partial` | 任意已选组件子集的部分兼容性校验；不落库、不需用户令牌 |
@@ -301,6 +301,30 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。每条 `checks[]` 额外携带 `riskLevel`（`BLOCKING` / `ADVISORY`）：`BLOCKING` 表示该字段缺失时方案不得标记为完全验证通过，但不阻断生成方案。
 
 `validate-partial` 只执行「依赖类别全部已选」的规则，未覆盖的规则不出现在 `checks[]`；无可执行规则时 `overallStatus=UNKNOWN`，不得当 `PASS`；字段缺失同样返回 `UNKNOWN` 并回填 `missingFields`（形如 `cpu.socket`）。状态集合与 `/validate` 相同，因此 PSU 余量不足等情况仍返回 `WARNING`。
+
+#### 5.7.1 候选、跑分与报价响应字段
+
+| 接口 | `data` 字段 |
+| --- | --- |
+| `GET /hardware/candidates` | `catalogVersion`、`total`、`list[]`；条目含 `hardwareId`、`category`、`brand`、`modelName`、`displayName`、`specifications`、`specSummary`、`dataQualityStatus`、`lifecycleStatus`、`recommendationStatus`、`priceFen`（最低可用报价，无报价为 `null`）、`missingFields` |
+| `GET /hardware/{hardwareId}` | 单个硬件对象，字段同上；不存在返回 404 `40301` |
+| `GET /benchmarks` | `total`、`list[]`；条目含 `hardwareId`、`benchmarkType`、`score`、`secondaryScore`、`rankNo`、`samples`、`matchMethod`、`matchConfidence`、`sourceName` |
+| `GET /offers` | `dataStatus`、`priceUnit`（固定 `CNY_FEN`）、`verifiedOfferCount`、`mockOfferCount`、`total`、`list[]`；条目含 `offerId`、`hardwareId`、`category`、`matchStatus`、`priceFen`、`priceType`、`priceSource`、`verifiedPrice`、`platform`、`seller`、`shopName`、`title`、`platformSku`、`purchaseUrl`、`verifiedAt`、`validUntil`、`notes` |
+
+`verifiedOfferCount` 只统计 `priceSource=OWNER_VERIFIED`；`PLATFORM_OBSERVED` 与 `MOCK_DEMO` 都不计入已核验，`mockOfferCount` 实际返回「非 `OWNER_VERIFIED`」条数。参数 `category` / `hardwareId` 均可选，未知 `category` 返回 400 `10001`。
+
+#### 5.7.2 `compose` / `validate` 响应结构
+
+| 对象 | 字段 |
+| --- | --- |
+| `build` | `buildId`、`requirements`、`components[]`、`totalPriceFen`、`budgetMaxFen`、`budgetStatus`、`compatibilityReport`、`solverVersion`、`compatibilityRuleVersion`、`scoringVersion`、`catalogVersion`、`offerDataStatus`、`verifiedOfferCount`、`demoOfferCount`、`componentReasons[]`、`reasonSummary`、`createdAt` |
+| `requirements` | `budgetMaxFen`、`scenario`、`workloadProfile`、`renderMode`、`scoringVersion`、`preference`、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers` |
+| `components[]` | `category`、`hardwareId`、`brand`、`modelName`、`specSummary`、`imageUrl`、`title`、`priceFen`、`priceSource`、`priceType`、`verifiedPrice`、`purchaseUrl`、`platform`、`seller`、`offerId`、`matchStatus`、`verifiedAt`、`validUntil`、`benchmarkType`、`benchmarkScore` |
+| `componentReasons[]` | `hardwareCategory`、`hardwareId`、`reason`、`scoreContribution`、`priceFen`；理由由 Java 确定性生成 |
+| `compatibilityReport` | `ruleVersion`、`overallStatus`（`PASS`/`WARNING`/`FAIL`/`UNKNOWN`）、`hasFailure`、`checks[]`；check 含 `ruleId`、`ruleName`、`status`、`message`、`riskLevel`、`hardwareIds[]` |
+| `budgetStatus` | `WITHIN_BUDGET` / `NO_BUDGET`；超出预算直接失败，不返回方案 |
+
+`compose` 失败语义：缺类别或类别不符 400 `40303`、任一硬件无可用报价 409 `40307`、兼容性硬冲突 422 `40308`、超出预算 422 `40309`；四种失败都不落库。`GET /builds/{buildId}` 不存在或不属于当前用户统一 404 `40302`。
 
 ### 5.8 消息反馈（2026-11-10 已实现）
 
