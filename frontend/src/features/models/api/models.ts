@@ -7,6 +7,9 @@ import type { PageResult } from '@/shared/types/http'
  *
  * `modelKey` 是完整引用 `<provider>:<modelKey>`，可直接作为 Agent 的 `model` 字段。
  */
+/** 凭证来源：平台托管，或用户自带密钥（BYOK） */
+export type ModelCredentialSource = 'MANAGED' | 'BYOK'
+
 export interface ModelCatalogItem {
   provider: string
   modelKey: string
@@ -14,6 +17,8 @@ export interface ModelCatalogItem {
   capabilities: string[]
   /** 上下文窗口未知时服务端返回 null，展示层需自行兜底 */
   contextWindow: number | null
+  /** 该模型本次会使用的凭证来源；旧服务端不返回时按平台托管处理 */
+  credentialSource?: ModelCredentialSource
 }
 
 export interface ModelListQuery {

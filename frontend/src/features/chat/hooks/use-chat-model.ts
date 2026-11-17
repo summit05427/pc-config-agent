@@ -108,8 +108,9 @@ export function useChatModel(options: UseChatModelOptions): UseChatModelResult {
 
     const models = catalogQuery.data?.list ?? []
     const isLoading = catalogQuery.isPending
-    // 加载中先展示禁用的选择器，失败后隐藏，避免它反复出现与消失
-    const isAvailable = catalogQuery.data !== undefined ? models.length > 0 : isLoading
+    // 目录成功后即使为空也要渲染选择器，由组件展示「请先配置 API Key」而不是整体消失；
+    // 只有请求失败（如运行时未启用 404）才隐藏
+    const isAvailable = catalogQuery.data !== undefined ? true : isLoading
 
     return { models, isLoading, isAvailable, modelKey, setModel }
 }

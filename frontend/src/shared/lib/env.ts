@@ -28,6 +28,8 @@ export interface AppEnvConfig {
   readonly useMock: boolean
   /** 生成式 UI 开关，默认关闭；关闭时 OpenUI 相关代码不会进入渲染路径 */
   readonly openUiEnabled: boolean
+  /** 是否展示工具执行轨迹（仅开发排查用）；面向用户的默认视图只保留思考过程 */
+  readonly showExecutionTrace: boolean
 }
 
 const isAppEnv = (value: string): value is AppEnv => APP_ENVS.some((item) => item === value)
@@ -65,6 +67,7 @@ const readEnv = (): AppEnvConfig => {
     apiTimeout: toPositiveNumber(import.meta.env.VITE_API_TIMEOUT, DEFAULT_API_TIMEOUT),
     useMock: import.meta.env.VITE_USE_MOCK === 'true',
     openUiEnabled: import.meta.env.VITE_OPENUI_ENABLED === 'true',
+    showExecutionTrace: import.meta.env.VITE_SHOW_EXECUTION_TRACE === 'true',
   }
 }
 

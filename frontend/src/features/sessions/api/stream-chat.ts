@@ -6,6 +6,7 @@ import { INVALID_RESPONSE_MESSAGE, sendAgentRequest } from './request'
 import type {
   ChatCitation,
   ChatRequest,
+  ChatStage,
   ChatStreamEvent,
   StreamChatOptions,
 } from './types'
@@ -16,13 +17,30 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const toText = (value: unknown, fallback = ''): string =>
   typeof value === 'string' ? value : fallback
 
+const CHAT_STAGES: readonly ChatStage[] = [
+  'parsing',
+  'strategizing',
+  'retrieving',
+  'analyzing',
+  'composing',
+  'validating',
+  'reviewing',
+  'generating',
+]
+
+/** 未知阶段返回 null：宁可忽略该帧，也不能让指示器倒退到错误阶段 */
+const toChatStage = (value: unknown): ChatStage | null =>
+  typeof value === 'string' && CHAT_STAGES.some((stage) => stage === value)
+    ? (value as ChatStage)
+    : null
+
 /**
  * 把服务端引用数组转换为展示结构。
  *
  * 单条引用字段缺失时跳过该条而不是整帧丢弃：检索结果属于增强信息，
  * 解析失败不应影响正文渲染。
  */
-const toCitations = (value: unknown): ChatCitation[] => {
+export const toCitations = (value: unknown): ChatCitation[] => {
   if (!Array.isArray(value)) {
     return []
   }
@@ -76,6 +94,10 @@ const toChatStreamEvent = (message: SseMessage): ChatStreamEvent | null => {
       return { type: 'token', text: toText(data.text) }
     case 'reasoning':
       return { type: 'reasoning', text: toText(data.text) }
+    case 'stage': {
+      const stage = toChatStage(data.stage)
+      return stage ? { type: 'stage', stage } : null
+    }
     case 'tool_call':
       return {
         type: 'tool_call',

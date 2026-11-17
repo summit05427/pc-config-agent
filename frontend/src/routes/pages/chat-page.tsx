@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { lazy, Suspense, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useParams } from '@tanstack/react-router'
+import { PanelRightOpen } from 'lucide-react'
 
 import { useAgentRuntime } from '@/features/chat/hooks/use-agent-runtime'
 import { useChatModel } from '@/features/chat/hooks/use-chat-model'
@@ -10,7 +11,19 @@ import { ChatConversation } from '@/features/chat/components/chat-conversation'
 import { ChatErrorNotice } from '@/features/chat/components/chat-error-notice'
 import { ModelSelector } from '@/features/chat/components/model-selector'
 import { QuickPromptPicker } from '@/features/chat/components/quick-prompt-picker'
+import { useCasePanel } from '@/features/computer-case/hooks/use-case-panel'
 import type { HitlInterrupt } from '@/features/sessions/api'
+import { Button } from '@/shared/ui/button'
+
+/**
+ * 机箱面板依赖 three 与解码器，体积较大，单独拆包：
+ * 窄容器（面板不会展示）或用户隐藏时不下载这部分代码。
+ */
+const ComputerCasePanel = lazy(() =>
+    import('@/features/computer-case/components/computer-case-panel').then((module) => ({
+        default: module.ComputerCasePanel,
+    })),
+)
 
 /** 动作桥已过滤 http/https，这里只负责新窗口打开并阻断来源信息 */
 const openExternalUrl = (url: string): void => {
@@ -43,6 +56,9 @@ function ChatPage({ sessionId, isNewSession }: ChatPageProps) {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const runtimeState = useAgentRuntime()
+    // 机箱面板是否展示由「容器可用宽度 + 用户隐藏偏好」共同决定
+    const caseContainerRef = useRef<HTMLDivElement | null>(null)
+    const casePanel = useCasePanel(caseContainerRef)
 
     const onCanonicalize = useCallback(
         (threadId: string): void => {
@@ -115,8 +131,8 @@ function ChatPage({ sessionId, isNewSession }: ChatPageProps) {
     )
 
     return (
-        <div className="flex h-full min-h-0">
-            <section className="flex min-w-0 flex-1 flex-col bg-background">
+        <div ref={caseContainerRef} className="relative flex h-full min-h-0">
+            <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
                 {/* 顶部标题栏已移除，保留仅供读屏与测试识别的页面标题 */}
                 <h1 className="sr-only">{session.title}</h1>
 
@@ -165,6 +181,34 @@ function ChatPage({ sessionId, isNewSession }: ChatPageProps) {
                     </div>
                 </div>
             </section>
+
+            {casePanel.shouldRenderCase ? (
+                // 代码分包加载期间先占住面板宽度，避免对话区先铺满再被挤回左侧
+                <Suspense
+                    fallback={
+                        <div
+                            className="min-h-0 min-w-[380px] flex-1 border-l border-border bg-canvas"
+                            aria-hidden="true"
+                        />
+                    }
+                >
+                    <ComputerCasePanel onHide={casePanel.hideCase} />
+                </Suspense>
+            ) : null}
+
+            {/* 隐藏后保留恢复入口：窄容器下不展示，避免与对话内容争抢空间 */}
+            {casePanel.canRestoreCase ? (
+                <Button
+                    variant="outline"
+                    size="icon"
+                    className="absolute top-1/2 right-4 z-10 -translate-y-1/2 bg-surface shadow-sm"
+                    aria-label={t('chat.casePanel.show')}
+                    title={t('chat.casePanel.show')}
+                    onClick={casePanel.showCase}
+                >
+                    <PanelRightOpen className="size-4" />
+                </Button>
+            ) : null}
         </div>
     )
 }

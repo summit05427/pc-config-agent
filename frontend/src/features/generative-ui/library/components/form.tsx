@@ -1,3 +1,4 @@
+import { createContext, useContext } from 'react'
 import {
   type ComponentRenderProps,
   defineComponent,
@@ -30,9 +31,16 @@ const FORM_FIELD = z.union([
   RadioGroup.ref,
 ])
 
+/**
+ * HITL 待澄清时由宿主置为 true：澄清表单与生成式表单是双入口，
+ * 同时出现会让用户不知道在哪提交，渲染层直接隐藏 Form。
+ */
+export const FormDisabledContext = createContext(false)
+
 function FormRenderer({ props, renderNode }: ComponentRenderProps<FormProps>) {
+  const isFormDisabled = useContext(FormDisabledContext)
   const fields = props.fields ?? []
-  if (fields.length === 0) {
+  if (fields.length === 0 || isFormDisabled) {
     return null
   }
 

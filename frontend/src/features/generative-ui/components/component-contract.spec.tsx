@@ -45,4 +45,22 @@ describe('组件库渲染契约', () => {
       expect(screen.getAllByRole(expectRole.role)).toHaveLength(expectRole.count ?? 1)
     }
   })
+
+  it('Table 的 image 列渲染缩略图，非 http 地址渲染占位', async () => {
+    const dsl = [
+      'root = Table([',
+      'Col("图片", ["https://cdn.example.com/cpu.jpg", "javascript:alert(1)"], "image"),',
+      'Col("型号", ["CPU A", "CPU B"])',
+      '])',
+    ].join('\n')
+
+    render(<OpenUiRenderer response={dsl} />)
+
+    // 先等表格数据渲染完成，再检查图片单元格
+    expect(await screen.findByText('CPU A')).toBeInTheDocument()
+    const image = document.querySelector('img')
+    expect(image).toHaveAttribute('src', 'https://cdn.example.com/cpu.jpg')
+    // 非法协议不能进入 img src，只能显示占位
+    expect(screen.getByText('—')).toBeInTheDocument()
+  })
 })

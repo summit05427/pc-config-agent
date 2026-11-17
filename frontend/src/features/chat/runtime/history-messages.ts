@@ -1,4 +1,5 @@
 import type { SessionMessage } from '@/features/sessions/api'
+import { toCitations } from '@/features/sessions/api'
 
 import { readBuildResult } from './build-result-cache'
 import { attachToolResult, createRuntimeMessage, serializeArgs } from './message-model'
@@ -82,12 +83,16 @@ export function mapHistoryMessages(
             )
             // 服务端已持久化结果时直接使用；旧数据回退到本轮内存/会话缓存
             const buildResult = item.buildResult ?? readBuildResult(threadId, item.content)
+            // 引用随消息元数据回放；思考正文不落库，只保留「本回合可见」标记
+            const citations = toCitations(item.citations)
             messages.push({
                 ...message,
                 steps,
                 ...(messageId ? { messageId } : {}),
                 ...(buildResult ? { buildResult } : {}),
                 ...(item.hitl ? { hitl: item.hitl } : {}),
+                ...(citations.length > 0 ? { citations } : {}),
+                ...(item.had_reasoning === true ? { hadReasoning: true } : {}),
             })
             return
         }

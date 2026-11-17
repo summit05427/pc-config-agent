@@ -128,7 +128,7 @@ describe('useChatModel', () => {
         expect(toastErrorMock).toHaveBeenCalledTimes(1)
     })
 
-    it('目录为空时隐藏选择器', async () => {
+    it('目录为空时保持选择器可见，用于引导用户配置密钥', async () => {
         catalogState.list = []
 
         const { result } = renderHook(
@@ -142,7 +142,8 @@ describe('useChatModel', () => {
         )
 
         await waitFor(() => expect(result.current.isLoading).toBe(false))
-        expect(result.current.isAvailable).toBe(false)
+        // 空目录仍渲染选择器，由组件展示「配置模型密钥」而不是整体消失
+        expect(result.current.isAvailable).toBe(true)
         expect(result.current.models).toEqual([])
     })
 })

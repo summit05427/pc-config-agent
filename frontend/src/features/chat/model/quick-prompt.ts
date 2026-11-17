@@ -160,7 +160,8 @@ export const QUICK_PROMPT_GROUPS: readonly QuickPromptGroup[] = [
  * 把勾选结果拼成一段完整需求描述。
  *
  * 分组顺序固定为 `QUICK_PROMPT_GROUPS` 的顺序，空分组直接跳过；
- * 分隔符与结尾句全部走 i18n，保证中英文描述都自然。
+ * 分隔符走 i18n，保证中英文描述都自然。
+ * 「说明总价与兼容性」属于系统提示词职责，不写进用户需求，避免同一约束维护两份。
  * 未选择任何选项时返回空串，由调用方保持确认按钮禁用。
  */
 export const buildQuickPrompt = (selectedIds: ReadonlySet<string>, t: TFunction): string => {
@@ -184,5 +185,5 @@ export const buildQuickPrompt = (selectedIds: ReadonlySet<string>, t: TFunction)
   if (lines.length === 0) {
     return ''
   }
-  return `${lines.join(t('chat.quickPick.groupSeparator'))}${t('chat.quickPick.promptTail')}`
+  return lines.join(t('chat.quickPick.groupSeparator'))
 }

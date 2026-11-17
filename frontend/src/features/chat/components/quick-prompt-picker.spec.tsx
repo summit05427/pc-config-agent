@@ -20,9 +20,7 @@ describe('QuickPromptPicker', () => {
 
     await user.click(screen.getByRole('button', { name: '生成描述' }))
 
-    expect(onConfirm).toHaveBeenCalledWith(
-      '预算：8000–12000 元；主要用途：3A 单机游戏、编程开发。请按以上需求推荐一套整机配置，并说明总价与兼容性。',
-    )
+    expect(onConfirm).toHaveBeenCalledWith('预算：8000–12000 元；主要用途：3A 单机游戏、编程开发')
   })
 
   it('互斥组后选覆盖先选，数量不累加', async () => {

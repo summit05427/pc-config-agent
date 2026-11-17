@@ -9,6 +9,7 @@ const STATUS_LABELS: Record<string, string> = {
   ACTIVE: 'settings.model.statusActive',
   UNVERIFIED: 'settings.model.statusUnverified',
   VERIFIED: 'settings.model.statusVerified',
+  INVALID: 'settings.model.statusInvalid',
   REVOKED: 'settings.model.statusRevoked',
 }
 
@@ -16,6 +17,7 @@ const STATUS_DOTS: Record<string, string> = {
   ACTIVE: 'bg-success',
   UNVERIFIED: 'bg-muted-foreground/55',
   VERIFIED: 'bg-success',
+  INVALID: 'bg-destructive',
   REVOKED: 'bg-destructive/70',
 }
 

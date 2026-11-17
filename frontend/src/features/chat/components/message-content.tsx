@@ -13,6 +13,8 @@ export interface MessageContentProps {
   readonly onOpenUrl?: (url: string) => void
   /** 消息含 buildResult 时由 MessageItem 注入，打开固定样式详情面板 */
   readonly onOpenBuildDetail?: () => void
+  /** 本轮存在待澄清中断：屏蔽生成式 Form，只保留 HITL 表单入口 */
+  readonly isHitlPending?: boolean
 }
 
 /**
@@ -29,6 +31,7 @@ export function MessageContent({
   onContinueConversation,
   onOpenUrl,
   onOpenBuildDetail,
+  isHitlPending = false,
 }: MessageContentProps): ReactNode {
   const isOpenUiEnabled = useOpenUiEnabled()
   const splitResult = useMemo(
@@ -66,6 +69,7 @@ export function MessageContent({
             content={segment.content}
             isComplete={segment.isComplete}
             isMessageStreaming={isLive}
+            {...(isHitlPending ? { disableForms: true } : {})}
             {...callbacks}
           />
         ),

@@ -67,6 +67,7 @@ const BUDGET_STATUSES: readonly BuildBudgetStatus[] = [
 const WORKLOAD_PROFILES: readonly BuildWorkloadProfile[] = [
   'GENERAL',
   'GAMING',
+  'MEDIA',
   'VIDEO_EDITING',
   'PROGRAMMING',
   'RENDERING',

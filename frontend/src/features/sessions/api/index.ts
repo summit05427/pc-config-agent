@@ -18,7 +18,7 @@ export {
   setSessionPinned,
 } from './sessions'
 export type { BatchSessionResult } from './sessions'
-export { streamChat } from './stream-chat'
+export { streamChat, toCitations } from './stream-chat'
 export { sessionsListQueryOptions, sessionMessagesQueryOptions } from './queries'
 export type {
   BuildBenchmark,
@@ -34,6 +34,7 @@ export type {
   ChatPreferences,
   ChatRequest,
   ChatResumeRequest,
+  ChatStage,
   ChatStreamEvent,
   HitlField,
   HitlInterrupt,

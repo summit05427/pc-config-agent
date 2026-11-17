@@ -36,9 +36,15 @@ const FLUSH_FALLBACK_MS = 16
  *
  * SSE 一秒可能推送数百个 token，逐条 `publish` 会把主线程切成大量同步渲染；
  * 合并到每帧一次既保留逐字观感，又把渲染预算固定在 60fps 以内。
+ *
+ * 后台标签页会暂停 rAF：此时改用定时器继续写回快照，否则内容全部积压，
+ * 用户切回页面时才会一次性涌现，看起来像「没有流式」。
  */
 const scheduleAnimationFrame = (callback: () => void): (() => void) => {
-    if (typeof requestAnimationFrame === 'function') {
+    const canUseFrame =
+        typeof requestAnimationFrame === 'function' &&
+        (typeof document === 'undefined' || document.visibilityState === 'visible')
+    if (canUseFrame) {
         const handle = requestAnimationFrame(callback)
         return () => cancelAnimationFrame(handle)
     }
@@ -354,6 +360,11 @@ export class AgentRuntime {
                 return
             case 'reasoning':
                 this.queueReasoning(event.text)
+                return
+            case 'stage':
+                // 阶段与工具事件同批返回时也要先刷新：指示器不能停在旧阶段
+                this.flushPending()
+                this.updateAssistant((message) => ({ ...message, stage: event.stage }))
                 return
             case 'tool_call':
                 // 工具事件必须晚于之前的正文，先同步写回缓冲

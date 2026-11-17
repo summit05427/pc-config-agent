@@ -145,12 +145,16 @@ httpClient.interceptors.response.use(
       )
     }
 
+    // 非 2xx 也带 Java 统一信封：优先透传服务端 message（如 422 的凭证被拒原因），
+    // 否则 422/502 这类未登记状态只能落到「请求失败，请稍后重试」，用户无法定位问题
+    const serverMessage = error.response?.data?.message
     const message =
-      error.code === TIMEOUT_ERROR_CODE
+      (typeof serverMessage === 'string' && serverMessage.trim()) ||
+      (error.code === TIMEOUT_ERROR_CODE
         ? TIMEOUT_ERROR_MESSAGE
         : status
           ? getHttpErrorMessage(status)
-          : NETWORK_ERROR_MESSAGE
+          : NETWORK_ERROR_MESSAGE)
 
     // 错误分支的 config 不在 401 块作用域内，需要单独读取才能尊重调用方的 silent 意图
     const requestConfig = error.config as HttpClientConfig | undefined
@@ -161,7 +165,8 @@ httpClient.interceptors.response.use(
     return Promise.reject(
       new ApiError(message, {
         status,
-        code: error.code,
+        // 非 2xx 也回传服务端业务码，调用方才能按 40219 等稳定错误码分支处理
+        code: error.response?.data?.code ?? error.code,
         requestId: readHeader(error.response?.headers, REQUEST_ID_HEADER),
         cause: error,
       }),

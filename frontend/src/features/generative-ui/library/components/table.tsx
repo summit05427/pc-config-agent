@@ -16,25 +16,63 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { z } from 'zod'
 
+import { isSafeOpenUrl } from '../actions'
+
 /** 单页行数上限：模型生成的大表在容器内翻页，避免一次撑高整条消息 */
 const DEFAULT_PAGE_SIZE = 10
 
+/** 单元格只承载基础类型；图片列用 URL 字符串，由渲染层决定是否画成缩略图 */
 const cellSchema = z.union([z.string(), z.number(), z.boolean()])
+
+type CellValue = z.infer<typeof cellSchema>
 
 /** 表格列：只声明数据，渲染由父级 Table 统一完成 */
 export const Col = defineComponent({
   name: 'Col',
-  description: '表格列：label 是表头，data 是该列自上而下的单元格值',
+  description:
+    '表格列：label 是表头，data 是该列自上而下的单元格值；type=image 时单元格按图片 URL 渲染',
   props: z.object({
     label: z.string().describe('表头文案'),
     data: z.array(cellSchema).describe('该列单元格值，按行顺序排列'),
+    type: z
+      .enum(['text', 'image'])
+      .optional()
+      .describe('列类型，默认 text；image 表示单元格是 http/https 图片地址'),
   }),
   component: () => null,
 })
 
-type ColumnDef = { label: string; data: (string | number | boolean)[] }
+type ColumnDef = {
+  label: string
+  data: CellValue[]
+  type?: 'text' | 'image'
+}
 
 type TableRenderProps = ComponentRenderProps<{ columns: SubComponentOf<ColumnDef>[] }>
+
+function TableCellValue({ column, value }: { column: ColumnDef; value: CellValue }) {
+  // 外链图片可能 404/防盗链，失败后直接落到占位，避免表格出现破图
+  const [failed, setFailed] = useState(false)
+  if (column.type !== 'image') {
+    return <>{String(value ?? '')}</>
+  }
+
+  // 图片地址沿用与链接相同的协议白名单；空值或非法地址渲染占位，不发起请求
+  const src = typeof value === 'string' ? value.trim() : ''
+  if (!src || !isSafeOpenUrl(src) || failed) {
+    return <span className="text-muted-foreground">—</span>
+  }
+
+  return (
+    <img
+      src={src}
+      alt=""
+      loading="lazy"
+      className="size-12 rounded-md border border-border bg-muted object-cover"
+      onError={() => setFailed(true)}
+    />
+  )
+}
 
 function TableRenderer({ props }: TableRenderProps) {
   const [page, setPage] = useState(0)
@@ -65,7 +103,7 @@ function TableRenderer({ props }: TableRenderProps) {
               <OpenUiTableRow key={rowIndex}>
                 {columnDefs.map((column) => (
                   <OpenUiTableCell key={column.label}>
-                    {String(column.data[rowIndex] ?? '')}
+                    <TableCellValue column={column} value={column.data[rowIndex] ?? ''} />
                   </OpenUiTableCell>
                 ))}
               </OpenUiTableRow>

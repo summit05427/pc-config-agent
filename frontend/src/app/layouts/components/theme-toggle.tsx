@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { selectResolvedTheme, useAppStore } from '@/app/stores/app-store'
 import type { ThemeMode } from '@/shared/types/app'
 import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,13 +19,18 @@ const THEME_OPTIONS: readonly { value: ThemeMode; labelKey: string }[] = [
     { value: 'system', labelKey: 'theme.system' },
 ]
 
+export interface ThemeToggleProps {
+    /** 覆盖触发器按钮配色：落地页为固定近黑底，需要深色适配 */
+    className?: string
+}
+
 /**
  * 主题切换。
  *
  * 批次一只写入 store 并立即生效，Vue 基线中的圆形扩散转场依赖 View Transitions，
  * 留到后续批次在主题 Hook 中统一实现，避免这里出现两套切换逻辑。
  */
-export function ThemeToggle() {
+export function ThemeToggle({ className }: ThemeToggleProps) {
     const { t } = useTranslation()
     const theme = useAppStore((state) => state.theme)
     const resolvedTheme = useAppStore(selectResolvedTheme)
@@ -36,7 +42,7 @@ export function ThemeToggle() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label={t('theme.switch')}>
+                <Button variant="ghost" size="icon" className={cn(className)} aria-label={t('theme.switch')}>
                     <CurrentIcon className="size-4" />
                 </Button>
             </DropdownMenuTrigger>

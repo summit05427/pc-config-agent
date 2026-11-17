@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/app/stores/app-store'
 import type { AppLocale } from '@/shared/types/app'
 import { Button } from '@/shared/ui/button'
+import { cn } from '@/shared/lib/utils'
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -17,7 +18,12 @@ const LOCALE_OPTIONS: readonly { value: AppLocale; labelKey: string }[] = [
     { value: 'en-US', labelKey: 'locale.enUS' },
 ]
 
-export function LocaleToggle() {
+export interface LocaleToggleProps {
+    /** 覆盖触发器按钮配色：落地页为固定近黑底，需要深色适配 */
+    className?: string
+}
+
+export function LocaleToggle({ className }: LocaleToggleProps) {
     const { t } = useTranslation()
     const locale = useAppStore((state) => state.locale)
     const setLocale = useAppStore((state) => state.setLocale)
@@ -25,7 +31,7 @@ export function LocaleToggle() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label={t('locale.switch')}>
+                <Button variant="ghost" size="icon" className={cn(className)} aria-label={t('locale.switch')}>
                     <Languages className="size-4" />
                 </Button>
             </DropdownMenuTrigger>

@@ -26,6 +26,13 @@ const FORM_RESPONSE = `root = Stack([
   ])
 ])`
 
+const FORM_WITH_TEXT_RESPONSE = `root = Stack([
+  Text("表单消息", "heading"),
+  Form("contact", Button("提交"), [
+    TextInput("name", "姓名", "请输入姓名")
+  ])
+])`
+
 describe('OpenUiBlock', () => {
   beforeEach(() => {
     envMock.openUiEnabled = true
@@ -91,6 +98,22 @@ describe('OpenUiBlock', () => {
 
     expect(await screen.findByText('动态内容')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '继续' })).toBeDisabled()
+  })
+
+  it('存在待澄清中断时屏蔽生成式表单，避免与 HITL 双入口', async () => {
+    render(
+      <OpenUiBlock
+        threadId="block-thread-hitl"
+        content={FORM_WITH_TEXT_RESPONSE}
+        isComplete
+        isMessageStreaming={false}
+        disableForms
+      />,
+    )
+
+    // 渲染器正常工作，只是 Form 被上下文隐藏
+    expect(await screen.findByText('表单消息')).toBeInTheDocument()
+    expect(screen.queryByLabelText('姓名')).toBeNull()
   })
 
   it('实时消息换成历史消息重挂载后，表单已填内容仍能恢复', async () => {

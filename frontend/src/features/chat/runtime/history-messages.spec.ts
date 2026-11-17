@@ -41,6 +41,48 @@ describe('mapHistoryMessages HITL', () => {
     })
 })
 
+describe('mapHistoryMessages 引用与思考可见性', () => {
+    it('历史引用映射为 ChatCitation，刷新后仍能展示来源', () => {
+        const history: SessionMessage[] = [
+            { role: 'user', content: 'RTX 5070 跑分能直接比吗' },
+            {
+                role: 'assistant',
+                content: '不能直接比较',
+                citations: [
+                    {
+                        source_id: 'kb-1',
+                        title: '跑分口径',
+                        snippet: '不同平台口径不同',
+                        score: 0.82,
+                    },
+                ],
+                had_reasoning: true,
+            },
+        ]
+
+        const messages = mapHistoryMessages('t-3', history)
+
+        expect(messages[1]?.citations?.[0]).toEqual({
+            sourceId: 'kb-1',
+            title: '跑分口径',
+            snippet: '不同平台口径不同',
+            score: 0.82,
+        })
+        // 思考正文不落库，只标记该回合可见
+        expect(messages[1]?.hadReasoning).toBe(true)
+        expect(messages[1]?.reasoning).toBe('')
+    })
+
+    it('旧数据缺少引用与标记时保持字段缺失', () => {
+        const history: SessionMessage[] = [{ role: 'assistant', content: '收到' }]
+
+        const messages = mapHistoryMessages('t-4', history)
+
+        expect(messages[0]?.citations).toBeUndefined()
+        expect(messages[0]?.hadReasoning).toBeUndefined()
+    })
+})
+
 describe('mapHistoryMessages 稳定消息 ID', () => {
     it('优先使用服务端 message_id 生成 key 与反馈标识', () => {
         const history: SessionMessage[] = [

@@ -70,6 +70,10 @@ export interface SessionMessage {
   build_result?: unknown
   /** 解析后的结构化配置结果：刷新后详情面板与卡片依赖它 */
   buildResult?: BuildResult
+  /** 服务端原始引用（snake_case）；历史映射时解析为 ChatCitation */
+  citations?: unknown
+  /** 该回合产生过思考内容；历史不保存正文，只回传可见性 */
+  had_reasoning?: unknown
 }
 
 export interface SessionMessagesResult extends PageResult<SessionMessage> {
@@ -133,6 +137,7 @@ export type BuildCompatibilityRiskLevel = 'BLOCKING' | 'ADVISORY'
 export type BuildWorkloadProfile =
   | 'GENERAL'
   | 'GAMING'
+  | 'MEDIA'
   | 'VIDEO_EDITING'
   | 'PROGRAMMING'
   | 'RENDERING'
@@ -259,10 +264,23 @@ export interface HitlInterrupt {
  * `schema_version` 由服务端注入，仅用于排查与未来兼容判断；
  * 旧客户端不读取它也能正常渲染，新增字段一律为可选。
  */
+/** 服务端按节点完成推进的阶段枚举；文案由前端映射，避免后端写死中文 */
+export type ChatStage =
+  | 'parsing'
+  | 'strategizing'
+  | 'retrieving'
+  | 'analyzing'
+  | 'composing'
+  | 'validating'
+  | 'reviewing'
+  | 'generating'
+
 export type ChatStreamEvent =
   | { type: 'token'; text: string; schema_version?: string }
   /** 思考内容增量；仅部分模型提供，与正文分离渲染 */
   | { type: 'reasoning'; text: string; schema_version?: string }
+  /** 节点完成推进的阶段；前端映射成业务文案，工具事件成批到达时也能继续推进 */
+  | { type: 'stage'; stage: ChatStage; schema_version?: string }
   | { type: 'tool_call'; name: string; args: Record<string, unknown>; schema_version?: string }
   | { type: 'tool_result'; name?: string; preview: string; schema_version?: string }
   | { type: 'citations'; citations: ChatCitation[]; schema_version?: string }

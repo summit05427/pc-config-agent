@@ -1,0 +1,222 @@
+/*
+ * 欢迎页落地稿专属样式。
+ *
+ * 只在 `/` 挂载，类名统一 `wl-` 前缀 + 页面级作用域，避免污染全局设计令牌。
+ * 配色与参考稿一致：脱离主题语义令牌，固定近黑底 + 陶土红主视觉。
+ */
+
+/* 落地页是文档级长滚动页：解除全局 #app 的视口高度约束，让 sticky 区块正常钉住 */
+#app:has(.wl-page) {
+  height: auto;
+  min-height: 100dvh;
+}
+
+/* 胶片噪点：SVG feTurbulence data URI 低透明度叠加，替代真实摄影纹理 */
+.wl-noise::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.12;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* 黑底区细点阵纹理（宣言区与能力区背景） */
+.wl-dots {
+  background-image: radial-gradient(circle, rgb(255 255 255 / 4%) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+/* 宣言逐词高亮：词盒 inline-block 保证换行点与间距不受模板空白折叠影响 */
+.wl-manifesto-word {
+  display: inline-block;
+  margin-right: 0.26em;
+}
+
+/* 中文按字切分，字间不再补西文词距 */
+.wl-manifesto-word-cjk {
+  margin-right: 0;
+}
+
+/* 品类分隔线：白→灰纵向渐变、两端透明淡出，高度随行内容撑满 */
+.wl-stat-divider {
+  width: 1px;
+  align-self: stretch;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(255 255 255 / 0.38) 45%,
+    rgb(148 163 184 / 0.22) 100%
+  );
+}
+
+/*
+ * 切片几何：三片各占 wrap 宽 1/3 并相互搭接 2px（不裁切，overflow 会强制拍平破坏 3D）。
+ * 搭接用于消除闭合态下元素边界的子像素亮缝；正反面预旋转由 backface-visibility 接管显示。
+ */
+.wl-card-wrap {
+  /* 整卡宽度与模板 w-[min(1000px,72vw)] 保持一致：贴图坐标系按整卡宽换算 */
+  --wl-wrap-w: min(1000px, 72vw);
+}
+
+.wl-slice {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.wl-slice-left {
+  left: 0;
+  width: calc(33.334% + 2px);
+}
+
+.wl-slice-center {
+  left: calc(33.333% - 2px);
+  width: calc(33.334% + 4px);
+}
+
+.wl-slice-right {
+  left: calc(66.666% - 2px);
+  width: calc(33.334% + 2px);
+}
+
+.wl-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/*
+ * 正面 artwork（山体剪影峰值落在中片）：
+ * 片式贴图按整卡宽绘制并平移取样窗口，三片共享同一坐标映射；
+ * 闭合态另有单元素整卡覆盖层 .wl-artwork-whole 承担渲染（无接缝）。
+ */
+.wl-face-front,
+.wl-artwork-whole {
+  background-color: #8f1d16;
+  background-image:
+    radial-gradient(
+      52% 88% at 50% 110%,
+      rgb(0 0 0 / 62%) 0%,
+      rgb(0 0 0 / 26%) 46%,
+      transparent 70%
+    ),
+    radial-gradient(70% 46% at 36% 98%, rgb(0 0 0 / 30%) 0%, transparent 62%),
+    radial-gradient(80% 52% at 64% 92%, rgb(255 255 255 / 9%) 0%, transparent 58%),
+    radial-gradient(130% 130% at 50% -8%, #ff7a5c 0%, #e64434 36%, #b3251e 66%, #7e150f 100%);
+  background-repeat: no-repeat;
+}
+
+.wl-face-front {
+  background-size: var(--wl-wrap-w) 100%;
+  /* 拆分态外观：每片独立圆角 + 投影 + 略暗；闭合态被整卡覆盖层完全盖住，不生效 */
+  border-radius: 0.9rem;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 38%);
+  filter: brightness(0.92);
+}
+
+.wl-artwork-whole {
+  background-size: 100% 100%;
+}
+
+/* 单值 background-position 会自动循环应用到全部渐变图层 */
+.wl-face-pos-0 {
+  background-position: 0 0;
+}
+
+.wl-face-pos-1 {
+  background-position: calc(var(--wl-wrap-w) * -1 / 3 + 2px) 0;
+}
+
+.wl-face-pos-2 {
+  background-position: calc(var(--wl-wrap-w) * -2 / 3 + 2px) 0;
+}
+
+/* 背面：独立内容卡；悬浮增强须保留 rotateY(180deg) 基础变换 */
+.wl-face-back {
+  transform: rotateY(180deg);
+  overflow: hidden;
+  border-radius: 0.9rem;
+  box-shadow: 0 18px 44px rgb(0 0 0 / 38%);
+  transition:
+    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.35s,
+    opacity 0.35s;
+}
+
+.wl-face-back.is-hovered {
+  transform: rotateY(180deg) scale(1.045);
+  box-shadow: 0 24px 48px rgb(0 0 0 / 45%);
+}
+
+.wl-face-back.is-dimmed {
+  opacity: 0.55;
+}
+
+/* intro 播放期间锁定页面滚动；scrollbar-gutter 占位避免滚动条消失引起布局跳动 */
+html.wl-intro-lock {
+  overflow: hidden;
+  scrollbar-gutter: stable;
+}
+
+/*
+ * 椭圆展示带：mask 用 1440x500 的弧形窗口（中部外凸），容器撑满视口宽，
+ * 纵横比与之严格一致（1440/500）保证裁切窗口不变形。
+ * 不可用 max-height 钳制高度：本元素是 flex 拉伸子项，宽度为 auto 时 Chrome 的
+ * aspect-ratio 联动换算会「高度被钳 → 反推宽度」，把全宽窗口重新压窄。
+ */
+.wl-carousel-banner {
+  --wl-card-w: 25vw;
+  --wl-card-gap: 1.78vw;
+  /* 轨道起点向左错开的卡位数 = 渲染份数 - 1（一整份卡储备在窗口左侧） */
+  --wl-loop-steps: 6;
+  aspect-ratio: 1440 / 500;
+  mask: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDQwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDE0NDAgNTAwIiBpZD0iaiI+CiAgPHBhdGggZmlsbD0icmdiKDIwMCwyMDAsMjAwKSIgZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMCAwczI3NS4wNCAxMDAgNzIwIDEwMFMxNDQwIDAgMTQ0MCAwdjUwMHMtMjc1LjA0LTEwMC03MjAtMTAwUzAgNTAwIDAgNTAwVjB6Ii8+Cjwvc3ZnPgo=')
+    center / 100% 100% no-repeat;
+  -webkit-mask: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxNDQwIiBoZWlnaHQ9IjUwMCIgdmlld0JveD0iMCAwIDE0NDAgNTAwIiBpZD0iaiI+CiAgPHBhdGggZmlsbD0icmdiKDIwMCwyMDAsMjAwKSIgZmlsbC1ydWxlPSJldmVub2RkIiBkPSJNMCAwczI3NS4wNCAxMDAgNzIwIDEwMFMxNDQwIDAgMTQ0MCAwdjUwMHMtMjc1LjA0LTEwMC03MjAtMTAwUzAgNTAwIDAgNTAwVjB6Ii8+Cjwvc3ZnPgo=')
+    center / 100% 100% no-repeat;
+}
+
+/* 窄屏：卡宽放大到约一张半卡可见，间距同步放大保持呼吸感 */
+@media (max-width: 767px) {
+  .wl-carousel-banner {
+    --wl-card-w: 60vw;
+    --wl-card-gap: 3vw;
+  }
+}
+
+/*
+ * 轨道绝对定位：left 让「第二份前 3 张卡」几何居中，同时向左错开 --wl-loop-steps
+ * 个卡位——窗口左右两侧始终有储备卡片延伸出屏（无缝循环的视觉储备）。
+ */
+.wl-track {
+  position: absolute;
+  top: 0;
+  left: calc(
+    50% - 1.5 * var(--wl-card-w) - var(--wl-card-gap) - var(--wl-loop-steps) *
+      (var(--wl-card-w) + var(--wl-card-gap))
+  );
+  display: flex;
+  gap: var(--wl-card-gap);
+  height: 100%;
+  will-change: transform;
+}
+
+.wl-card {
+  width: var(--wl-card-w);
+  flex: none;
+  height: 100%;
+  border-radius: 1.25rem;
+  border: 1px solid rgb(255 255 255 / 10%);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 45%);
+}
+
+/* 底光：红色径向渐变压到 10%，只留氛围不抢主体 */
+.wl-banner-glow {
+  background: radial-gradient(50% 60% at 50% 50%, rgb(216 64 47 / 10%) 0%, transparent 70%);
+}

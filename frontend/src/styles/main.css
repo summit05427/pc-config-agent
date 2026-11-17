@@ -647,6 +647,30 @@
   animation: skeleton-breathe 1.8s ease-in-out infinite;
 }
 
+/* 等待模型响应的三点跳动：只表达「正在处理」，不展示任何工具名或内部步骤 */
+.typing-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--muted-foreground);
+  opacity: 0.25;
+  animation: typing-dot-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes typing-dot-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes skeleton-breathe {
   0%,
   100% {

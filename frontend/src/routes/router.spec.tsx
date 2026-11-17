@@ -61,13 +61,17 @@ describe('router', () => {
   it('根路径展示欢迎页', async () => {
     renderAt('/')
 
-    expect(await screen.findByRole('link', { name: '开始新对话' })).toBeInTheDocument()
+    // 未登录时导航栏 CTA 指向登录页
+    expect(await screen.findByRole('link', { name: '开始使用' })).toHaveAttribute(
+      'href',
+      '/login',
+    )
   })
 
   it('旧欢迎地址重定向到根路径', async () => {
     const router = renderAt('/welcome')
 
-    expect(await screen.findByRole('link', { name: '开始新对话' })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: '开始使用' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/')
   })
 

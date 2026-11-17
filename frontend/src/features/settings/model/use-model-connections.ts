@@ -83,8 +83,13 @@ export function useModelConnections(): ModelConnectionsModel {
   const verifyMutation = useMutation({
     mutationFn: verifyModelConnection,
     onSuccess: async () => {
-      await invalidateConnections()
+      // 凭证状态变化会改变 BYOK 模型在目录中的可见性，必须同时刷新对话模型选择器
+      await Promise.all([invalidateConnections(), invalidateCatalog()])
       toast.success(t('settings.model.verifySuccess'))
+    },
+    // 验证失败时后端会把凭证标记为 INVALID；不刷新列表会让「已验证」标签停留在旧状态
+    onError: async () => {
+      await Promise.all([invalidateConnections(), invalidateCatalog()])
     },
   })
 
@@ -105,7 +110,8 @@ export function useModelConnections(): ModelConnectionsModel {
       payload: ModelConnectionUpdatePayload
     }) => updateModelConnection(connectionId, payload),
     onSuccess: async () => {
-      await invalidateConnections()
+      // 轮换密钥同样可能让原本失效的模型重新可用
+      await Promise.all([invalidateConnections(), invalidateCatalog()])
       toast.success(t('settings.model.rotateSuccess'))
     },
   })

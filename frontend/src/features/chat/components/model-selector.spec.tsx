@@ -67,4 +67,38 @@ describe('ModelSelector', () => {
     })
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  it('目录为空时只展示配置入口，不展示 Auto 或平台模型', async () => {
+    const user = userEvent.setup()
+
+    render(<ModelSelector models={[]} modelKey={null} onChange={vi.fn()} />)
+
+    expect(screen.queryByRole('combobox', { name: '模型' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Auto')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '配置模型密钥' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: expect.stringContaining('/settings/$section'),
+      params: { section: 'model' },
+    })
+  })
+
+  it('BYOK 模型展示「我的密钥」标识', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <ModelSelector
+        models={[{ ...MODELS[0]!, credentialSource: 'BYOK' }]}
+        modelKey={null}
+        onChange={vi.fn()}
+      />,
+    )
+
+    await user.click(screen.getByRole('combobox', { name: '模型' }))
+
+    expect(await screen.findByText('我的密钥')).toBeInTheDocument()
+    // 纯 BYOK 时 Auto 改为「自动（我的密钥）」，不再出现平台默认文案
+    expect(screen.queryByRole('option', { name: '自动（平台默认）' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: '自动（我的密钥）' })).toBeInTheDocument()
+  })
 })

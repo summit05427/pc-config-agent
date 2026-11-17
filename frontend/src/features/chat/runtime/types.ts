@@ -3,6 +3,7 @@ import type {
     ChatCitation,
     ChatPreferences,
     ChatRequest,
+    ChatStage,
     ChatStreamEvent,
     HitlInterrupt,
     StreamChatOptions,
@@ -39,6 +40,8 @@ export interface RuntimeMessage {
     readonly content: string
     /** 思考内容：与正文分离，只存在于本次流式会话，不落库也不进入历史 */
     readonly reasoning: string
+    /** 服务端按节点完成推进的阶段；工具事件成批到达时用它避免长时间停在「解析需求」 */
+    readonly stage?: ChatStage
     readonly steps: readonly RuntimeToolStep[]
     readonly status: ChatMessageStatus
     readonly createdAt: number
@@ -49,10 +52,15 @@ export interface RuntimeMessage {
     /**
      * RAG 检索引用。
      *
-     * 只在本轮流式期间由 `citations` 事件下发，历史接口不返回该字段，
-     * 因此刷新页面后引用会消失，不能把它当作可持久化的回答内容。
+     * 流式期间由 `citations` 事件下发；历史接口从消息元数据回放，
+     * 因此刷新页面后引用仍然可查看。
      */
     readonly citations?: readonly ChatCitation[]
+    /**
+     * 历史回放的思考可见性标记：思考正文只在当轮流式期间存在，
+     * 刷新后仅提示「本回合可见」，不伪造内容。
+     */
+    readonly hadReasoning?: boolean
 }
 
 export type AgentRuntimeStatus =

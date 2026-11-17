@@ -43,11 +43,12 @@ describe('streamChat', () => {
     vi.mocked(sendAgentRequest).mockReset()
   })
 
-  it('把七类 SSE 事件转换为带判别字段的业务事件', async () => {
+  it('把八类 SSE 事件转换为带判别字段的业务事件', async () => {
     vi.mocked(sendAgentRequest).mockResolvedValue(
       createSseResponse(
         [
           'event: reasoning\ndata: {"text":"先分析"}\n\n',
+          'event: stage\ndata: {"stage":"strategizing"}\n\n',
           'event: token\ndata: {"text":"你"}\n\n',
           'event: tool_call\ndata: {"name":"search","args":{"q":"x"}}\n\n',
           'event: tool_result\ndata: {"name":"search","preview":"ok"}\n\n',
@@ -60,6 +61,7 @@ describe('streamChat', () => {
 
     await expect(collect(streamChat(payload))).resolves.toEqual([
       { type: 'reasoning', text: '先分析' },
+      { type: 'stage', stage: 'strategizing' },
       { type: 'token', text: '你' },
       { type: 'tool_call', name: 'search', args: { q: 'x' } },
       { type: 'tool_result', name: 'search', preview: 'ok' },
@@ -162,6 +164,7 @@ describe('streamChat', () => {
         [
           'event: token\ndata: {"text":"第一帧"}\n\n',
           'event: unknown\ndata: {"text":"未知"}\n\n',
+          'event: stage\ndata: {"stage":"future-stage"}\n\n',
           'event: token\ndata: {broken\n\n',
           'event: done\ndata: {"thread_id":"thread-2"}\n\n',
         ].join(''),

@@ -1,47 +1,36 @@
-import { useTranslation } from 'react-i18next'
-import { Link } from '@tanstack/react-router'
-import { ArrowRight } from 'lucide-react'
-import { LocaleToggle } from '@/app/layouts/components/locale-toggle'
-import { ThemeToggle } from '@/app/layouts/components/theme-toggle'
-import { UserMenu } from '@/app/layouts/components/user-menu'
-import { ROUTE_PATHS } from '@/routes/paths'
-import { env } from '@/shared/lib/env'
-import { BrandMark } from '@/shared/ui/brand-mark'
-import { Button } from '@/shared/ui/button'
+import { useEffect } from 'react'
+
+import { WelcomeCtaSection } from '@/features/welcome/components/welcome-cta-section'
+import { WelcomeFeatureSection } from '@/features/welcome/components/welcome-feature-section'
+import { WelcomeHeroSection } from '@/features/welcome/components/welcome-hero-section'
+import { WelcomeJourneySection } from '@/features/welcome/components/welcome-journey-section'
+import { WelcomeManifestoSection } from '@/features/welcome/components/welcome-manifesto-section'
+import { WelcomeNavbar } from '@/features/welcome/components/welcome-navbar'
+import { destroySmoothScroll, initSmoothScroll } from '@/features/welcome/lib/smooth-scroll'
+import '@/features/welcome/welcome-landing.css'
 
 /**
- * 欢迎页：公开入口，登录后才展示最近会话。
+ * 欢迎页：公开入口，固定暗色方案的整页叙事。
  *
- * 任务输入框属于对话批次，这里先保留建议清单作为「可以直接做什么」的示范，
- * 不放置无实际提交行为的假输入框。
+ * 区块顺序即滚动叙事：hero（钉住待覆盖）→ 宣言逐词显白 → 拆卡 → 能力轮播 → CTA/footer。
+ * 平滑滚动只在本页启用，卸载时必须销毁，避免把阻尼滚动带到工作区。
  */
 export function WelcomePage() {
-  const { t } = useTranslation()
+  useEffect(() => {
+    initSmoothScroll()
+    return () => destroySmoothScroll()
+  }, [])
 
   return (
-    <div className="flex h-dvh flex-col bg-canvas text-foreground">
-      <header className="flex h-[var(--app-titlebar-height)] shrink-0 items-center gap-2 px-4 sm:px-6">
-        <BrandMark size="md" />
-        <span className="brand-wordmark">{env.title}</span>
-
-        <div className="ml-auto flex items-center gap-0.5">
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-            className="mr-1 hidden text-muted-foreground sm:inline-flex"
-          >
-            <Link to={ROUTE_PATHS.chatNew}>
-              {t('welcome.openWorkspace')}
-              <ArrowRight className="size-3.5" />
-            </Link>
-          </Button>
-          <ThemeToggle />
-          <LocaleToggle />
-          <UserMenu compact />
-        </div>
-      </header>
-      <main></main>
+    <div className="wl-page min-h-screen bg-[#0a0a0a] text-[#f5f5f5]">
+      <WelcomeNavbar />
+      <main className="relative">
+        <WelcomeHeroSection />
+        <WelcomeManifestoSection />
+        <WelcomeJourneySection />
+        <WelcomeFeatureSection />
+        <WelcomeCtaSection />
+      </main>
     </div>
   )
 }

@@ -106,7 +106,7 @@ describe('useModelConnections', () => {
     expect(result.current.connections).toHaveLength(1)
   })
 
-  it('验证成功后只失效连接列表并提示', async () => {
+  it('验证成功后同时失效连接列表与模型目录并提示', async () => {
     const queryClient = createQueryClient()
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     verifyMock.mockResolvedValueOnce(connection)
@@ -119,8 +119,9 @@ describe('useModelConnections', () => {
     })
 
     expect(verifyMock).toHaveBeenCalledWith('conn-1')
+    // 凭证状态会改变 BYOK 模型可见性，目录也必须刷新
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['models', 'connections'] })
-    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ['models', 'catalog'] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['models', 'catalog'] })
     expect(toastSuccessMock).toHaveBeenCalledTimes(1)
   })
 

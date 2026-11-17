@@ -2,6 +2,7 @@ import { memo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOpenUiState } from '../hooks/use-openui-state'
+import { FormDisabledContext } from '../library/components/form'
 import { OpenUiRenderer } from './openui-renderer'
 
 type RawFallbackMessageKey = 'generativeUi.incomplete' | 'generativeUi.renderFailed'
@@ -12,6 +13,8 @@ export interface OpenUiBlockProps {
   readonly isComplete: boolean
   /** 整条消息仍在流式输出；已闭合块也要禁用交互，避免和新轮次抢发送 */
   readonly isMessageStreaming: boolean
+  /** 存在待澄清中断时为 true：隐藏生成式 Form，避免与 HITL 表单形成双入口 */
+  readonly disableForms?: boolean
   readonly onContinueConversation?: (message: string) => void
   readonly onOpenUrl?: (url: string) => void
   /** 打开配置详情面板；仅在含 buildResult 的消息里由宿主传入 */
@@ -57,6 +60,7 @@ function OpenUiCompleteBlock({
   threadId,
   content,
   isMessageStreaming,
+  disableForms = false,
   onContinueConversation,
   onOpenUrl,
   onOpenBuildDetail,
@@ -64,16 +68,18 @@ function OpenUiCompleteBlock({
   const { initialState, handleStateUpdate } = useOpenUiState(threadId, content)
 
   return (
-    <OpenUiRenderer
-      response={content}
-      isStreaming={isMessageStreaming}
-      onStateUpdate={handleStateUpdate}
-      {...(initialState ? { initialState } : {})}
-      {...(onContinueConversation ? { onContinueConversation } : {})}
-      {...(onOpenUrl ? { onOpenUrl } : {})}
-      {...(onOpenBuildDetail ? { onOpenBuildDetail } : {})}
-      fallback={<OpenUiRawFallback content={content} messageKey="generativeUi.renderFailed" />}
-    />
+    <FormDisabledContext.Provider value={disableForms}>
+      <OpenUiRenderer
+        response={content}
+        isStreaming={isMessageStreaming}
+        onStateUpdate={handleStateUpdate}
+        {...(initialState ? { initialState } : {})}
+        {...(onContinueConversation ? { onContinueConversation } : {})}
+        {...(onOpenUrl ? { onOpenUrl } : {})}
+        {...(onOpenBuildDetail ? { onOpenBuildDetail } : {})}
+        fallback={<OpenUiRawFallback content={content} messageKey="generativeUi.renderFailed" />}
+      />
+    </FormDisabledContext.Provider>
   )
 }
 
@@ -88,6 +94,7 @@ function OpenUiBlockComponent({
   content,
   isComplete,
   isMessageStreaming,
+  disableForms,
   onContinueConversation,
   onOpenUrl,
   onOpenBuildDetail,
@@ -105,6 +112,7 @@ function OpenUiBlockComponent({
       threadId={threadId}
       content={content}
       isMessageStreaming={isMessageStreaming}
+      {...(disableForms ? { disableForms } : {})}
       {...(onContinueConversation ? { onContinueConversation } : {})}
       {...(onOpenUrl ? { onOpenUrl } : {})}
       {...(onOpenBuildDetail ? { onOpenBuildDetail } : {})}

@@ -73,6 +73,29 @@ describe('http 成功与业务错误', () => {
     expect(error).toMatchObject({ requestId: 'req-1' })
   })
 
+  it('非 2xx 保留服务端 message 与业务码，避免泛化成「请求失败」', async () => {
+    const adapter: AxiosAdapter = async (config) =>
+      Promise.reject(
+        new AxiosError('Unprocessable Entity', 'ERR_BAD_REQUEST', config, undefined, {
+          data: { code: 40219, message: 'Provider 拒绝了该凭证，请检查密钥', requestId: 'req-422' },
+          status: 422,
+          statusText: 'Unprocessable Entity',
+          headers: new AxiosHeaders({ 'x-request-id': 'req-422' }),
+          config,
+        }),
+      )
+
+    const error = await http
+      .post('/model-connections/1/verify', undefined, { adapter, silent: true })
+      .catch((reason: unknown) => reason)
+
+    expect(error).toMatchObject({
+      code: 40219,
+      message: 'Provider 拒绝了该凭证，请检查密钥',
+      status: 422,
+    })
+  })
+
   it('非 silent 业务失败会弹全局提示，silent 时不弹', async () => {
     const adapter: AxiosAdapter = async (config) => ({
       ...createResponse(config, undefined),

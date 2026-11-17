@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/shared/ui/select'
+import { Button } from '@/shared/ui/button'
 import type { ModelCatalogItem } from '@/features/models/api'
 import { ROUTE_PATHS } from '@/routes/paths'
 
@@ -42,10 +43,17 @@ export function ModelSelector({
   const { t } = useTranslation()
   const navigate = useNavigate()
 
+  // 纯 BYOK 目录里没有平台模型，此时「自动（平台默认）」是误导项；
+  // 保留 Auto 语义（由后端选择用户可用的 BYOK 模型），但改名为「自动（我的密钥）」
+  const hasManagedModel = models.some((model) => model.credentialSource !== 'BYOK')
+  const autoLabel = hasManagedModel ? t('chat.model.auto') : t('chat.model.autoByok')
+
   // 触发器展示当前选中的模型名；目录里找不到该 key 时退回原始 key，避免出现空白
   const currentModel = models.find((model) => model.modelKey === modelKey)
   const triggerLabel =
-    modelKey === null ? t('chat.model.autoShort') : (currentModel?.displayName ?? modelKey)
+    modelKey === null
+      ? t('chat.model.autoShort')
+      : (currentModel?.displayName ?? modelKey)
 
   const handleValueChange = (value: string): void => {
     if (value === ADD_MODEL_VALUE) {
@@ -53,6 +61,20 @@ export function ModelSelector({
       return
     }
     onChange(value === AUTO_VALUE ? null : value)
+  }
+
+  // 目录为空说明平台托管已关闭且用户还没接入任何可用密钥：直接引导配置，
+  // 不展示 Auto 或平台模型，避免用户选到不可用的条目
+  if (models.length === 0 && !isLoading) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => void navigate({ to: ROUTE_PATHS.settingsSection, params: { section: 'model' } })}
+      >
+        {t('chat.model.configure')}
+      </Button>
+    )
   }
 
   return (
@@ -71,11 +93,18 @@ export function ModelSelector({
       </SelectTrigger>
 
       <SelectContent position="popper">
-        <SelectItem value={AUTO_VALUE}>{t('chat.model.auto')}</SelectItem>
+        <SelectItem value={AUTO_VALUE}>{autoLabel}</SelectItem>
         {models.map((model) => (
           <SelectItem key={model.modelKey} value={model.modelKey}>
             <span className="flex min-w-0 flex-col">
-              <span className="truncate">{model.displayName}</span>
+              <span className="flex items-center gap-1.5">
+                <span className="truncate">{model.displayName}</span>
+                {model.credentialSource === 'BYOK' ? (
+                  <span className="shrink-0 rounded-sm bg-muted px-1 py-0.5 text-[0.625rem] text-muted-foreground">
+                    {t('chat.model.sourceByok')}
+                  </span>
+                ) : null}
+              </span>
               <span className="truncate text-xs text-muted-foreground">{model.modelKey}</span>
             </span>
           </SelectItem>

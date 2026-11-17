@@ -15,6 +15,7 @@ export interface SseMessage {
 export const SSE_EVENT_TYPES = [
   'token',
   'reasoning',
+  'stage',
   'tool_call',
   'tool_result',
   'citations',
