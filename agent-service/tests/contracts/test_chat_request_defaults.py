@@ -35,7 +35,7 @@ def test_llm_defaults_are_stable() -> None:
     """进程默认模型参数基线；改默认值必须先改本用例与文档。"""
     settings = LLMSettings()
 
-    assert settings.model == "deepseek:deepseek-v4-pro"
+    assert settings.model == "deepseek:deepseek-flash"
     assert settings.gateway_base_url == "http://litellm:4000"
     assert settings.temperature == 0.7
     assert settings.max_tokens == 2048

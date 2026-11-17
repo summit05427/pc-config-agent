@@ -207,9 +207,8 @@ services:
     profiles: ["full"]
     init: true
     environment:
-      # 默认 prod；本地 http 联调在 .env 设 SPRING_PROFILES_ACTIVE=dev
-      # （prod 下 ProdConfigGuard 强制 Secure Cookie，http 下会拒绝启动）
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      # 必须显式设置：容器内 profile 决定 ProdConfigGuard 行为，猜默认值会静默改变安全策略
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?SPRING_PROFILES_ACTIVE must be set explicitly}
       # 生产硬校验会拒绝 debug=true，这里显式关闭
       DEBUG: "false"
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:?POSTGRES_DB is required}
@@ -218,9 +217,9 @@ services:
       # RS256：私钥只注入本服务，Agent 只拿公钥验签
       JWT_PRIVATE_KEY: ${JWT_PRIVATE_KEY:?JWT_PRIVATE_KEY is required}
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY is required}
-      JWT_KID: ${JWT_KID:-rsa-2026-10}
-      JWT_ISSUER: ${JWT_ISSUER:-agent-application-service}
-      JWT_AUDIENCE: ${JWT_AUDIENCE:-agent-clients}
+      JWT_KID: ${JWT_KID:?JWT_KID must be set explicitly}
+      JWT_ISSUER: ${JWT_ISSUER:?JWT_ISSUER must be set explicitly}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:?JWT_AUDIENCE must be set explicitly}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-10m}
       # Refresh Token：闲置/绝对双重过期 + 并发轮换宽限期
       AUTH_REFRESH_IDLE_TTL: ${AUTH_REFRESH_IDLE_TTL:-7d}
@@ -228,7 +227,7 @@ services:
       AUTH_REFRESH_ROTATION_GRACE: ${AUTH_REFRESH_ROTATION_GRACE:-60s}
       # 本编排固定 prod profile，ProdConfigGuard 要求刷新 Cookie 必须 Secure；
       # 本地 http 联调请改用非 prod profile 单独启动后端，不要在这里改成 false
-      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-true}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:?AUTH_COOKIE_SECURE must be set explicitly}
       AUTH_ADMIN_USERNAME: ${AUTH_ADMIN_USERNAME:-admin}
       AUTH_ADMIN_PASSWORD: ${AUTH_ADMIN_PASSWORD:?AUTH_ADMIN_PASSWORD is required}
       AUTH_ADMIN_ROLES: ${AUTH_ADMIN_ROLES:-ADMIN}
@@ -237,9 +236,10 @@ services:
       AUTH_DEMO_PASSWORD: ${AUTH_DEMO_PASSWORD:-}
       AUTH_DEMO_ROLES: ${AUTH_DEMO_ROLES:-USER}
       # 模型运行时控制面：额度、任务 TTL、服务间凭据与 BYOK 凭证主密钥
-      MODEL_RUNTIME_ENABLED: ${MODEL_RUNTIME_ENABLED:-false}
-      BYOK_ENABLED: ${BYOK_ENABLED:-false}
-      MODEL_DEFAULT_KEY: ${MODEL_DEFAULT_KEY:-deepseek:deepseek-v4-pro}
+      MODEL_RUNTIME_ENABLED: ${MODEL_RUNTIME_ENABLED:?MODEL_RUNTIME_ENABLED must be set explicitly}
+      BYOK_ENABLED: ${BYOK_ENABLED:?BYOK_ENABLED must be set explicitly}
+      MODEL_MANAGED_ENABLED: ${MODEL_MANAGED_ENABLED:-true}
+      MODEL_DEFAULT_KEY: ${MODEL_DEFAULT_KEY:-deepseek:deepseek-flash}
       MODEL_TASK_TTL: ${MODEL_TASK_TTL:-10m}
       MODEL_QUOTA_DAILY_REQUESTS: ${MODEL_QUOTA_DAILY_REQUESTS:-100}
       # Provider 默认接入地址与探测模型由 LiteLLM 配置承担（deploy/litellm/config.yaml）
@@ -288,8 +288,8 @@ services:
     restart: unless-stopped
     init: true
     environment:
-      # 默认 prod；Solo 模式通过 .env.solo 注入 dev + debug，启用 dev-token
-      APP_ENV: ${APP_ENV:-prod}
+      # 必须显式设置：prod 会触发生产校验与 dev-token 关闭
+      APP_ENV: ${APP_ENV:?APP_ENV must be set explicitly}
       DEBUG: ${AGENT_DEBUG:-false}
       API_PREFIX: /api/v1
       # 同源部署时浏览器不会触发跨域；这里只保留本机调试来源
@@ -297,11 +297,11 @@ services:
       # RS256 验签：Agent 只配置公钥，不持有私钥
       AUTH__JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?JWT_PUBLIC_KEY is required}
       AUTH__JWT_ALGORITHM: RS256
-      AUTH__JWT_KID: ${JWT_KID:-rsa-2026-10}
+      AUTH__JWT_KID: ${JWT_KID:?JWT_KID must be set explicitly}
       # 与 Java 的 JWT_ISSUER 保持一致，否则令牌全部校验失败
-      AUTH__ISSUER: ${JWT_ISSUER:-agent-application-service}
+      AUTH__ISSUER: ${JWT_ISSUER:?JWT_ISSUER must be set explicitly}
       # 与 Java 的 JWT_AUDIENCE 保持一致
-      AUTH__AUDIENCE: ${JWT_AUDIENCE:-agent-clients}
+      AUTH__AUDIENCE: ${JWT_AUDIENCE:?JWT_AUDIENCE must be set explicitly}
       AUTH__ACCESS_TOKEN_EXPIRE_MINUTES: "60"
       # 仅 dev + debug 生效；Solo 模式用本地自签私钥换取 dev-token，生产不注入
       AUTH__DEV_PRIVATE_KEY: ${AUTH_DEV_PRIVATE_KEY:-}
@@ -317,7 +317,7 @@ services:
       REDIS__REQUIRED: ${AGENT_REDIS_REQUIRED:-true}
       REDIS__KEY_PREFIX: agent
       # 模型统一走 LiteLLM 网关：协议、重试、故障切换都由网关承担
-      LLM__MODEL: ${LLM_MODEL:-deepseek:deepseek-v4-pro}
+      LLM__MODEL: ${LLM_MODEL:-deepseek:deepseek-flash}
       LLM__GATEWAY_BASE_URL: http://litellm:4000
       # 未配置网关密钥时退化为直连模式，仅供 Solo 部署使用。
       # 用独立变量覆盖而不是直接绑定 LITELLM_MASTER_KEY：Solo 为满足插值必须写 dummy master key，
@@ -328,11 +328,11 @@ services:
       # 单次生成上限：联调或降本时可调小，避免模型输出过长
       LLM__MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       # 模型运行时：关闭时沿用单模型；开启后经内部接口向 Java 创建任务、上报用量
-      MODEL_RUNTIME__ENABLED: ${MODEL_RUNTIME_ENABLED:-false}
+      MODEL_RUNTIME__ENABLED: ${MODEL_RUNTIME_ENABLED:?MODEL_RUNTIME_ENABLED must be set explicitly}
       # 生成式 UI：开启后把 OpenUI 组件契约注入系统提示词；需与 VITE_OPENUI_ENABLED 同步
-      OPENUI__ENABLED: ${OPENUI_ENABLED:-false}
-      # HITL 人在回路：默认关闭；开启必须配合 postgres 存储，否则启动即报错
-      HITL__ENABLED: ${HITL_ENABLED:-false}
+      OPENUI__ENABLED: ${OPENUI_ENABLED:?OPENUI_ENABLED must be set explicitly}
+      # HITL 人在回路：开启必须配合 postgres 存储，否则启动即报错
+      HITL__ENABLED: ${HITL_ENABLED:?HITL_ENABLED must be set explicitly}
       HITL__INTERRUPT_TTL_SECONDS: ${HITL_INTERRUPT_TTL_SECONDS:-1800}
       # MCP 接入：默认关闭；Server 清单由 LiteLLM 托管，Agent 只连网关聚合端点
       MCP__ENABLED: ${MCP_ENABLED:-false}
@@ -434,6 +434,7 @@ services:
         VITE_USE_MOCK: "false"
         # 必须与 agent-service 的 OPENUI__ENABLED 同步，否则一端渲染、另一端不产出
         VITE_OPENUI_ENABLED: ${VITE_OPENUI_ENABLED:-false}
+        VITE_SHOW_EXECUTION_TRACE: ${VITE_SHOW_EXECUTION_TRACE:-false}
     image: ${IMAGE_PREFIX:-agent}/frontend:local
     container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-frontend
     restart: unless-stopped

@@ -17,6 +17,16 @@ model_list:
     model_info:
       id: "managed-deepseek-v4-pro"
 
+  # 平台默认模型：同为 DeepSeek 托管凭证，按量计费低于 v4-pro
+  - model_name: "deepseek:deepseek-flash"
+    litellm_params:
+      model: "deepseek/deepseek-v4-flash"
+      api_key: os.environ/LLM_API_KEY
+      timeout: 120
+      stream_timeout: 60
+    model_info:
+      id: "managed-deepseek-flash"
+
   - model_name: "openai:gpt-4o-mini"
     litellm_params:
       model: "openai/gpt-4o-mini"
@@ -63,43 +73,44 @@ model_list:
       id: "managed-anthropic-claude-3-5-haiku"
 
   # ---------- 凭证探测：Java 只发 probe:<provider>，模型与地址由网关决定 ----------
-  # 客户端可在请求体覆盖 api_key / api_base（LiteLLM clientside credentials），
-  # 因此这里不配置平台密钥；探测请求必须带 max_tokens=1，成本可忽略。
+  # 客户端在请求体覆盖 api_key / api_base（LiteLLM clientside credentials）；
+  # 必须把 api_key 加进白名单，否则网关会回落到平台密钥，
+  # 导致用户填了正确密钥也验证失败。探测请求必须带 max_tokens=1，成本可忽略。
   - model_name: "probe:openai"
     litellm_params:
       model: "openai/gpt-4o-mini"
-      configurable_clientside_auth_params: ["api_base"]
+      configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 
   - model_name: "probe:deepseek"
     litellm_params:
       # 必须与 models 目录中的在售模型一致：V17 已停用 deepseek-chat，沿用会 400
       model: "deepseek/deepseek-v4-pro"
-      configurable_clientside_auth_params: ["api_base"]
+      configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 
   - model_name: "probe:qwen"
     litellm_params:
       model: "dashscope/qwen-turbo"
-      configurable_clientside_auth_params: ["api_base"]
+      configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 
   - model_name: "probe:volcengine"
     litellm_params:
       model: "volcengine/doubao-pro-32k"
-      configurable_clientside_auth_params: ["api_base"]
+      configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 
   - model_name: "probe:gemini"
     litellm_params:
       model: "gemini/gemini-2.5-flash"
-      configurable_clientside_auth_params: ["api_base"]
+      configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 
   - model_name: "probe:anthropic"
     litellm_params:
       model: "anthropic/claude-3-5-haiku-latest"
-      configurable_clientside_auth_params: ["api_base"]
+      configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 
 # ---------- BYOK：用户自带密钥 ----------
@@ -139,6 +150,9 @@ router_settings:
   allowed_fails: 3
   cooldown_time: 30
   timeout: 120
+  # 探测部署共用同一路由：一个用户的错误密钥若触发冷却，会让其他用户 30 秒内
+  # 连正确密钥也收到 429。凭证探测必须关闭冷却，失败只影响本次请求。
+  disable_cooldowns: true
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

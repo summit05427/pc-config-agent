@@ -35,7 +35,7 @@ def _normalize_pem_text(value: str) -> str:
 
 
 # 默认模型使用业务标识 provider:model，与网关 model_list 中的 model_name 一致
-DEFAULT_MODEL = "deepseek:deepseek-v4-pro"
+DEFAULT_MODEL = "deepseek:deepseek-flash"
 
 
 class LLMSettings(BaseModel):
