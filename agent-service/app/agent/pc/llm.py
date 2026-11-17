@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -329,6 +330,23 @@ def _json_schema_instruction(schema: type[BaseModel]) -> str:
     )
 
 
+def _dump_raw_if_enabled(purpose: str, finish_reason: str | None, text: str) -> None:
+    """本地联调专用：设置 `AGENT__DEBUG_RAW_LLM` 为文件路径时落盘原始输出。
+
+    生产不设置该变量，正文不会离开进程；用于定位 Schema 不匹配与截断问题。
+    """
+    target = os.getenv("AGENT__DEBUG_RAW_LLM")
+    if not target:
+        return
+    try:
+        with open(target, "a", encoding="utf-8") as handle:
+            handle.write(f"\n=== {purpose} finish={finish_reason} chars={len(text)} ===\n")
+            handle.write(text[:4000])
+            handle.write("\n")
+    except OSError:
+        logger.warning("pc.llm_raw_dump_failed", purpose=purpose)
+
+
 async def _structured_text_fallback[SchemaT: BaseModel](
     model: BaseChatModel,
     messages: list[BaseMessage],
@@ -361,6 +379,7 @@ async def _structured_text_fallback[SchemaT: BaseModel](
     text = _message_text(response)
     finish_reason = _finish_reason(response)
     output_chars, output_hash = _output_fingerprint(text)
+    _dump_raw_if_enabled(purpose, finish_reason, text)
     payload = extract_json_object(text)
     is_truncated = _is_truncated_finish_reason(finish_reason) or (
         payload is None and finish_reason is None and _looks_like_truncated_json(text)
