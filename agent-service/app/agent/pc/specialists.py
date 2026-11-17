@@ -20,6 +20,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.agent.pc.llm import invoke_model_structured
+from app.agent.pc.nodes import candidate_summary_line
 from app.agent.pc.renderer import as_int, as_list, as_mapping, as_text
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
@@ -46,12 +47,12 @@ COMPLEX_SCENARIOS = frozenset(
         BuildScenario.PROGRAMMING,
     }
 )
-SPECIALIST_MAX_CONTEXT_CHARS = 4000
+SPECIALIST_MAX_CONTEXT_CHARS = 6000
 # Critic 与 Specialist 使用同一量级的上下文预算，避免评审被候选清单淹没
 CRITIC_MAX_CONTEXT_CHARS = 4000
 
-# 每类最多 6 条候选：足够判断档位，又不会把上下文撑爆
-MAX_CANDIDATES_PER_CATEGORY = 6
+# 每类最多 3 条候选：Specialist 只做方向性判断，八类都要出现才不会被截断
+MAX_CANDIDATES_PER_CATEGORY = 3
 
 
 def should_run_specialists(state: PCConfigState) -> bool:
@@ -70,43 +71,54 @@ def should_run_specialists(state: PCConfigState) -> bool:
 
 
 def _candidate_digest(candidate_sets: dict[str, Any]) -> str:
-    """只给决策字段的候选摘要；要求模型只能引用这里出现的 hardware_id。"""
+    """只给决策字段的候选摘要；要求模型只能引用这里出现的 hardware_id。
+
+    与 Architect 共用 `candidate_summary_line`：插槽、内存代际、限长等字段
+    如果缺失，平台分析师只能靠型号名猜兼容性，报告价值会大打折扣。
+    """
     lines = ["## 候选摘要（只能引用下列 hardware_id，禁止编造型号或价格）"]
     for category in REQUIRED_CATEGORIES:
         summaries = as_list(candidate_sets.get(category.value))[:MAX_CANDIDATES_PER_CATEGORY]
         if not summaries:
             continue
         lines.append(f"### {category.value}")
-        for raw in summaries:
-            summary = as_mapping(raw)
-            hardware_id = as_text(summary.get("hardware_id"))
-            if not hardware_id:
-                continue
-            price = summary.get("price_fen")
-            price_text = (
-                str(price)
-                if isinstance(price, int) and not isinstance(price, bool)
-                else "未提供"
-            )
-            lines.append(
-                f"- hardware_id={hardware_id}"
-                f" | name={as_text(summary.get('display_name'), '未提供')}"
-                f" | priceFen={price_text}"
-            )
+        lines.extend(candidate_summary_line(as_mapping(raw)) for raw in summaries)
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
+def _fit_to_line_budget(text: str, budget: int) -> str:
+    """按整行裁剪候选摘要：切在半条记录里会让模型误读价格与规格。"""
+    if budget <= 0:
+        return ""
+    if len(text) <= budget:
+        return text
+    cut = text.rfind("\n", 0, budget)
+    if cut <= 0:
+        return ""
+    return text[:cut] + "\n（候选摘要因长度上限截断）"
+
+
 def _specialist_context(state: PCConfigState) -> str:
-    """紧凑上下文：需求 JSON + 策略 JSON + 候选摘要，不复制完整工具输出。"""
-    sections = [
-        "## 结构化需求\n"
-        + json.dumps(as_mapping(state.get("requirements")), ensure_ascii=False),
-        "## 配置策略\n"
-        + json.dumps(as_mapping(state.get("build_strategy")), ensure_ascii=False),
-        _candidate_digest(as_mapping(state.get("candidate_sets"))),
-    ]
-    text = "\n\n".join(section for section in sections if section)
-    return text[:SPECIALIST_MAX_CONTEXT_CHARS]
+    """紧凑上下文：需求 JSON + 策略 JSON + 候选摘要，不复制完整工具输出。
+
+    先放需求与策略，再用剩余预算装候选摘要，并按整行截断，
+    确保截断不会落在某条候选的中间、制造虚假的「价格缺失」。
+    """
+    head = "\n\n".join(
+        [
+            "## 结构化需求\n"
+            + json.dumps(as_mapping(state.get("requirements")), ensure_ascii=False),
+            "## 配置策略\n"
+            + json.dumps(as_mapping(state.get("build_strategy")), ensure_ascii=False),
+        ]
+    )
+    budget = SPECIALIST_MAX_CONTEXT_CHARS - len(head) - len("\n\n")
+    if budget <= 0:
+        return head[:SPECIALIST_MAX_CONTEXT_CHARS]
+    digest = _fit_to_line_budget(
+        _candidate_digest(as_mapping(state.get("candidate_sets"))), budget
+    )
+    return f"{head}\n\n{digest}" if digest else head
 
 
 async def specialist_panel(

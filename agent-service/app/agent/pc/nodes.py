@@ -984,7 +984,12 @@ def _architect_quality_feedback_text(feedback: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _architect_candidate_line(summary: dict[str, Any]) -> str:
+def candidate_summary_line(summary: dict[str, Any]) -> str:
+    """把候选摘要压成一行可进提示词的清单项。
+
+    Architect 与 Specialist 共用同一份字段白名单：缺少插槽/内存类型等字段时，
+    模型只能靠型号名猜兼容性，修正次数与错误率都会上升。
+    """
     fields = [
         f"ID={as_text(summary.get('hardware_id'), '缺失')}",
         f"名称={as_text(summary.get('display_name'), '未提供')}",
@@ -1017,7 +1022,7 @@ def _architect_catalog_text(candidate_sets: dict[str, Any]) -> str:
         if not summaries:
             lines.append("- 无候选；不得为该类别虚构硬件")
             continue
-        lines.extend(_architect_candidate_line(as_mapping(item)) for item in summaries)
+        lines.extend(candidate_summary_line(as_mapping(item)) for item in summaries)
     return "\n".join(lines)
 
 

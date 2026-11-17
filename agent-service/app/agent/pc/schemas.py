@@ -248,6 +248,9 @@ class SpecialistReport(BaseModel):
 
     为什么限制 `evidence`：证据只能是上下文中真实出现的候选 ID 或知识来源 ID，
     否则报告会把编造的型号/跑分当成依据，最终污染 Architect 的上下文。
+
+    列表上限只用于约束注入上下文的大小，不放宽就会因为「多写了一条风险」
+    让整份报告被 Schema 判废，等于把最有价值的分析丢掉。
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -256,11 +259,11 @@ class SpecialistReport(BaseModel):
     # 期望 100-500 字；上限放宽到 2000，避免正常中文分析被 Schema 判为非法
     summary: str = Field(min_length=1, max_length=2000)
     # 只给方向（例如「优先高显存」），不允许指定最终型号
-    recommendations: list[str] = Field(min_length=1, max_length=5)
-    risks: list[str] = Field(default_factory=list, max_length=5)
+    recommendations: list[str] = Field(min_length=1, max_length=8)
+    risks: list[str] = Field(default_factory=list, max_length=8)
     affected_categories: list[HardwareCategory] = Field(min_length=1, max_length=8)
     # 只能是候选 hardware_id 或 knowledge source_id，由提示词约束、不在代码里做匹配
-    evidence: list[str] = Field(default_factory=list, max_length=8)
+    evidence: list[str] = Field(default_factory=list, max_length=10)
 
 
 class CriticDecision(StrEnum):
@@ -289,5 +292,5 @@ class CriticReport(BaseModel):
 
     decision: CriticDecision
     summary: str = Field(min_length=1, max_length=2000)
-    issues: list[CriticIssue] = Field(default_factory=list, max_length=8)
+    issues: list[CriticIssue] = Field(default_factory=list, max_length=10)
 

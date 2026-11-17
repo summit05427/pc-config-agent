@@ -14,7 +14,11 @@ from langgraph.constants import TAG_NOSTREAM
 from pydantic import ValidationError
 
 from app.agent.pc import nodes as nodes_module
-from app.agent.pc.llm import invoke_model_structured, invoke_model_structured_outcome
+from app.agent.pc.llm import (
+    extract_json_object,
+    invoke_model_structured,
+    invoke_model_structured_outcome,
+)
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildProposal,
@@ -430,6 +434,49 @@ async def test_structured_output_none_and_fallback_invalid_returns_stage() -> No
     assert len(model.text_prompts) == 1
 
 
+def test_extract_json_object_repairs_premature_root_close() -> None:
+    """模型把根括号写早时，解析应删掉多余的 `}`，而不是整段降级。
+
+    真实样本：`{"role":...,"recommendations":[...]},"risks":[...]}`，
+    这个多出来的根闭合括号曾让平台分析师的报告整条丢失。
+    """
+    text = (
+        '{"role":"PLATFORM","summary":"平台分析。"},'
+        '"risks":["限高未知"],"affected_categories":["CASE"]}'
+    )
+
+    payload = extract_json_object(text)
+
+    assert payload == {
+        "role": "PLATFORM",
+        "summary": "平台分析。",
+        "risks": ["限高未知"],
+        "affected_categories": ["CASE"],
+    }
+
+
+def test_extract_json_object_removes_trailing_commas() -> None:
+    """尾随逗号是 LLM 另一类高频语法失误，修复后应能正常解析。"""
+    payload = extract_json_object('{"a":[1,2,],"b":{"c":3,},}')
+
+    assert payload == {"a": [1, 2], "b": {"c": 3}}
+
+
+def test_extract_json_object_keeps_valid_payload_untouched() -> None:
+    """合法 JSON 必须原样解析，修复逻辑不能改坏嵌套对象与字符串内容。"""
+    text = '{"a":{"b":"带,逗号与}括号的文本"},"c":[{"d":1}]}'
+
+    payload = extract_json_object(text)
+
+    assert payload == {"a": {"b": "带,逗号与}括号的文本"}, "c": [{"d": 1}]}
+
+
+def test_extract_json_object_returns_none_when_unrepairable() -> None:
+    """无法确定的损坏不做猜测：宁可降级，也不能产出半真半假的配置。"""
+    assert extract_json_object('{"a": [1, 2') is None
+    assert extract_json_object("抱歉，我无法给出配置。") is None
+
+
 class _NamedDeepSeekFallbackModel(_FallbackModel):
     """带网关模型名的替身，用于验证无运行时也能按 provider 前缀预判。"""
 
@@ -574,7 +621,7 @@ def test_candidate_summary_keeps_blocking_compatibility_fields() -> None:
         }
     )
     assert cooler["supported_sockets"] == "AM4/AM5"
-    line = nodes_module._architect_candidate_line(cooler)
+    line = nodes_module.candidate_summary_line(cooler)
     assert "支持插槽=AM4/AM5" in line
     assert "高MM=160" in line
 

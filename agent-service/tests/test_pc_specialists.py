@@ -204,6 +204,50 @@ async def test_specialist_panel_truncates_long_context(
     assert all(len(context) <= specialists.SPECIALIST_MAX_CONTEXT_CHARS for context in captured)
 
 
+def test_specialist_context_includes_specs_and_all_categories() -> None:
+    """候选摘要必须带插槽/内存类型等字段，并保证八类都出现、不切半条记录。"""
+    candidates = {
+        category: [
+            {
+                "hardware_id": f"{category}-{index}",
+                "display_name": "示例型号",
+                "price_fen": 100_000,
+                "socket": "AM5",
+                "memory_type": "DDR5",
+                "missing_fields": [],
+            }
+            for index in range(6)
+        ]
+        for category in ALL_CATEGORIES
+    }
+
+    context = specialists._specialist_context(_state(candidate_sets=candidates))
+
+    for category in ALL_CATEGORIES:
+        assert f"### {category}" in context
+    assert "插槽=AM5" in context
+    assert "内存类型=DDR5" in context
+    candidate_lines = [line for line in context.splitlines() if line.startswith("- ID=")]
+    # 每类只保留前 3 条，且截断只能发生在整行之间
+    assert len(candidate_lines) == len(ALL_CATEGORIES) * specialists.MAX_CANDIDATES_PER_CATEGORY
+    assert all("价格=" in line for line in candidate_lines)
+    assert len(context) <= specialists.SPECIALIST_MAX_CONTEXT_CHARS
+
+
+def test_specialist_report_accepts_six_risks() -> None:
+    """真实运行里出现过 6 条风险：不能因为多一条就让整份分析被 Schema 判废。"""
+    report = SpecialistReport(
+        role=SpecialistRole.PLATFORM,
+        summary="平台分析。",
+        recommendations=["先锁定平台代际"],
+        risks=[f"风险 {index}" for index in range(6)],
+        affected_categories=[HardwareCategory.MOTHERBOARD],
+        evidence=[],
+    )
+
+    assert len(report.risks) == 6
+
+
 async def test_specialist_panel_keeps_successful_role_when_peer_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

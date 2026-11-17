@@ -789,16 +789,87 @@ async def stream_model_text(
     return text
 
 
+def _next_significant_char(text: str, index: int) -> str:
+    """返回 `index` 之后的第一个非空白字符；没有则返回空串。"""
+    for char in text[index + 1 :]:
+        if not char.isspace():
+            return char
+    return ""
+
+
+def _closes_root_too_early(text: str, index: int) -> bool:
+    """判断根级 `}` 是否是「提前闭合」：后面还跟着 `,"成员名"`。
+
+    合法 JSON 里根对象闭合后不可能再出现成员，因此这种形态只可能是模型
+    把根括号写早了，删掉该括号即可恢复原意。
+    """
+    stripped = text[index + 1 :].lstrip()
+    if not stripped.startswith(","):
+        return False
+    return stripped[1:].lstrip().startswith('"')
+
+
+def _repair_json_text(text: str) -> str:
+    """修复 LLM 输出中两类明确的 JSON 语法失误，其余错误不做猜测。
+
+    1. 根对象提前闭合后又继续写成员：`{"a":[...]},"b":[...]}`；
+    2. 尾随逗号：`[1,2,]` / `{"a":1,}`。
+
+    只按括号深度与字符串状态扫描，无法确定的情况原样保留，
+    避免把合法 JSON 改坏；这是解析边界上的容错，不是绕过 Schema 校验。
+    """
+    repaired: list[str] = []
+    depth = 0
+    in_string = False
+    escaped = False
+    for index, char in enumerate(text):
+        if in_string:
+            repaired.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            repaired.append(char)
+            continue
+        if char in "[{":
+            depth += 1
+            repaired.append(char)
+            continue
+        if char == "}" and depth == 1 and _closes_root_too_early(text, index):
+            continue
+        if char in "]}":
+            depth -= 1
+            repaired.append(char)
+            continue
+        if char == "," and _next_significant_char(text, index) in ("}", "]"):
+            continue
+        repaired.append(char)
+    return "".join(repaired)
+
+
 def extract_json_object(text: str | None) -> dict[str, Any] | None:
-    """从模型输出中提取第一个 JSON 对象；允许 ```json 围栏与前后解释文本。"""
+    """从模型输出中提取第一个 JSON 对象；允许 ```json 围栏与前后解释文本。
+
+    先按严格 JSON 解析；失败后只做一次语法修复再试，仍失败返回 None，
+    由调用方降级，绝不猜测缺失字段。
+    """
     if not text:
         return None
     start = text.find("{")
     end = text.rfind("}")
     if start < 0 or end <= start:
         return None
-    try:
-        payload = json.loads(text[start : end + 1])
-    except (TypeError, ValueError):
-        return None
-    return payload if isinstance(payload, dict) else None
+    candidate = text[start : end + 1]
+    for attempt in (candidate, _repair_json_text(candidate)):
+        try:
+            payload = json.loads(attempt)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None

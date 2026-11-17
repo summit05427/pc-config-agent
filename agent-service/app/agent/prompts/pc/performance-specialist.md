@@ -19,10 +19,10 @@
 {
   "role": "PERFORMANCE",
   "summary": "字符串，100-500 字",
-  "recommendations": ["方向性建议 1-5 条"],
-  "risks": ["风险 0-5 条"],
+  "recommendations": ["方向性建议 1-8 条"],
+  "risks": ["风险 0-8 条"],
   "affected_categories": ["GPU", "CPU"],
-  "evidence": ["候选 hardware_id"]
+  "evidence": ["候选 hardware_id，最多 10 个"]
 }
 ```
 
