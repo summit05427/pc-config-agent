@@ -279,7 +279,12 @@ def test_load_cards_reports_missing_path(tmp_path: Path) -> None:
 
 
 def test_seed_cards_are_internal_methodology_notes() -> None:
-    cards = load_cards([SEED_CARD_DIR])
+    """内置方法论卡片：只校验 INTERNAL_NOTE 子集，数据集卡片数量随语料增长。"""
+    cards = [
+        card
+        for card in load_cards([SEED_CARD_DIR])
+        if card.source_type == "INTERNAL_NOTE"
+    ]
 
     assert 8 <= len(cards) <= 10
     for card in cards:

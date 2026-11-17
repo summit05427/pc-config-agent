@@ -12,11 +12,16 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-SourceType = Literal["INTERNAL_NOTE", "OFFICIAL_SPEC", "PROJECT_DOC"]
+SourceType = Literal["INTERNAL_NOTE", "OFFICIAL_SPEC", "PROJECT_DOC", "DATASET_SNAPSHOT"]
 ConfidenceLevel = Literal["HIGH", "MEDIUM", "LOW"]
 Visibility = Literal["public", "role", "private"]
 
-SOURCE_TYPES: tuple[str, ...] = ("INTERNAL_NOTE", "OFFICIAL_SPEC", "PROJECT_DOC")
+SOURCE_TYPES: tuple[str, ...] = (
+    "INTERNAL_NOTE",
+    "OFFICIAL_SPEC",
+    "PROJECT_DOC",
+    "DATASET_SNAPSHOT",
+)
 CONFIDENCE_LEVELS: tuple[str, ...] = ("HIGH", "MEDIUM", "LOW")
 VISIBILITIES: tuple[str, ...] = ("public", "role", "private")
 
