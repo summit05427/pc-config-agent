@@ -14,6 +14,7 @@ import json
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
+from statistics import median
 from typing import Any
 
 import structlog
@@ -197,14 +198,11 @@ _KNOWLEDGE_FAILURE_TERMS: dict[str, str] = {
     FAILURE_OUTPUT_TRUNCATED: "结果截断 修正 原则",
     FAILURE_MODEL_UNAVAILABLE: "模型不可用 修正 原则",
 }
-# 增量校验覆盖的核心组件：插槽、内存代际、显卡供电等冲突都在这一组里交叉判定。
-# 散热器插槽也在此预检：否则候选摘要缺失插槽信息时只能等到 compose 才暴露冲突。
-ARCHITECT_PARTIAL_CORE_CATEGORIES: tuple[HardwareCategory, ...] = (
-    HardwareCategory.CPU,
-    HardwareCategory.MOTHERBOARD,
-    HardwareCategory.MEMORY,
-    HardwareCategory.GPU,
-    HardwareCategory.COOLER,
+# 增量校验覆盖全部八类：九条规则里显卡长度、散热限高、板型、M.2 都依赖机箱/存储，
+# 只交核心组件会让这些冲突绕过增量校验，直到 compose 才失败；
+# 而 compose 失败只回通用原因，模型无法定位该换哪一类，修正必然空转。
+ARCHITECT_PARTIAL_CORE_CATEGORIES: tuple[HardwareCategory, ...] = tuple(
+    HardwareCategory
 )
 # 模型不可用时的确定性默认策略；来源标记为 DEFAULT，不得伪装成模型产物
 DEFAULT_STRATEGY_RATIONALE = "未获得可用策略，按预算内性能与价格平衡的默认方向组装。"
@@ -1074,6 +1072,63 @@ def _strategy_text(state: PCConfigState) -> str:
     return "\n".join(lines)
 
 
+def _category_median_prices(candidate_sets: dict[str, Any]) -> dict[str, int]:
+    """各类候选报价的中位价；缺价或非法价直接跳过，不用 0 拉低参考线。"""
+    medians: dict[str, int] = {}
+    for category in REQUIRED_CATEGORIES:
+        prices = [
+            price
+            for item in as_list(candidate_sets.get(category.value))
+            if isinstance(price := as_mapping(item).get("price_fen"), int)
+            and not isinstance(price, bool)
+            and price > 0
+        ]
+        if prices:
+            medians[category.value] = int(median(prices))
+    return medians
+
+
+def _budget_guidance_text(state: PCConfigState) -> str:
+    """按候选中位价折算的分类软上限，代码计算，不让模型自己编预算数字。
+
+    首轮提案超预算的根因是模型不会做八类加总：给出压缩后的分类参考线，
+    它才能在候选清单里挑得动；最终是否超预算仍由 Java `compose` 裁定。
+    """
+    requirements = as_mapping(state.get("requirements"))
+    budget = requirements.get("budget_max_fen")
+    if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
+        return ""
+    medians = _category_median_prices(as_mapping(state.get("candidate_sets")))
+    if not medians:
+        return ""
+
+    total = sum(medians.values())
+    header = "## 预算分配参考（软约束，最终以 Java 预算校验为准）"
+    if total <= budget:
+        return "\n".join(
+            [
+                header,
+                f"- 八类候选中位价合计 {format_fen(total)}，不高于上限 {format_fen(budget)}；"
+                "优先选择价格不高于中位价的型号。",
+            ]
+        )
+
+    lines = [
+        header,
+        f"- 八类候选中位价合计 {format_fen(total)}，已超出上限 {format_fen(budget)}；"
+        "请按下表压缩后再选，确保八类合计不超过上限。",
+    ]
+    for category in REQUIRED_CATEGORIES:
+        reference = medians.get(category.value)
+        if reference is None:
+            continue
+        scaled = max(1, int(reference * budget / total))
+        lines.append(
+            f"- {CATEGORY_LABELS[category.value]}：不超过 {format_fen(scaled)}"
+        )
+    return "\n".join(lines)
+
+
 def _architect_context(
     state: PCConfigState,
     failure: dict[str, Any],
@@ -1081,6 +1136,7 @@ def _architect_context(
 ) -> str:
     sections = [
         _requirements_text(as_mapping(state.get("requirements"))),
+        _budget_guidance_text(state),
         _strategy_text(state),
         _architect_quality_feedback_text(as_mapping(state.get("quality_feedback"))),
         knowledge_text,
@@ -1355,6 +1411,19 @@ async def _partial_gate(
         return None
     session.partial_checks += 1
     session.partial_reports.append(report)
+    # 增量校验与整机校验结论不一致时，这条日志是唯一的定位依据
+    logger.info(
+        "pc.partial_check",
+        overall=as_text(report.get("overallStatus")),
+        checked=session.partial_checks,
+        rules=[
+            (as_text(item.get("ruleId")), as_text(item.get("status")))
+            for item in as_list(report.get("checks"))
+        ],
+        hardware_ids=[
+            component.hardware_id for component in proposal.selected_components
+        ],
+    )
     if as_text(report.get("overallStatus")) == PARTIAL_STATUS_UNKNOWN:
         logger.info("pc.partial_check_unknown", checked=len(session.partial_reports))
     return _partial_failure(report, proposal, session.repair_count)

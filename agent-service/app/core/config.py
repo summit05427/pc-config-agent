@@ -278,8 +278,10 @@ class AgentSettings(BaseModel):
     sse_heartbeat_seconds: float = Field(default=15.0, gt=0)
     # 系统提示词目录中的文件名（不含 .md），用于切换人格与规则
     system_prompt: str = Field(default="pc-config-system", min_length=1, max_length=64)
-    # 每回合允许的增量兼容性校验次数（0 表示关闭）；工具自身还有单轮配额兜底
-    architect_max_partial_checks: int = Field(default=2, ge=0, le=4)
+    # 每回合允许的增量兼容性校验次数（0 表示关闭）；工具自身还有单轮配额兜底。
+    # 必须 ≥ 修正次数 + 1（ARCHITECT_MAX_REPAIRS=2），否则最后一次修正拿不到校验反馈，
+    # 只能等 compose 用通用原因失败，修正必然空转。
+    architect_max_partial_checks: int = Field(default=3, ge=0, le=4)
     # Architect 每回合允许调用知识检索的次数（0 表示关闭）；工具自身还有单轮配额兜底
     architect_max_knowledge_calls: int = Field(default=2, ge=0, le=4)
     # Architect 结构化选型的单独输出预算：推理模型的思考 token 计入输出，
@@ -474,6 +476,10 @@ class EvalSettings(BaseModel):
 
     user_token: SecretStr | None = None
     user_id: str = Field(default="eval-user", min_length=1, max_length=64)
+    # 门禁成本口径：按模型目录的每百万 token 单价折算；未配置时成本记为未校验
+    price_input_per_million: float | None = Field(default=None, ge=0)
+    price_output_per_million: float | None = Field(default=None, ge=0)
+    price_currency: str = Field(default="CNY", min_length=1, max_length=8)
 
 
 class Settings(BaseSettings):

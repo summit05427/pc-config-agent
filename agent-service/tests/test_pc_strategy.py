@@ -380,13 +380,16 @@ async def test_partial_fail_then_pass_composes_once(
     assert len(partial_tool.calls) == 2
     assert len(compose_tool.calls) == 1
     assert result["architect_repair_count"] == 1
-    # 增量校验只提交核心组件（含散热器插槽），ID 来自提案
+    # 增量校验提交全部八类：只交核心组件会漏掉显卡长度、板型、M.2 等冲突
     assert set(partial_tool.calls[0]) == {
         "cpu",
         "motherboard",
         "memory",
         "gpu",
         "cooler",
+        "case",
+        "psu",
+        "storage",
     }
 
 

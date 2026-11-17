@@ -12,7 +12,8 @@
       - search_hardware_candidates
       - compose_pc_build
     structured_fields:
-      requirements.scenario: gaming
+      # 运行态是场景枚举的大写值，断言必须与 State 一致
+      requirements.scenario: GAMING
     price_consistency: true
     max_latency_ms: 120000
     max_tokens: 20000
@@ -75,7 +76,7 @@
       - "你是 PC 装机配置助手"
 
 - id: s11_multi_turn_budget
-  # 同一 thread 上改预算：第二轮应在保留上下文的前提下重新生成方案
+  # 同一 thread 上改预算：第二轮应在保留上下文的前提下重新求解
   agent_id: pc-config
   input: "预算 8000 元，主要打游戏"
   turns:

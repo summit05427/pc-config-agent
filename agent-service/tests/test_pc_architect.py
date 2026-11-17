@@ -634,3 +634,32 @@ def test_build_architect_prompt_is_loaded_from_pc_subdirectory() -> None:
 
     assert "BuildProposal" in content
     assert "只能选择候选清单中出现的" in content
+
+
+def test_architect_context_scales_category_budget_when_medians_exceed_budget() -> None:
+    """中位价合计超预算时给出压缩后的分类参考线，模型不必自己做八类加总。"""
+    state: dict[str, Any] = {
+        "requirements": {"budget_max_fen": 800000, "scenario": "GAMING"},
+        "candidate_sets": {
+            "CPU": [{"hardware_id": "cpu-a", "price_fen": 300000}],
+            "GPU": [{"hardware_id": "gpu-a", "price_fen": 900000}],
+        },
+    }
+
+    text = nodes_module._architect_context(state, {})
+
+    assert "预算分配参考" in text
+    # 中位价合计 12000 元 > 预算 8000 元，压缩比例 2/3
+    assert "CPU：不超过" in text
+    assert "显卡：不超过" in text
+
+
+def test_architect_context_omits_budget_guidance_without_prices() -> None:
+    state: dict[str, Any] = {
+        "requirements": {"budget_max_fen": 800000},
+        "candidate_sets": {"CPU": [{"hardware_id": "cpu-a"}]},
+    }
+
+    text = nodes_module._architect_context(state, {})
+
+    assert "预算分配参考" not in text
