@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from time import perf_counter
 
+from app.core.config import get_settings
 from evals.report import MODE_FAKE, MODE_REAL, EvalReport
 from evals.runners.fake_model import run_cases as run_fake_cases
 from evals.schema import CaseLoadError, load_cases
@@ -78,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         mode=mode,
         results=results,
         duration_ms=int((perf_counter() - started_at) * 1000),
+        currency=get_settings().evals.price_currency,
     )
 
     if args.json:

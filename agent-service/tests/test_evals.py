@@ -40,6 +40,78 @@ from evals.runners.real_model import (
 )
 from evals.schema import CaseLoadError, EvalCase, load_cases
 
+
+def test_report_gate_metrics_for_hard_constraint_and_repair() -> None:
+    """UNKNOWN 不算硬约束通过；修正成功率只统计真正修正过的用例。"""
+    results = [
+        CaseResult(
+            case_id="repaired_ok",
+            agent_id="pc-config",
+            latency_ms=1000,
+            llm_calls=4,
+            cost=0.01,
+            workflow_status="success",
+            repair_count=1,
+            expects_success=True,
+            max_turn_llm_calls=3,
+            hard_constraint="PASS",
+        ),
+        CaseResult(
+            case_id="repaired_failed",
+            agent_id="pc-config",
+            latency_ms=3000,
+            llm_calls=5,
+            cost=0.02,
+            workflow_status="architect_failed",
+            repair_count=2,
+            expects_success=True,
+            max_turn_llm_calls=5,
+            hard_constraint="UNKNOWN",
+        ),
+        CaseResult(
+            case_id="negative_case",
+            agent_id="pc-config",
+            latency_ms=2000,
+            llm_calls=3,
+            cost=0.01,
+            workflow_status="architect_failed",
+            repair_count=1,
+            expects_success=False,
+            hard_constraint=None,
+        ),
+        CaseResult(
+            case_id="no_config",
+            agent_id="pc-config",
+            latency_ms=500,
+            llm_calls=1,
+            cost=0.0,
+            workflow_status="clarification",
+        ),
+    ]
+    report = EvalReport(mode="real", results=results, duration_ms=4500)
+
+    hard = report.hard_constraint_stats
+    assert hard["passed"] == 1
+    assert hard["unknown"] == 1
+    # negative_case 与 no_config 都没产出配置
+    assert hard["not_applicable"] == 2
+    assert hard["pass_rate"] == 0.5
+
+    # 负向用例（expects_success=False）即使失败也不计入修正成功率分母
+    repair = report.repair_stats
+    assert repair["attempted"] == 2
+    assert repair["succeeded"] == 1
+    assert repair["success_rate"] == 0.5
+
+    metrics = report.metrics
+    assert metrics["p95_latency_ms"] == 3000
+    assert metrics["max_llm_calls"] == 5
+    assert metrics["max_turn_llm_calls"] == 5
+    assert metrics["cost"]["total"] == pytest.approx(0.04)
+
+    assert "硬约束通过率 50.0%" in report.render_text()
+    assert "修正成功率 50.0%" in report.render_text()
+
 EVALS_CASES_DIRECTORY = Path(__file__).resolve().parents[1] / "evals" / "cases"
 
 

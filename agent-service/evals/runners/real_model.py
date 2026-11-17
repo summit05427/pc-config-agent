@@ -31,6 +31,7 @@ from evals.report import (
     CheckResult,
 )
 from evals.schema import EvalCase, StructuredValue
+from evals.usage import UsageCollector
 
 # 失败原因里回显回答片段便于定位，但必须限长并脱敏
 ANSWER_PREVIEW_CHARS = 200
@@ -154,6 +155,51 @@ def _token_totals(messages: list[BaseMessage]) -> tuple[int | None, int | None]:
         if isinstance(completion, int):
             completion_tokens = (completion_tokens or 0) + completion
     return prompt_tokens, completion_tokens
+
+
+def _workflow_status(state: dict[str, Any]) -> str | None:
+    value = state.get("workflow_status")
+    return value if isinstance(value, str) and value else None
+
+
+def _repair_count(state: dict[str, Any]) -> int | None:
+    value = state.get("architect_repair_count")
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _hard_constraint_status(state: dict[str, Any]) -> str | None:
+    """从 compose 的兼容性报告归纳硬约束结论；UNKNOWN 一律不算通过。"""
+    report = state.get("compatibility_report")
+    if not isinstance(report, dict) or not report:
+        return None
+    checks = [item for item in report.get("checks") or [] if isinstance(item, dict)]
+    statuses = {str(item.get("status") or "").upper() for item in checks}
+    if "FAIL" in statuses:
+        return "FAIL"
+    if statuses == {"PASS"}:
+        return "PASS"
+    return "UNKNOWN"
+
+
+def _estimate_cost(
+    prompt_tokens: int | None, completion_tokens: int | None, llm_calls: int
+) -> float | None:
+    """按模型目录单价折算单次成本；未配置单价时返回 None，报告记为未校验。
+
+    一次模型调用都没发生的用例（如额度耗尽）成本确定是 0，不能用 None 拖累整轮汇总。
+    """
+    evals = get_settings().evals
+    input_price = evals.price_input_per_million
+    output_price = evals.price_output_per_million
+    if llm_calls == 0:
+        return 0.0
+    if input_price is None or output_price is None:
+        return None
+    if prompt_tokens is None and completion_tokens is None:
+        return None
+    return (
+        (prompt_tokens or 0) * input_price + (completion_tokens or 0) * output_price
+    ) / 1_000_000
 
 
 def _preview(text: str) -> str:
@@ -508,16 +554,26 @@ async def run_case(case: EvalCase) -> CaseResult:
             ),
         )
         user_token = _user_token_value(prepared.user_token)
-        # 与真实回合一致：工具通过 ToolTurn 读取用户身份与令牌
-        with ToolTurn(EVAL_USER_ROLES, user_token, user_id=_eval_user_id()):
-            result: dict[str, Any] = {}
-            for text in (case.input, *case.turns):
+        # 回调是唯一能同时覆盖结构化、文本兜底与流式三条路径的用量观测点
+        collector = UsageCollector()
+        config["callbacks"] = [*cast("list[Any]", config.get("callbacks") or []), collector]
+        # 每轮独立 ToolTurn：与 /chat/stream 一样按请求创建，
+        # 否则多轮用例会共享工具配额，第二轮被「本轮调用次数已达上限」卡死
+        result: dict[str, Any] = {}
+        turn_calls: list[int] = []
+        for text in (case.input, *case.turns):
+            calls_before = collector.totals.calls
+            with ToolTurn(EVAL_USER_ROLES, user_token, user_id=_eval_user_id()):
                 result = await graph.ainvoke(
                     {"messages": [HumanMessage(content=text)]}, config=config
                 )
+            turn_calls.append(collector.totals.calls - calls_before)
+        calls_before = collector.totals.calls
+        with ToolTurn(EVAL_USER_ROLES, user_token, user_id=_eval_user_id()):
             result, interrupt, is_resume_resolved = await _resume_if_interrupted(
                 graph, config, case, result
             )
+        turn_calls.append(collector.totals.calls - calls_before)
     except ModelResolutionError as exc:
         # 模型不可用时直接失败：绝不继续执行图去触发正则/确定性兜底
         return CaseResult(
@@ -539,6 +595,10 @@ async def run_case(case: EvalCase) -> CaseResult:
     tool_names = _tool_call_names(result)
     answer = _answer_text(messages)
     prompt_tokens, completion_tokens = _token_totals(messages)
+    if prompt_tokens is None and completion_tokens is None:
+        # 图状态里的消息通常不带 usage_metadata，回落到回调累计值
+        prompt_tokens = collector.totals.prompt_tokens
+        completion_tokens = collector.totals.completion_tokens
 
     checks = _text_checks(case, answer, tool_names)
     checks.extend(_state_checks(case, result))
@@ -552,6 +612,15 @@ async def run_case(case: EvalCase) -> CaseResult:
         latency_ms=latency_ms,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
+        llm_calls=collector.totals.calls,
+        cost=_estimate_cost(
+            prompt_tokens, completion_tokens, collector.totals.calls
+        ),
+        workflow_status=_workflow_status(result),
+        repair_count=_repair_count(result),
+        expects_success=case.expect.workflow_status == "success",
+        max_turn_llm_calls=max(turn_calls) if turn_calls else None,
+        hard_constraint=_hard_constraint_status(result),
     )
 
 

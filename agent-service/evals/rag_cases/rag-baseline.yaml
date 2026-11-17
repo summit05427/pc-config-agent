@@ -1,0 +1,51 @@
+# RAG 离线评测基线：query 贴近真实用户说法，expected_source_ids 取知识卡 document_id。
+# 指标：recall@5（top5 命中任一期望来源即算命中）与 MRR@5。
+- id: gpu_benchmark_compare
+  query: RTX 5070 和 RX 9070 的跑分对比能直接拿来比吗
+  expected_source_ids: [kb-note-benchmark-comparability]
+  note: 覆盖显卡跑分对比；卡片结论是跨平台跑分不可直接比较
+
+- id: vram_for_4k
+  query: 4K 分辨率玩 3A 大作，12G 显存够不够
+  expected_source_ids: [kb-note-vram-resolution]
+  note: 覆盖显存与分辨率
+
+- id: psu_wattage_budget
+  query: 整机 750W 电源够不够，是把各部件 TDP 加起来算吗
+  expected_source_ids: [kb-note-tdp-vs-power]
+  note: 覆盖电源功率与 TDP 口径
+
+- id: psu_quality
+  query: 850W 电源除了额定功率还要看什么
+  expected_source_ids: [kb-note-psu-rating-quality]
+  note: 覆盖电源质量判断
+
+- id: case_cooler_clearance
+  query: 机箱限高 155mm，能装 160mm 的风冷散热器吗
+  expected_source_ids: [kb-note-cooler-clearance]
+  note: 覆盖机箱尺寸与散热器高度
+
+- id: quiet_build_temperature
+  query: 想装静音主机，风扇转速降下来温度会不会太高
+  expected_source_ids: [kb-note-noise-airflow]
+  note: 覆盖噪音与温度权衡
+
+- id: cpu_socket_bios
+  query: B650 主板装 9000 系 CPU 需要先刷 BIOS 吗
+  expected_source_ids: [kb-note-bios-cpu-support]
+  note: 覆盖 CPU 插槽与 BIOS 支持
+
+- id: ssd_capacity_endurance
+  query: SSD 容量越大越耐用吗，TBW 应该怎么看
+  expected_source_ids: [kb-note-ssd-endurance]
+  note: 覆盖 SSD 容量与耐久
+
+- id: upgrade_bottleneck
+  query: 剪辑视频和打游戏，预算有限先升级 CPU 还是显卡
+  expected_source_ids: [kb-note-bottleneck-profile]
+  note: 覆盖整机瓶颈画像
+
+- id: memory_heatsink_clearance
+  query: DDR5 内存条马甲比较高，会不会顶到风冷散热器
+  expected_source_ids: [kb-note-cooler-clearance]
+  note: 知识库暂无独立内存代际卡片，复用散热限高卡的“内存马甲避让”结论
