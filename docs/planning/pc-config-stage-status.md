@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 适用范围 | PC 配置从「Java 求解器选型」迁移到「Agent LLM 选型、Java 事实权威」的重构记录与后续计划 |
-| 状态 | Current（主体已落地，RAG 与多 Agent 未实现） |
+| 状态 | Current（主体与 RAG 代码已落地；RAG 默认关闭；多 Agent 未开始） |
 | 最后更新 | 2026-11-17 |
 | 权威性 | 本文记录重构目标、落地结果与边界；当前行为以代码与 [agent-workflows.md](../services/agent-service/agent-workflows.md) 为准 |
 
@@ -45,8 +45,21 @@
 | 解释与渲染 | LLM 说明 + 确定性 Markdown/OpenUI | `nodes.py::response_generator`、`renderer.py` |
 | 评测 | `--fake` / `--real` | `agent-service/evals/` |
 | 旧求解器路径 | 已删除：无旧求解器节点、选型工具与求解端点 | `PcBuildInternalController.java` |
-| RAG | 规划中：仅有检索接缝，默认无知识库 | `app/rag/`、`search_knowledge` |
+| RAG | 已实现（pgvector 混合检索、入库脚本、`search_knowledge` 注入），默认关闭；缺 embedding 部署与外部语料，离线评测集已建 | `app/rag/knowledge/`、`evals/rag_eval.py` |
 | 多 Agent | 规划中 | — |
+
+### 3.1 Stage 1 门禁快照（2026-11-17）
+
+| 口径 | 实测 | 结论 |
+| --- | --- | --- |
+| p95 时延 | 36.5s（多轮用例两轮合计） | 达标（≤120s） |
+| 单轮 LLM 调用 | 最大 5 次 | 压线达标（≤5） |
+| 单次成本 | 最高约 ¥0.14 | 达标（≤¥0.3） |
+| 硬约束通过率 | 100%（7 个产出配置用例） | 达标 |
+| 修正成功率 | 待按新口径（排除负向用例）全量复测 | 待确认 |
+| 质量分基线 | 求解器已删除且基线未留档 | 不可验证，需按 ADR 0028 裁定口径 |
+
+数据来源：`agent-service/evals --real` 全量 15 条（14 通过，唯一失败为 8000 元整机跨代际选型，已修复并单例验证）。
 
 ## 4. 关键设计取舍
 
