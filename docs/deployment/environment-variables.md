@@ -115,10 +115,11 @@
 | `HITL__ENABLED` / `HITL__INTERRUPT_TTL_SECONDS` | `false` / `1800` | 人在回路 |
 | `OPENUI__ENABLED` / `PROMPT_NAME` / `MAX_BLOCKS` | `false` / 空 / `6` | 生成式 UI |
 | `MCP__ENABLED` / `GATEWAY_URL` / `ALLOWED_TOOLS` | `false` / 空 / `[]` | 仅网关拓扑 |
-| `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 当前无知识库；`RAG_ENABLED` 在根 `.env` |
+| `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 检索器已实现；当前无 embedding 部署与外部语料，保持默认关闭；`RAG_ENABLED` 在根 `.env` |
 | `GUARD__ENABLED` / `MAX_INPUT_CHARS` / `BLOCK_ON_INJECTION` | `true` / `4000` / `true` | 输入护栏 |
 | `RATE_LIMIT__ENABLED` / `CHAT_PER_MINUTE` / `WINDOW_SECONDS` / `FAIL_OPEN` | `true` / `20` / `60` / `true` | 对话限流 |
 | `EVALS__USER_TOKEN` / `EVALS__USER_ID` | 空 | `--real` 评测 |
+| `EVALS__PRICE_INPUT_PER_MILLION` / `EVALS__PRICE_OUTPUT_PER_MILLION` / `EVALS__PRICE_CURRENCY` | 空 / 空 / `CNY` | 评测报告折算成本；未配置时显示「未定价」 |
 | `METRICS__ENABLED` | `true` | Prometheus 指标 |
 
 ### 2.7 前端与管理端

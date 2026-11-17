@@ -38,7 +38,7 @@
 
 Compose 内网
   ├─ postgres:5432     （agent 库由 app 管理；agent_service 库由 LangGraph 管理与业务表）
-  ├─ pgvector:5433     （RAG 预留，未启用）
+  ├─ pgvector:5433     （Agent 存储与 RAG 共用；RAG 默认关闭）
   └─ redis:6379        （分布式锁；缓存接缝）
 ```
 
@@ -135,7 +135,7 @@ Compose 内网
 ## 8. 未实现能力
 
 - 多 Agent 协作【规划中】。
-- RAG 知识库与向量检索【规划中】；`pgvector` 仅预留。
+- RAG 检索链路已实现（pgvector Hybrid，词法+向量 RRF 融合），默认关闭；缺 embedding 部署与外部语料，离线评测集未建。
 - 管理端硬件/报价维护页【未实现】。
 - 自动报价采集、价格历史、过期清理【未实现】。
 - 多方案对比、交互式换件【未实现】。

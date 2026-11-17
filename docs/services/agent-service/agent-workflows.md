@@ -76,7 +76,7 @@ START
 | `get_verified_offers` | `GET /internal/v1/pc/offers` | 10s | 6000 | 12 | 报价与来源统计 |
 | `compose_pc_build` | `POST /internal/v1/pc/builds/compose` | 30s | 8000 | 3 | 非只读，必须带 `X-User-Token` |
 | `check_partial_compatibility` | `POST /internal/v1/pc/builds/validate-partial` | 30s | 4000 | 4 | 任意已选子集，不落库 |
-| `search_knowledge` | 进程内 RAG 检索器 | 10s | 4000 | 4 | 默认无知识库，返回空引用 |
+| `search_knowledge` | 进程内 Hybrid 检索（pgvector，词法+向量 RRF 融合） | 10s | 4000 | 4 | 默认关闭；关闭或缺 embedding 部署时返回空引用 |
 
 - 所有工具经 `get_governed_tool(name)` 取得，统一获得超时、重试、角色、脱敏、截断与配额治理；节点禁止直接使用 `httpx`。
 - 工具异常统一转成 `ToolExecutionError` 安全文案，内部地址与堆栈只进日志。
@@ -173,11 +173,24 @@ START
 - 提示词：`app/agent/prompts/` 下的 `pc-config-system.md`、`requirement-parser.md`、`response-generator.md`，以及 `prompts/pc/` 下的 `build-strategist.md`、`build-architect.md`。
 - 解析、策略与选型均打 `TAG_NOSTREAM`，内部 JSON 不进入消息流。
 
-## 13. 未实现能力
+## 13. 未实现与默认关闭的能力
 
 - 多 Agent 编排、工具并行执行、人工审批流【规划中】。
-- RAG 知识库、切块与向量化【规划中】；当前只有可插拔检索接缝，默认关闭，`search_knowledge` 返回空引用。
+- RAG 检索链路（切块 → embedding → pgvector → 词法+向量 RRF → Architect 注入 → citations）已实现，但默认关闭：LiteLLM 网关未注册 embedding 部署、`OPENAI_API_KEY` 为空，向量化不可用；语料仅 9 张内部知识卡片。未完成：检索命中率/引用正确性离线评测集、外部语料与许可、rerank。
 - MCP 仅保留经网关的客户端接缝，默认关闭【未实现业务用途】。
+
+### 13.1 RAG 数据流（已实现，默认关闭）
+
+```text
+scripts/import_knowledge_cards.py
+  → 切块 + embedding（RAG__EMBEDDING_MODEL，经 LiteLLM 调用）
+  → agent_service 库 kb_documents / kb_chunks（pgvector + tsvector）
+  → PgvectorRetriever（先按 user_id / roles 过滤，再跑词法与向量双通道，RRF 融合）
+  → build_architect 把片段写入提示词 → state.knowledge_citations
+  → turn.py 按 source_id 去重后下发 citations 事件
+```
+
+默认关闭（根 `.env` `RAG_ENABLED=false`，Compose 注入为 `RAG__ENABLED`）；缺 embedding 部署时检索返回空引用，不阻断主流程。语料仅 `knowledge/cards/` 的 9 张内部知识卡片。
 
 ## 14. 相关文档
 
