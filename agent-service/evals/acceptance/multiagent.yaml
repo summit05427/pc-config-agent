@@ -1,0 +1,29 @@
+# 多 Agent 真实验收用例（默认不参与全量评测）
+#
+# 用途：Stage 4 多 Agent 实现完成后，按「一次任务一次验收」逐条执行，
+# 一条跑完记录成本与调用次数，再决定是否跑下一条。
+#
+#   uv --directory agent-service run python -m evals --real \
+#     --cases evals/acceptance --case-id ma_gaming_streaming
+#
+# 断言只覆盖代码可确认的确定性事实（终态、价格一致性、调用预算），
+# 不对具体型号或文案做承诺，避免把模型随机性当成回归失败。
+
+- id: ma_gaming_streaming
+  agent_id: pc-config
+  input: "预算 1.8 万元，主要 2K 高刷玩 3A，同时偶尔直播推流，希望安静一些"
+  expect:
+    workflow_status: success
+    structured_fields:
+      requirements.scenario: GAMING
+    price_consistency: true
+    max_latency_ms: 120000
+
+- id: ma_render_itx
+  agent_id: pc-config
+  input: "预算 1.2 万元，主要用 Blender 渲染，也玩单机游戏，机箱想用 ITX 小机箱"
+  expect:
+    workflow_status: success
+    tool_called: compose_pc_build
+    price_consistency: true
+    max_latency_ms: 120000

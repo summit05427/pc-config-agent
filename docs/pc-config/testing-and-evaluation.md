@@ -29,6 +29,9 @@ uv --directory agent-service run pytest -q --cov=app --cov-report=term-missing
 # Agent 评测
 uv --directory agent-service run python -m evals --fake
 uv --directory agent-service run python -m evals --real
+# 单例真实验收：只跑指定用例，可重复 --case-id
+uv --directory agent-service run python -m evals --real --case-id s11_basic_build
+uv --directory agent-service run python -m evals --real --cases evals/acceptance --case-id ma_gaming_streaming
 
 # 前端
 corepack pnpm --dir frontend lint:ci
@@ -95,6 +98,26 @@ corepack pnpm --dir frontend e2e:critical
 - 硬约束通过率取 `compatibility_report` 的逐条结论：全 PASS 才算通过，出现 `UNKNOWN` 一律计入 UNKNOWN 桶、不算通过；未产出配置的用例不参与分母。
 - 质量评审通过率为 [ADR 0029](../adr/0029-stage1-quality-gate-baseline-alternative.md) 的替代口径：`quality_review.issues` 为空且 `retry=false` 才算通过，`quality_passed` 为空的用例（未进入评审）不参与分母。
 - 修正成功率只统计 `architect_repair_count > 0` 且 `expects_success=true` 的用例，成功以图终态 `success` 为准；负向用例与未进入修正的用例不参与分母。
+- 单轮调用上限分两档：未启用 Specialist/Critic 的简单路径 ≤5 次；显式启用多 Agent 的复杂路径 ≤7 次，超限按失败记录，见 [ADR 0030](../adr/0030-multi-agent-call-budget.md)。
+
+### 单例真实验收（多 Agent 前）
+
+多 Agent 的收益必须用真实模型验证，但额度与费用有限，因此固定为「一次任务、一次验收」：
+
+1. 一次只跑一条用例，使用 `--case-id` 或 `--cases evals/acceptance`；禁止用全量 `--real` 代替单例验收。
+2. 跑完只看该用例的 `单轮最大 LLM 调用`、`成本`、`硬约束通过率`、`质量评审通过率`；任一不达标先定位原因，不继续下一条。
+3. 记录本轮结论后再决定是否跑下一条；连续两次失败必须停下来改代码，不能靠重跑碰运气。
+4. 每日额度是「用户轮次」计数（默认 100）；额度耗尽时先重置再继续，不允许通过换用户或重试绕过。
+5. 验收用例位于 `evals/acceptance/multiagent.yaml`（默认不参与全量评测）；复杂场景按 ADR 0030 使用 ≤7 次预算。
+
+记录模板：
+
+```text
+日期 / 用例 id / 是否启用 Specialist
+终态 / 硬约束 / 质量评审 / 修正次数
+单轮最大调用 / tokens / 成本 / p95 时延
+结论：通过 / 失败原因 / 下一步动作
+```
 
 ### RAG 检索评测
 

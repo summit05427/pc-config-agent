@@ -16,7 +16,7 @@ from time import perf_counter
 from app.core.config import get_settings
 from evals.report import MODE_FAKE, MODE_REAL, EvalReport
 from evals.runners.fake_model import run_cases as run_fake_cases
-from evals.schema import CaseLoadError, load_cases
+from evals.schema import CaseLoadError, EvalCase, load_cases
 
 DEFAULT_CASES_DIRECTORY = Path(__file__).resolve().parent / "cases"
 
@@ -48,11 +48,29 @@ def _build_parser() -> argparse.ArgumentParser:
         help="用例目录，默认 evals/cases",
     )
     parser.add_argument(
+        "--case-id",
+        action="append",
+        default=[],
+        metavar="ID",
+        help="只运行指定用例，可重复；未知 id 直接按用法错误退出",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="输出 JSON 结构化报告，便于 CI 归档或二次处理",
     )
     return parser
+
+
+def _select_cases(
+    cases: list[EvalCase], case_ids: list[str]
+) -> tuple[list[EvalCase], list[str]]:
+    """按 id 过滤并保持原有顺序；返回未命中的 id，便于调用方按用法错误处理。"""
+    wanted = set(case_ids)
+    selected = [case for case in cases if case.id in wanted]
+    found = {case.id for case in selected}
+    missing = [case_id for case_id in dict.fromkeys(case_ids) if case_id not in found]
+    return selected, missing
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,6 +81,12 @@ def main(argv: list[str] | None = None) -> int:
     except CaseLoadError as exc:
         print(f"用例加载失败：{exc}", file=sys.stderr)
         return EXIT_USAGE
+
+    if args.case_id:
+        cases, missing = _select_cases(cases, args.case_id)
+        if missing:
+            print(f"未知用例 id：{'、'.join(missing)}", file=sys.stderr)
+            return EXIT_USAGE
 
     started_at = perf_counter()
     if args.real:

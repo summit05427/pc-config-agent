@@ -269,6 +269,25 @@ def test_main_fake_mode_renders_text_report(capsys: pytest.CaptureFixture[str]) 
     assert "[通过] pc_verified_only" in output
 
 
+def test_main_filters_cases_by_single_id(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """单例验收：--case-id 只跑指定用例，避免一次发起多条真实调用。"""
+    exit_code = main(["--fake", "--json", "--case-id", "pc_verified_only"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["summary"]["total"] == 1
+    assert payload["cases"][0]["case_id"] == "pc_verified_only"
+
+
+def test_main_rejects_unknown_case_id(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--fake", "--case-id", "not_exists"])
+
+    assert exit_code == 2
+    assert "未知用例 id：not_exists" in capsys.readouterr().err
+
+
 def test_main_returns_usage_error_for_missing_cases(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

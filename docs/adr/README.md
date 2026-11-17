@@ -20,6 +20,7 @@
 | [0027](./0027-pc-config-decisions.md) | PC 配置模块决策合并记录 | PC 配置 |
 | [0028](./0028-llm-led-build-selection.md) | 选型决策权迁移到 LLM，Java 保留事实与验证权威 | PC 配置 |
 | [0029](./0029-stage1-quality-gate-baseline-alternative.md) | Stage 1 质量门槛以可复算指标替代不可复现的求解器基线对比 | PC 配置 |
+| [0030](./0030-multi-agent-call-budget.md) | 复杂场景单轮 LLM 调用上限放宽到 7 次，简单路径保持 5 次 | PC 配置 |
 
 ## 2. 合并与空缺说明
 

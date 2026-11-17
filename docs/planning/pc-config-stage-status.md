@@ -45,8 +45,8 @@
 | 解释与渲染 | LLM 说明 + 确定性 Markdown/OpenUI | `nodes.py::response_generator`、`renderer.py` |
 | 评测 | `--fake` / `--real` | `agent-service/evals/` |
 | 旧求解器路径 | 已删除：无旧求解器节点、选型工具与求解端点 | `PcBuildInternalController.java` |
-| RAG | 已实现（pgvector 混合检索、入库脚本、`search_knowledge` 注入），默认关闭；embedding 已接入 LiteLLM（`qwen:text-embedding-v4`），语料 19 张卡片，离线检索评测集已建 | `app/rag/knowledge/`、`evals/rag_eval.py` |
-| 多 Agent | 规划中 | — |
+| RAG | 已实现并本地验证：19 张卡片 / 49 切片入库，`recall@5` 0.9、`MRR@5` 0.75；仓库默认仍关闭 | `app/rag/knowledge/`、`evals/rag_eval.py` |
+| 多 Agent | 验收准备完成（单例筛选、2 条复杂场景用例、调用预算 ADR 0030）；实现未开始 | `evals/acceptance/`、ADR 0030 |
 
 ### 3.1 Stage 1 门禁快照（2026-11-17）
 
