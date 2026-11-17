@@ -84,8 +84,11 @@ model_list:
 
   - model_name: "probe:deepseek"
     litellm_params:
-      # 必须与 models 目录中的在售模型一致：V17 已停用 deepseek-chat，沿用会 400
-      model: "deepseek/deepseek-v4-pro"
+      # 探测必须用默认模型：v4-pro 是推理模型，max_tokens=1 也要数秒，
+      # 会拖过 Java 的 verify-timeout 被误判为平台托管不可用。
+      model: "deepseek/deepseek-v4-flash"
+      # 必须给平台密钥：客户端不带 api_key 时回落到它，否则探测必然 401
+      api_key: os.environ/LLM_API_KEY
       configurable_clientside_auth_params: ["api_key", "api_base"]
       timeout: 15
 

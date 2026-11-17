@@ -38,6 +38,20 @@ from app.services.model_usage import STATUS_FAILURE, STATUS_SUCCESS, UsageRecord
 
 logger = structlog.get_logger(__name__)
 
+# 已知不支持 `json_schema` 的模型：首次 400 后记入，后续直接走文本兜底。
+# DeepSeek 经 LiteLLM 会以 400 拒绝 response_format=json_schema，若不记忆，
+# 每个结构化节点每轮都要白付一次失败请求，直接顶到单轮调用次数上限。
+_JSON_SCHEMA_UNSUPPORTED_MODELS: set[str] = set()
+
+
+def _model_capability_key(model: BaseChatModel) -> str | None:
+    """取模型标识用于能力记忆；测试替身没有标识时返回 None，保持原调用路径。"""
+    for attribute in ("model_name", "model"):
+        value = getattr(model, attribute, None)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
 
 def runtime_from_config(config: RunnableConfig | None) -> ResolvedRuntime | None:
     """运行时只从 configurable 读取，绝不写进状态，避免被 checkpointer 持久化。"""
@@ -505,6 +519,9 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     `reasoning_effort="none"` 与 `max_retries=0` 来约束上限。
     输出被截断时返回 `output_truncated`，不能误报成「Provider 不支持」。
 
+    不支持 `json_schema` 的模型（DeepSeek 经 LiteLLM 即如此）首次 400 后记入进程级
+    能力表，后续直接走文本兜底，不再每个节点白付一次失败请求。
+
     结构化结果与兜底 JSON 都不能进入 `stream_mode=messages`，否则前端会把中间
     JSON 当成回答。
     """
@@ -515,6 +532,10 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
         model,
         reasoning_effort=reasoning_effort,
         max_retries=max_retries,
+    )
+    capability_key = _model_capability_key(bounded_model)
+    structured_supported = (
+        capability_key is None or capability_key not in _JSON_SCHEMA_UNSUPPORTED_MODELS
     )
     thread_id = _thread_id(config)
     await run_hooks(
@@ -538,15 +559,24 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     output_hash: str | None = None
     is_truncated = False
     try:
-        structured_model = _with_request_options(
-            bounded_model, max_tokens=max_tokens
-        ).with_structured_output(
-            schema, include_raw=True
-        )
-        result = await structured_model.ainvoke(messages, config={"tags": [TAG_NOSTREAM]})
+        result: Any = None
+        if structured_supported:
+            structured_model = _with_request_options(
+                bounded_model, max_tokens=max_tokens
+            ).with_structured_output(
+                schema, include_raw=True
+            )
+            result = await structured_model.ainvoke(
+                messages, config={"tags": [TAG_NOSTREAM]}
+            )
+        # 已知不支持 json_schema：跳过注定 400 的调用，直接走下方文本兜底
         if result is None:
             # Provider 不支持结构化输出时可能返回 None 而不是抛错
-            error_type = "structured_output_empty"
+            error_type = (
+                "structured_output_empty"
+                if structured_supported
+                else "structured_output_skipped"
+            )
         else:
             parsed, raw_message, is_invalid = _split_structured_result(result, schema)
             finish_reason = _finish_reason(raw_message)
@@ -558,6 +588,15 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     except Exception as exc:
         # 只记录类型与状态码：异常文本可能含上游地址、对话内容或密钥片段
         error_type, http_status = _error_diagnostics(exc)
+        # 只有「报文里明确指向 response_format」的 400 才记入能力表，
+        # 其余 400（参数非法等）不能顺手关掉结构化输出
+        if (
+            structured_supported
+            and capability_key is not None
+            and http_status == 400
+            and "response_format" in str(exc).lower()
+        ):
+            _JSON_SCHEMA_UNSUPPORTED_MODELS.add(capability_key)
     finally:
         latency_ms = int((perf_counter() - started_at) * 1000)
         await _report_usage(runtime, invocation_id, raw_message, latency_ms, error_type)
@@ -566,8 +605,14 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
         failure_stage = FAILURE_STAGE_OUTPUT_TRUNCATED
 
     if parsed is None:
-        # 脱敏：只记录阶段、异常类型、finish_reason、长度与哈希前缀，不落模型输出正文
-        logger.warning(
+        # 脱敏：只记录阶段、异常类型、finish_reason、长度与哈希前缀，不落模型输出正文。
+        # 已知不支持 json_schema 时的跳过是预期路径，降为 info，避免每轮刷告警。
+        log_structured_failure = (
+            logger.info
+            if error_type == "structured_output_skipped"
+            else logger.warning
+        )
+        log_structured_failure(
             "pc.llm_structured_failed",
             purpose=purpose,
             failure_stage=failure_stage,

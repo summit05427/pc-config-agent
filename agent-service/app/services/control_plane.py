@@ -239,7 +239,15 @@ def _map_error(status_code: int, payload: dict[str, Any]) -> ControlPlaneError:
     # PC 组装错误保留业务语义：修正逻辑据此决定「换选型」还是「直接失败」
     pc_error = _PC_ERROR_CODES.get(java_code) if isinstance(java_code, int) else None
     if pc_error is not None:
-        code, status, message = pc_error
+        code, status, fallback_message = pc_error
+        # 组装失败文案里带总价、预算与规则 id，修正闭环靠它定位该降哪一类；
+        # 只在上游没给文案时才退回固定文案，避免丢掉定位信息
+        upstream_message = payload.get("message")
+        message = (
+            upstream_message.strip()
+            if isinstance(upstream_message, str) and upstream_message.strip()
+            else fallback_message
+        )
         return ControlPlaneError(code, status, message, is_retryable=retryable)
     if java_code == JAVA_CREDENTIAL_VERIFY_FAILED:
         # 远程验证失败属上游不可用；用户可稍后重试验证
