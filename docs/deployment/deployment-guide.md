@@ -3,7 +3,7 @@
 | 属性 | 内容 |
 | --- | --- |
 | 状态 | Current |
-| 最后核验 | 2026-11-04 |
+| 最后核验 | 2026-11-17 |
 | 权威性 | Authoritative（部署流程、启动命令、Nginx 路由、CI 门禁、发布与回滚的唯一入口） |
 | 主要证据 | `docker-compose.yml`、`deploy/docker-compose.infra.yml`、`frontend/deploy/nginx/default.conf.template`、`admin/deploy/nginx/default.conf`、`.github/workflows/ci.yml`、四份 `Dockerfile`、各服务 `README.md`、`scripts/*.ps1`、`scripts/dev/*.ps1` |
 | 环境变量 | 本文**不复制变量表**，全部见 [`environment-variables.md`](environment-variables.md) |
@@ -541,5 +541,76 @@ curl -s  http://localhost/api/v1/auth/me                             # 未登录
 | CI 前端 Job 报 `ERR_PNPM_OUTDATED_LOCKFILE` | `package.json` 与 `pnpm-lock.yaml` 不一致 | 本地 `corepack pnpm install` 后提交锁文件 |
 | `changes` 通过但前端 Job 被跳过 | 本次改动不在 `frontend/**` | 预期行为，见 §5 |
 | CI `docs` Job 失败 | 相对链接失效，或文档里出现 `.env.example` 未登记的键 | 运行两个 `scripts/*.ps1` 定位；补登键属配置变更，需单独提交 |
+| Agent 日志出现 `pc.llm_fallback_invalid reason=json_not_found` | 模型输出不是可解析 JSON（`finish_reason=stop` 说明不是截断） | 设 `AGENT__DEBUG_RAW_LLM=logs/raw-llm.log`，复现一轮完整对话后检查原始输出；**拿到样本前不要改解析逻辑** |
 
 **待确认**：`application-service/README.md` 曾提到「按生产配置指南的 SSH 隧道方式连接云上数据库」，但仓库中从未存在该章节；本指南不提供 SSH 隧道步骤，数据库也不应为了联调暴露到公网。具体隧道方案需项目负责人确认后补充。
+
+---
+
+## 9. 部署前验收清单
+
+按顺序执行，任一项不通过就停止发布。命令默认在仓库根、目标服务器执行。
+
+### 9.1 配置与版本
+
+- [ ] 服务器 `.env` 由本地 `.env` 复制后只替换密钥/域名/口令，运行时开关与 [environment-variables.md](environment-variables.md) §3 的「与本地一致」清单逐项核对。
+- [ ] `SPRING_PROFILES_ACTIVE=prod`、`APP_ENV=prod`、`AUTH_COOKIE_SECURE=true`；未从 `.env` 覆盖 `DEBUG`。
+- [ ] `RAG_ENABLED=true` 时 `RAG_EMBEDDING_MODEL` 与 `RAG_EMBEDDING_DIMENSIONS` 已填写；否则 Agent 会拒绝启动。
+- [ ] `OPENUI_ENABLED` 与 `VITE_OPENUI_ENABLED` 同值；`MODEL_RUNTIME_ENABLED` 在 Java 与 Agent 两端同值。
+- [ ] `.env` 权限收敛到部署账号（`chmod 600`），不在 git、镜像、日志或工单中出现。
+- [ ] 记录本次发布的 git commit、镜像 tag 与服务端 `catalog_version`。
+
+### 9.2 构建与启动
+
+- [ ] 发布前先备份两个数据库（§6.5），并确认备份文件大小非 0。
+- [ ] `docker compose --env-file .env config -q` 通过（缺变量会在此报错）。
+- [ ] `docker compose --profile full up -d --build` 后 `docker compose --profile full ps` 全部为 `healthy` 或 `running`。
+- [ ] 重建过 `application-service` / `agent-service` / `admin` 后执行过 `docker compose restart frontend`（BUG-04）。
+- [ ] `docker compose --profile full logs --tail=100 application-service agent-service` 无配置校验失败、无重复重启。
+
+### 9.3 网络、域名与安全
+
+- [ ] 公网只暴露前端入口（默认 `WEB_PORT`）；Java、Agent、PostgreSQL、Redis、LiteLLM、Prometheus 端口只绑 `127.0.0.1`。
+- [ ] 外部反向代理/负载均衡已配置域名与 HTTPS，并正确透传 `Host`、`X-Forwarded-For`、`X-Request-ID`。
+- [ ] SSE 路径 `/agent/` 已关闭代理缓冲、读超时 ≥ 1 小时；否则对话会中途断流。
+- [ ] 同源部署 `CORS_ALLOWED_ORIGINS` 留空；分域时只填真实域名，禁止 `*`。
+- [ ] 防火墙只放行 80/443 与运维白名单；数据库端口不对公网开放。
+- [ ] `AUTH_ADMIN_PASSWORD` 为强随机值；首次登录后按需改密，demo 账号在生产为空。
+
+### 9.4 数据与密钥
+
+- [ ] Flyway 已执行到最新版本：`docker compose exec postgres ... select version from flyway_schema_history order by installed_rank desc limit 1;`
+- [ ] Agent 会话库 `STORAGE__AUTO_SETUP=true` 或已手工执行建表；`/health/ready` 返回 200。
+- [ ] `MODEL_CRED_MASTER_KEY`（BYOK）与数据库备份分开保管；轮换时旧密钥已放入 `MODEL_CRED_MASTER_KEYS`。
+- [ ] `LITELLM_SALT_KEY` 已固定，未在本次发布中更改。
+- [ ] 已完成一次备份恢复演练（恢复到临时库并校验行数）。
+
+### 9.5 功能冒烟
+
+```bash
+curl -fsS http://<域名>/healthz
+curl -fsS http://<域名>/admin/healthz
+curl -fsS http://127.0.0.1:8080/actuator/health
+curl -fsS http://127.0.0.1:8000/api/v1/health/live
+curl -fsS http://127.0.0.1:8000/api/v1/health/ready
+curl -s  http://<域名>/api/v1/auth/me          # 未登录应为 401
+```
+
+- [ ] 管理员登录成功，刷新页面不掉登录（HttpOnly Cookie 往返正常）。
+- [ ] 发起一轮真实对话，SSE 持续输出且完成后可回放历史。
+- [ ] 推荐结果含 8 类组件、兼容性结论与报价；`catalog_version` 与发布记录一致。
+- [ ] OpenUI 开启时组件正常渲染；关闭时回退 Markdown 不报错。
+- [ ] `/agent/api/v1/metrics` 仅内网可访问；`/actuator` 未经 Nginx 暴露。
+
+### 9.6 fail-fast 负向验证（在预发或临时副本执行）
+
+- [ ] 临时把 `AUTH_COOKIE_SECURE=false` 启动 Java，确认被 `ProdConfigGuard` 拒绝；验证后立即还原。
+- [ ] 临时把 Agent `DEBUG=true` 或 `STORAGE__BACKEND=memory` 启动，确认拒绝启动；验证后还原。
+- [ ] 临时清空 `CONTROL_PLANE__CLIENT_SECRET` 且保持 `MODEL_RUNTIME_ENABLED=true`，确认 Agent 拒绝启动。
+- [ ] 确认日志中没有完整 `.env`、JWT、数据库口令、provider key 或对话正文。
+
+### 9.7 回滚准备
+
+- [ ] 保留上一版本的 `.env`、`docker-compose.yml` 与镜像（`docker save` 或独立 tag）。
+- [ ] 明确回滚命令：切回旧镜像/旧提交 → `docker compose --profile full up -d` → `docker compose restart frontend`。
+- [ ] 回滚后重复 9.5 冒烟；数据库变更遵循「先扩展、后收缩」，旧镜像必须能连当前库。

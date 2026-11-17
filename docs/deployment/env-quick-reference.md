@@ -28,9 +28,12 @@
 | --- | --- | --- |
 | 换默认模型 | `MODEL_DEFAULT_KEY`、`LLM_MODEL` | `deepseek:deepseek-flash` |
 | 换端口 | `WEB_PORT` / `BACKEND_PORT` / `AGENT_PORT` | `8088` / `8080` / `8000` |
-| 开 HITL | `HITL_ENABLED` | `false` |
-| 开 OpenUI | `OPENUI_ENABLED` + `VITE_OPENUI_ENABLED` | `false` |
-| 开 RAG | `RAG_ENABLED` + `RAG_RETRIEVER_MODULE` + `RAG_EMBEDDING_MODEL` + `RAG_EMBEDDING_DIMENSIONS` | `false` / 空 / 空 / `0`（示例 `qwen:text-embedding-v4` / `1024`） |
+| 开 HITL | `HITL_ENABLED` | `true` |
+| 开/关多 Agent | `MULTI_AGENT_ENABLED` / `CRITIC_ENABLED` | `true` / `true` |
+| 调 RAG 引用阈值 | `RAG_MIN_RELEVANCE_SCORE` | `0.2` |
+| 开 OpenUI | `OPENUI_ENABLED` + `VITE_OPENUI_ENABLED` | `true` |
+| RAG 开关 | `RAG_ENABLED` | `true` |
+| 模型运行时 / BYOK 开关 | `MODEL_RUNTIME_ENABLED` / `BYOK_ENABLED` | `true` / `true` |
 | 关限流 | `RATE_LIMIT_ENABLED` | `true` |
 | 调输入上限 | `GUARD_MAX_INPUT_CHARS` | `4000` |
 | 调每日额度 | `MODEL_QUOTA_DAILY_REQUESTS` | `100` |
@@ -44,6 +47,7 @@
 | `HITL_ENABLED=true` | 必须 `STORAGE__BACKEND=postgres` |
 | `OPENUI_ENABLED` | 必须与 `VITE_OPENUI_ENABLED` 同值 |
 | `RAG_ENABLED=true` | 必须配置 `RAG_RETRIEVER_MODULE` 与成对的 embedding 模型/维度 |
+| `MULTI_AGENT_ENABLED=false` | `CRITIC_ENABLED` 不再生效 |
 | `MCP_ENABLED=true` | 仅网关拓扑；Solo 不支持 |
 | `AUTH_COOKIE_SECURE=false` | 仅非 `prod` 本地调试允许 |
 

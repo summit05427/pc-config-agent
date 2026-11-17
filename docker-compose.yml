@@ -236,9 +236,9 @@ services:
       AUTH_DEMO_PASSWORD: ${AUTH_DEMO_PASSWORD:-}
       AUTH_DEMO_ROLES: ${AUTH_DEMO_ROLES:-USER}
       # 模型运行时控制面：额度、任务 TTL、服务间凭据与 BYOK 凭证主密钥
-      MODEL_RUNTIME_ENABLED: ${MODEL_RUNTIME_ENABLED:?MODEL_RUNTIME_ENABLED must be set explicitly}
-      BYOK_ENABLED: ${BYOK_ENABLED:?BYOK_ENABLED must be set explicitly}
-      MODEL_MANAGED_ENABLED: ${MODEL_MANAGED_ENABLED:-true}
+      MODEL_RUNTIME_ENABLED: ${MODEL_RUNTIME_ENABLED:-true}
+      BYOK_ENABLED: ${BYOK_ENABLED:-true}
+      MODEL_MANAGED_ENABLED: ${MODEL_MANAGED_ENABLED:-false}
       MODEL_DEFAULT_KEY: ${MODEL_DEFAULT_KEY:-deepseek:deepseek-flash}
       MODEL_TASK_TTL: ${MODEL_TASK_TTL:-10m}
       MODEL_QUOTA_DAILY_REQUESTS: ${MODEL_QUOTA_DAILY_REQUESTS:-100}
@@ -328,23 +328,30 @@ services:
       # 单次生成上限：联调或降本时可调小，避免模型输出过长
       LLM__MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       # 模型运行时：关闭时沿用单模型；开启后经内部接口向 Java 创建任务、上报用量
-      MODEL_RUNTIME__ENABLED: ${MODEL_RUNTIME_ENABLED:?MODEL_RUNTIME_ENABLED must be set explicitly}
+      MODEL_RUNTIME__ENABLED: ${MODEL_RUNTIME_ENABLED:-true}
       # 生成式 UI：开启后把 OpenUI 组件契约注入系统提示词；需与 VITE_OPENUI_ENABLED 同步
-      OPENUI__ENABLED: ${OPENUI_ENABLED:?OPENUI_ENABLED must be set explicitly}
+      OPENUI__ENABLED: ${OPENUI_ENABLED:-true}
       # HITL 人在回路：开启必须配合 postgres 存储，否则启动即报错
-      HITL__ENABLED: ${HITL_ENABLED:?HITL_ENABLED must be set explicitly}
+      HITL__ENABLED: ${HITL_ENABLED:-true}
       HITL__INTERRUPT_TTL_SECONDS: ${HITL_INTERRUPT_TTL_SECONDS:-1800}
+      # 多 Agent / Critic / 摘要：必须由根 .env 透传，否则只能使用代码默认值，
+      # 容器内无法与本地保持一致
+      AGENT__MULTI_AGENT_ENABLED: ${MULTI_AGENT_ENABLED:-true}
+      AGENT__CRITIC_ENABLED: ${CRITIC_ENABLED:-true}
+      AGENT__SUMMARY_ENABLED: ${SUMMARY_ENABLED:-false}
+      AGENT__SUMMARY_TRIGGER_TOKENS: ${SUMMARY_TRIGGER_TOKENS:-5000}
       # MCP 接入：默认关闭；Server 清单由 LiteLLM 托管，Agent 只连网关聚合端点
       MCP__ENABLED: ${MCP_ENABLED:-false}
       MCP__GATEWAY_URL: ${MCP_GATEWAY_URL:-}
       MCP__ALLOWED_TOOLS: ${MCP_ALLOWED_TOOLS:-[]}
-      # 可选 RAG：默认关闭；开启后必须同时提供 RAG_RETRIEVER_MODULE，否则拒绝启动
-      RAG__ENABLED: ${RAG_ENABLED:-false}
-      RAG__RETRIEVER_MODULE: ${RAG_RETRIEVER_MODULE:-}
+      # RAG：默认开启；不使用时显式设为 false
+      RAG__ENABLED: ${RAG_ENABLED:-true}
+      RAG__RETRIEVER_MODULE: ${RAG_RETRIEVER_MODULE:-app.rag.knowledge.retriever}
       RAG__TOP_K: ${RAG_TOP_K:-5}
+      RAG__MIN_RELEVANCE_SCORE: ${RAG_MIN_RELEVANCE_SCORE:-0.2}
       # 缺省为空/0 时不启用内置检索器；开启后由检索器工厂校验成对配置
-      RAG__EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-}
-      RAG__EMBEDDING_DIMENSIONS: ${RAG_EMBEDDING_DIMENSIONS:-0}
+      RAG__EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-qwen:text-embedding-v4}
+      RAG__EMBEDDING_DIMENSIONS: ${RAG_EMBEDDING_DIMENSIONS:-1024}
       RAG__EMBEDDING_BATCH_SIZE: ${RAG_EMBEDDING_BATCH_SIZE:-10}
       # 输入侧护栏：命中即 422 input_rejected，不进入模型
       GUARD__ENABLED: ${GUARD_ENABLED:-true}
@@ -437,7 +444,7 @@ services:
         VITE_API_TIMEOUT: "10000"
         VITE_USE_MOCK: "false"
         # 必须与 agent-service 的 OPENUI__ENABLED 同步，否则一端渲染、另一端不产出
-        VITE_OPENUI_ENABLED: ${VITE_OPENUI_ENABLED:-false}
+        VITE_OPENUI_ENABLED: ${VITE_OPENUI_ENABLED:-true}
         VITE_SHOW_EXECUTION_TRACE: ${VITE_SHOW_EXECUTION_TRACE:-false}
     image: ${IMAGE_PREFIX:-agent}/frontend:local
     container_name: ${COMPOSE_PROJECT_NAME:-agent-project-template}-frontend

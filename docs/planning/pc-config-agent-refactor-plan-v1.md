@@ -1781,7 +1781,7 @@ Stage 5 评测、追踪、灰度和生产化
 5. 存储类约 21 条无 `DISKMARK`：确定「无跑分」的展示与选型策略。
 6. `decision_mode`（`LLM_LED` / `DETERMINISTIC_FALLBACK`）的落库字段与前端展示口径。
 
-审计细节、未复核项与风险清单见 [Stage 0 基线审计](../pc-config/refactor/baseline-audit.md)。
+审计细节、未复核项与风险清单见 [硬件数据基线](../quality/hardware-data-baseline.md)。
 
 ## 附录 A：当前基线引用
 

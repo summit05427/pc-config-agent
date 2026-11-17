@@ -16,7 +16,9 @@
 | `pc-config/benchmarks.json` | `JsonBenchmarkRepository` | CPU / GPU / 存储跑分 |
 | `pc-config/offers.json` | `JsonOfferRepository` | 中国区商品报价与整体 `data_status` |
 
-三者由 `JsonFixtureLoader` 在启动期读入并缓存；文件缺失抛 `40305 CATALOG_UNAVAILABLE`，解析失败阻止启动。修改夹具后必须重启 Java；热加载与刷新接口【未实现】。
+三者由 `JsonFixtureLoader` 在启动期读入并缓存；文件缺失抛 `40305 CATALOG_UNAVAILABLE`，解析失败阻止启动。修改夹具后必须重启 Java（容器部署需重建 `application-service` 镜像）；热加载与刷新接口【未实现】。
+
+硬件目录、跑分与报价**只在 classpath 夹具中，不写入数据库**；数据库中与 PC 配置相关的只有 `pc_build_snapshots`（方案快照，见 §8）。因此不存在「启动灌库」与「重复灌库幂等」问题。
 
 ## 2. 当前规模（2026-11-17 实测）
 

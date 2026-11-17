@@ -10,7 +10,7 @@
 
 ## 背景
 
-现状（见 [交接说明](../pc-config/current-task-flow-handoff.md)）是 LLM 只解析需求与撰写说明，`BuildSolver` 决定最终组合。方案要求 LLM 看到真实候选并输出所选 `hardware_id`，这实际上改变了「谁拥有选型权」这一领域不变量，需要单独记录，避免后续实现者按旧语义"纠正"回来。
+现状（见 [当前工作流](../services/agent-service/agent-workflows.md)）是 LLM 只解析需求与撰写说明，`BuildSolver` 决定最终组合。方案要求 LLM 看到真实候选并输出所选 `hardware_id`，这实际上改变了「谁拥有选型权」这一领域不变量，需要单独记录，避免后续实现者按旧语义"纠正"回来。
 
 ## 决策
 

@@ -56,9 +56,9 @@
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `MODEL_RUNTIME_ENABLED` | `false` | 关闭时 `/internal/v1/**` 与 `/api/v1/models` 返回 404 |
-| `BYOK_ENABLED` | `false` | 必须同时开启运行时总开关 |
-| `MODEL_MANAGED_ENABLED` | `true` | 是否展示平台托管模型 |
+| `MODEL_RUNTIME_ENABLED` | `false` | 关闭时 `/internal/v1/**` 与 `/api/v1/models` 返回 404；部署模板默认 `true` |
+| `BYOK_ENABLED` | `false` | 必须同时开启运行时总开关；部署模板默认 `true` |
+| `MODEL_MANAGED_ENABLED` | `true` | 是否展示平台托管模型；纯 BYOK 部署模板默认 `false` |
 | `MODEL_MANAGED_PROBE_TTL` | `30s` | 平台密钥可用性探测缓存 |
 | `MODEL_CRED_MASTER_KEY` | 空 | BYOK 加密主密钥，32 字节 base64；只注入 Java |
 | `MODEL_CRED_KEY_VERSION` | `1` | 新密文密钥版本 |
@@ -93,31 +93,31 @@
 
 | 变量 | 默认 | 说明 |
 | --- | --- | --- |
-| `APP_NAME` / `API_PREFIX` / `DEBUG` | `agent-service` / `/api/v1` / `false` | 服务标识与路由前缀 |
-| `LLM__MODEL` / `LLM__TEMPERATURE` / `LLM__MAX_TOKENS` / `LLM__TIMEOUT_SECONDS` | `deepseek:deepseek-flash` / `0.3` / `2048` / `60` | Agent 侧模型参数 |
-| `LLM__API_KEY` / `LLM__BASE_URL` | 占位 / 空 | 直连模式 |
+| `APP_NAME` / `API_PREFIX` / `DEBUG` | `agent-service` / `/api/v1` / `true` | 服务标识与路由前缀；Compose 固定 `DEBUG=false` |
+| `LLM__MODEL` / `LLM__TEMPERATURE` / `LLM__MAX_TOKENS` / `LLM__TIMEOUT_SECONDS` | `deepseek:deepseek-flash` / `0.7` / `2048` / `60` | Agent 侧模型参数 |
+| `LLM__API_KEY` / `LLM__BASE_URL` | 占位 / `https://api.deepseek.com/v1` | 直连模式 |
 | `MODEL_RUNTIME__ENABLED` | `false` | 接 Java 模型控制面 |
 | `CONTROL_PLANE__BASE_URL` / `CLIENT_ID` / `CLIENT_SECRET` / `TIMEOUT_SECONDS` | 内网地址 / `agent-service` / 占位 / `5` | 服务令牌换取 |
 | `AUTH__JWT_PUBLIC_KEY` / `AUTH__JWT_ALGORITHM` / `AUTH__JWT_KID` / `AUTH__ISSUER` / `AUTH__AUDIENCE` | 公钥 / `RS256` / 同 `JWT_KID` / 同 `JWT_ISSUER` / 同 `JWT_AUDIENCE` | 只验签 |
-| `AUTH__DEV_KID` / `AUTH__ACCESS_TOKEN_EXPIRE_MINUTES` | 空 / `10` | 仅 Solo/dev-token |
-| `STORAGE__BACKEND` | `postgres` | `postgres` / `memory`；HITL 必须 `postgres` |
+| `AUTH__DEV_KID` / `AUTH__ACCESS_TOKEN_EXPIRE_MINUTES` | `rsa-dev` / `60` | 仅 dev + debug 的 dev-token 使用 |
+| `STORAGE__BACKEND` | `memory` | `postgres` / `memory`；Compose 与本地 `.env` 均为 `postgres`，HITL 必须 `postgres` |
 | `STORAGE__POSTGRES_URL` / `STORAGE__POOL_SIZE` / `STORAGE__AUTO_SETUP` | 内网 DSN / `5` / `true` | checkpointer 连接池 |
-| `REDIS__REQUIRED` / `REDIS__MAX_CONNECTIONS` / `REDIS__LOCK_TTL_SECONDS` | `true` / `10` / `120` | 分布式锁与连接 |
-| `AGENT__CONTEXT_MAX_TOKENS` / `AGENT__RECURSION_LIMIT` / `AGENT__REQUEST_TIMEOUT_SECONDS` | `6000` / `8` / `120` | 上下文、递归与单轮超时 |
-| `AGENT__THREAD_LOCK_TTL_SECONDS` / `AGENT__THREAD_LOCK_WAIT_SECONDS` | `120` / `0` | 同一线程并发保护 |
+| `REDIS__REQUIRED` / `REDIS__MAX_CONNECTIONS` / `REDIS__LOCK_TTL_SECONDS` | `false` / `10` / `30` | 分布式锁与连接；Compose 强制 `REQUIRED=true` |
+| `AGENT__CONTEXT_MAX_TOKENS` / `AGENT__RECURSION_LIMIT` / `AGENT__REQUEST_TIMEOUT_SECONDS` | `6000` / `12` / `120` | 上下文、递归与单轮超时 |
+| `AGENT__THREAD_LOCK_TTL_SECONDS` / `AGENT__THREAD_LOCK_WAIT_SECONDS` | `300` / `3` | 同一线程并发保护 |
 | `AGENT__SSE_HEARTBEAT_SECONDS` | `15` | SSE 心跳 |
-| `AGENT__SYSTEM_PROMPT` / `AGENT__PROFILES_DIR` / `AGENT__DEFAULT_PROFILE` | `agent-system` / `app/agents` / `pc-config` | Profile 加载 |
-| `AGENT__TOOL_TIMEOUT_SECONDS` / `TOOL_MAX_RETRIES` / `TOOL_MAX_OUTPUT_TOKENS` / `TOOL_MAX_CALLS_PER_TURN` | `10` / `1` / `4000` / `40` | 工具治理 |
+| `AGENT__SYSTEM_PROMPT` / `AGENT__PROFILES_DIR` / `AGENT__DEFAULT_PROFILE` | `pc-config-system` / `app/agents` / `pc-config` | Profile 加载 |
+| `AGENT__TOOL_TIMEOUT_SECONDS` / `TOOL_MAX_RETRIES` / `TOOL_MAX_OUTPUT_TOKENS` / `TOOL_MAX_CALLS_PER_TURN` | `10` / `1` / `2000` / `3` | 工具治理 |
 | `AGENT__TOOL_REDACT_OUTPUT` | `true` | 工具输出脱敏 |
 | `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `4` / `2` / `4096` | `build_architect` 配额 |
 | `AGENT__MULTI_AGENT_ENABLED` / `AGENT__CRITIC_ENABLED` | `true` / `true` | 多 Agent：默认开启；开启后 Specialist 并行分析、Critic 只评审不改方案 |
-| `AGENT__SUMMARY_ENABLED` / `TRIGGER_TOKENS` | `true` / `4000` | 历史摘要 |
-| `AGENT__SESSION_INDEX_TTL_SECONDS` / `MAX` | `300` / `200` | 会话索引缓存 |
+| `AGENT__SUMMARY_ENABLED` / `TRIGGER_TOKENS` | `false` / `5000` | 长会话摘要，默认关闭 |
+| `AGENT__SESSION_INDEX_TTL_SECONDS` / `MAX` | `2592000` / `100` | 已废弃（2026-10-29），仅保留键名兼容 |
 | `HITL__ENABLED` / `HITL__INTERRUPT_TTL_SECONDS` | `false` / `1800` | 人在回路 |
-| `OPENUI__ENABLED` / `PROMPT_NAME` / `MAX_BLOCKS` | `false` / 空 / `6` | 生成式 UI |
+| `OPENUI__ENABLED` / `PROMPT_NAME` / `MAX_BLOCKS` | `false` / `openui` / `4` | 生成式 UI |
 | `MCP__ENABLED` / `GATEWAY_URL` / `ALLOWED_TOOLS` | `false` / 空 / `[]` | 仅网关拓扑 |
-| `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 检索器已实现，默认关闭；`RAG_ENABLED` 在根 `.env`，宿主直跑时写在 `agent-service/.env` |
-| `RAG__EMBEDDING_MODEL` / `DIMENSIONS` / `BATCH_SIZE` | 空 / `0` / `10` | 启用内置检索器时模型与维度必填；默认示例 `qwen:text-embedding-v4` / `1024`（百炼单次最多 10 条） |
+| `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 检索器已实现；部署模板默认开启并指向 `app.rag.knowledge.retriever` |
+| `RAG__EMBEDDING_MODEL` / `DIMENSIONS` / `BATCH_SIZE` | 空 / `0` / `10` | 部署模板默认 `qwen:text-embedding-v4` / `1024` / `10`；启用内置检索器时模型与维度必填 |
 | `RAG__MIN_RELEVANCE_SCORE` | `0.2` | 引用最小相关性阈值：向量余弦相似度低于该值的片段不展示；精确型号命中不受限制；`0` 关闭过滤 |
 | `QWEN_API_KEY` | 空 | 根 `.env` 写入；Compose 映射为 LiteLLM 容器内 `DASHSCOPE_API_KEY`，供 embedding 条目使用 |
 | `GUARD__ENABLED` / `MAX_INPUT_CHARS` / `BLOCK_ON_INJECTION` | `true` / `4000` / `true` | 输入护栏 |
@@ -146,20 +146,74 @@
 | `DEEPSEEK_API_KEY` | 仅清洗脚本使用，禁止进入前端产物 |
 | `JD_UNION_APP_KEY` / `JD_UNION_APP_SECRET` / `JD_UNION_SITE_ID` / `JD_UNION_ACCESS_TOKEN` | 京东联盟凭证；未配置时只做探测 |
 
-## 3. 生产 fail-fast
+## 3. 默认开关与部署基线（2026-11-17）
+
+「代码默认」指未注入任何变量时的值；「`.env.example`」是部署模板值，已与当前本地启用状态对齐；「本机」是当前根 `.env` 与派生文件的实际值；「容器」表示 Compose 是否把根 `.env` 透传给 Agent。
+
+> 代码回退值仍保持关闭：RAG/HITL 在 `STORAGE__BACKEND=memory`（Solo、单测）下开启会直接拒绝启动，因此只在部署模板与 Compose 中默认开启。
+
+| 配置项 | 代码默认 | `.env.example` | 本机当前 | 容器透传 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| `OPENUI_ENABLED` + `VITE_OPENUI_ENABLED` | `false` | `true` | `true` | 是 | 两端必须同值，否则一端不产出/一端不渲染 |
+| `RAG_ENABLED` | `false` | `true` | `true` | 是 | 开启后必须给检索器模块与 embedding 模型/维度 |
+| `RAG_EMBEDDING_MODEL` / `DIMENSIONS` | 空 / `0` | `qwen:text-embedding-v4` / `1024` | `qwen:text-embedding-v4` / `1024` | 是（已补齐） | 修前根 `.env` 缺这两项，容器内开 RAG 会启动失败 |
+| `RAG_MIN_RELEVANCE_SCORE` | `0.2` | `0.2` | `0.2` | 是（已补齐） | 低于阈值的向量片段不展示 |
+| `HITL_ENABLED` | `false` | `true` | `true` | 是 | 必须配 `STORAGE__BACKEND=postgres` |
+| `MCP_ENABLED` | `false` | `false` | `false` | 是 | 仅网关拓扑；Solo 不支持 |
+| `MULTI_AGENT_ENABLED` | `true` | `true` | `true` | 是（已补齐） | 关闭后退回单 Agent |
+| `CRITIC_ENABLED` | `true` | `true` | `true` | 是（已补齐） | 仅多 Agent 开启时生效 |
+| `SUMMARY_ENABLED` / `TRIGGER_TOKENS` | `false` / `5000` | `false` / `5000` | `false` / `5000` | 是（已补齐） | 开启会增加额外模型调用 |
+| `MODEL_RUNTIME_ENABLED`（Java/Agent） | `false` | `true` | `true` | 是 | 控制面与 Agent 必须同值 |
+| `BYOK_ENABLED`（Java） | `false` | `true` | `true` | 是 | 开启时 `MODEL_CRED_MASTER_KEY` 必须合法 |
+| `MODEL_MANAGED_ENABLED`（Java） | `true` | `false` | `false` | 是 | 纯 BYOK 部署设为 `false` |
+| `GUARD_ENABLED` / `RATE_LIMIT_ENABLED` | `true` | `true` | 未显式设置（用默认） | 是 | 默认开启，无需写进 `.env` |
+| `VITE_SHOW_EXECUTION_TRACE` | `false` | `false` | `true` | 是 | **唯一建议保留差异**：生产建议 `false`，仅排查时临时开 |
+
+Solo 模式在 [`.env.solo.example`](../../.env.solo.example) 中显式关闭 `RAG_ENABLED`，避免 memory 后端误开检索器。
+
+**服务器与本地完全一致的最小设置**（其余值按生产替换密钥、域名与口令）：
+
+```dotenv
+SPRING_PROFILES_ACTIVE=prod
+APP_ENV=prod
+AUTH_COOKIE_SECURE=true
+OPENUI_ENABLED=true
+VITE_OPENUI_ENABLED=true
+RAG_ENABLED=true
+RAG_RETRIEVER_MODULE=app.rag.knowledge.retriever
+RAG_EMBEDDING_MODEL=qwen:text-embedding-v4
+RAG_EMBEDDING_DIMENSIONS=1024
+RAG_MIN_RELEVANCE_SCORE=0.2
+HITL_ENABLED=true
+MODEL_RUNTIME_ENABLED=true
+BYOK_ENABLED=true
+MODEL_MANAGED_ENABLED=false
+MULTI_AGENT_ENABLED=true
+CRITIC_ENABLED=true
+SUMMARY_ENABLED=false
+```
+
+- `DEBUG` 由 Compose 固定为 `false`，不要再从 `.env` 覆盖。
+- `VITE_*` 会打进静态产物：改这些值必须重建 `frontend` / `admin` 镜像；其余变量重启对应容器即可。
+- 本机 Agent 实际读取的是 `agent-service/.env`，该文件的托管块由 `scripts/config/generate-config.ps1` 从根 `.env` 派生，不要手改。
+
+## 4. 生产 fail-fast
 
 | 条件 | 行为 |
 | --- | --- |
-| `SPRING_PROFILES_ACTIVE=prod` 但关键变量缺失或仍为占位 | Java 拒绝启动 |
+| `SPRING_PROFILES_ACTIVE=prod` 但 JWT/DB/内部凭据缺失或仍为占位 | Java 拒绝启动 |
 | `prod` 下 `AUTH_COOKIE_SECURE=false` | Java 拒绝启动 |
-| `prod` 下管理员口令为空或弱口令 | Java 拒绝启动 |
+| `prod` 下 `DEBUG=true` | Java / Agent 拒绝启动 |
 | `BYOK_ENABLED=true` 但未启用模型运行时或主密钥非法 | Java 拒绝启动 |
+| `prod` 下 `CORS_ORIGINS` 含 `*`，或 Agent `STORAGE__BACKEND!=postgres` | 对应服务拒绝启动 |
 | `HITL__ENABLED=true` 且 `STORAGE__BACKEND=memory` | Agent 拒绝启动 |
 | `RAG_ENABLED=true` 且检索器模块为空 | Agent 拒绝启动 |
 | `RAG_ENABLED=true` 且内置检索器缺 embedding 模型或维度非正 | Agent 拒绝启动 |
-| `prod` 下 `AUTH__DEV_KID` 非空 | Agent 拒绝启动 |
+| `prod` 下 `MODEL_RUNTIME__ENABLED=true` 但 `CONTROL_PLANE__CLIENT_SECRET` 为空或占位 | Agent 拒绝启动 |
 
-## 4. 密钥生成与轮换
+补充：`AUTH_ADMIN_PASSWORD` 为空表示「不创建引导账号」，不会拒绝启动；首次上线必须确保已存在管理员账号。`AUTH__DEV_KID` 非空也不会拒绝启动，`/auth/dev-token` 在非 `dev` 或 `DEBUG=false` 时直接不可用。
+
+## 5. 密钥生成与轮换
 
 ```powershell
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt-private.pem
@@ -171,7 +225,7 @@ openssl rand -base64 32   # BYOK 主密钥
 - BYOK 主密钥轮换：递增 `MODEL_CRED_KEY_VERSION`，旧密钥放 `MODEL_CRED_MASTER_KEYS`；丢失主密钥等于凭证全部不可用。
 - LiteLLM `LITELLM_SALT_KEY` 设置后不可更改。
 
-## 5. 相关文档
+## 6. 相关文档
 
 - 部署与排障：[deployment-guide.md](./deployment-guide.md)
 - 速查：[env-quick-reference.md](./env-quick-reference.md)
