@@ -144,6 +144,51 @@ async def test_candidate_sets_keep_whitelisted_fields_and_truncate(
     assert "specSummary" not in summary
 
 
+def _priced_candidate(index: int, price_fen: int) -> dict[str, Any]:
+    return {
+        "hardwareId": f"cpu-{index:02d}",
+        "displayName": f"CPU {index}",
+        "specifications": {},
+        "priceFen": price_fen,
+        "dataQualityStatus": "VERIFIED_STRUCTURED",
+        "lifecycleStatus": "ACTIVE",
+    }
+
+
+def test_candidate_selection_stratifies_price_range() -> None:
+    """候选按价格分层取样：低价档与高价档都要有代表，而不是只取前 N 条。"""
+    items = [_priced_candidate(index, 100_000 + index * 10_000) for index in range(30)]
+
+    selected, dropped = nodes_module._summarize_candidates("CPU", items)
+
+    prices = [summary["price_fen"] for summary in selected]
+    assert len(selected) == 20
+    assert dropped == 10
+    assert prices[0] == 100_000
+    assert prices[-1] == 390_000
+    # 中间价位也有代表，说明不是简单截断前 20 条
+    assert 250_000 in prices
+
+
+def test_candidate_selection_filters_over_budget_items() -> None:
+    """单件价格已超过整机预算的候选不可能装进方案，应先剔除再分层。"""
+    items = [_priced_candidate(index, 100_000 + index * 10_000) for index in range(30)]
+
+    selected, _ = nodes_module._summarize_candidates("CPU", items, 250_000)
+
+    assert len(selected) == 16
+    assert all(summary["price_fen"] <= 250_000 for summary in selected)
+
+
+def test_candidate_selection_falls_back_when_budget_excludes_everything() -> None:
+    """预算过滤后为空时退回全量分层，让 Java 报预算错误而不是「没有候选」。"""
+    items = [_priced_candidate(index, 100_000 + index * 10_000) for index in range(30)]
+
+    selected, _ = nodes_module._summarize_candidates("CPU", items, 1)
+
+    assert len(selected) == 20
+
+
 async def test_unparseable_candidate_list_keeps_upstream_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

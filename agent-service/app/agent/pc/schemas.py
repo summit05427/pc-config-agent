@@ -7,7 +7,14 @@ LLM 只负责把自然语言解析成这里的结构，硬件、价格与链接�
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 MAX_BUDGET_FEN = 100_000_000  # 100 万元，超出视为输入异常而不是真实需求
 MAX_MEMORY_GB = 512
@@ -185,12 +192,23 @@ class BuildStrategy(BaseModel):
         raise ValueError("activation_plan 只允许为空或 deferred")
 
     @model_validator(mode="after")
-    def _validate_unique_categories(self) -> "BuildStrategy":
-        """同一类别只允许一条倾向/优先点，重复会让策略自相矛盾。"""
+    def _dedupe_categories(self) -> "BuildStrategy":
+        """同一类别只保留第一条倾向/优先点。
+
+        模型重复写同一类别属于形状偏差，直接判非法会让整份策略退化为默认策略，
+        得不偿失；保留首条既保持策略自洽，也不改变任何金额或硬件选择。
+        """
         for field_name in ("budget_allocation_guidance", "component_priorities"):
-            categories = [entry.category for entry in getattr(self, field_name)]
-            if len(set(categories)) != len(categories):
-                raise ValueError(f"{field_name} 存在重复类别")
+            entries = getattr(self, field_name)
+            seen: set[HardwareCategory] = set()
+            unique: list[BudgetGuidance | ComponentPriority] = []
+            for entry in entries:
+                if entry.category in seen:
+                    continue
+                seen.add(entry.category)
+                unique.append(entry)
+            if len(unique) != len(entries):
+                setattr(self, field_name, unique)
         return self
 
 
@@ -243,14 +261,43 @@ class SpecialistRole(StrEnum):
     PLATFORM = "PLATFORM"
 
 
+# Specialist 各文本列表的保留上限；只在注入上下文前生效，不作为校验失败条件
+_SPECIALIST_LIST_LIMITS: dict[str, int] = {
+    "recommendations": 8,
+    "risks": 8,
+    "evidence": 10,
+}
+
+
+def _coerce_text_list(value: object) -> list[str]:
+    """把模型常见的「列表写成字符串」纠正为列表；空值按空列表处理。
+
+    Specialist 报告是咨询意见，形状偏差不应让整份分析作废；只保留非空字符串，
+    其他垃圾值直接丢弃，不做类型猜测或编造。
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, (list, tuple)):
+        return [
+            item.strip()
+            for item in value
+            if isinstance(item, str) and item.strip()
+        ]
+    return []
+
+
 class SpecialistReport(BaseModel):
     """单个 Specialist 的分析产物。
 
     为什么限制 `evidence`：证据只能是上下文中真实出现的候选 ID 或知识来源 ID，
     否则报告会把编造的型号/跑分当成依据，最终污染 Architect 的上下文。
 
-    列表上限只用于约束注入上下文的大小，不放宽就会因为「多写了一条风险」
-    让整份报告被 Schema 判废，等于把最有价值的分析丢掉。
+    列表上限与形状处理只用于约束注入上下文的大小：真实运行里曾出现
+    「多写一条风险」「recommendations 写成字符串」导致整份报告被判废，
+    等于把最有价值的分析丢掉，因此这里做归一化与截断，而不是直接报错。
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -259,11 +306,17 @@ class SpecialistReport(BaseModel):
     # 期望 100-500 字；上限放宽到 2000，避免正常中文分析被 Schema 判为非法
     summary: str = Field(min_length=1, max_length=2000)
     # 只给方向（例如「优先高显存」），不允许指定最终型号
-    recommendations: list[str] = Field(min_length=1, max_length=8)
+    recommendations: list[str] = Field(default_factory=list, max_length=8)
     risks: list[str] = Field(default_factory=list, max_length=8)
     affected_categories: list[HardwareCategory] = Field(min_length=1, max_length=8)
     # 只能是候选 hardware_id 或 knowledge source_id，由提示词约束、不在代码里做匹配
     evidence: list[str] = Field(default_factory=list, max_length=10)
+
+    @field_validator("recommendations", "risks", "evidence", mode="before")
+    @classmethod
+    def _normalize_text_list(cls, value: object, info: ValidationInfo) -> list[str]:
+        limit = _SPECIALIST_LIST_LIMITS.get(str(info.field_name), 10)
+        return _coerce_text_list(value)[:limit]
 
 
 class CriticDecision(StrEnum):

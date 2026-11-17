@@ -248,6 +248,35 @@ def test_specialist_report_accepts_six_risks() -> None:
     assert len(report.risks) == 6
 
 
+def test_specialist_report_normalizes_string_fields_and_truncates_lists() -> None:
+    """真实运行里 recommendations 被写成字符串：归一化后仍保留整份分析。"""
+    report = SpecialistReport(
+        role=SpecialistRole.PLATFORM,
+        summary="平台分析。",
+        recommendations="优先锁定平台代际",
+        risks=None,
+        affected_categories=[HardwareCategory.CPU],
+        evidence=[f"cpu-{index}" for index in range(12)],
+    )
+
+    assert report.recommendations == ["优先锁定平台代际"]
+    assert report.risks == []
+    assert len(report.evidence) == 10
+
+
+def test_specialist_report_allows_empty_recommendations() -> None:
+    """只有风险没有建议也是有效分析，不能因为 recommendations 为空整份作废。"""
+    report = SpecialistReport(
+        role=SpecialistRole.PERFORMANCE,
+        summary="性能分析。",
+        risks=["候选缺少跑分"],
+        affected_categories=[HardwareCategory.GPU],
+    )
+
+    assert report.recommendations == []
+    assert report.risks == ["候选缺少跑分"]
+
+
 async def test_specialist_panel_keeps_successful_role_when_peer_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -105,6 +105,8 @@ STREAM_CHUNK_CHARS = 240
 # 候选摘要上限：CPU/GPU 需要横向比较，其余类别只保留定位够用的条目
 MAX_CANDIDATE_ITEMS_DEFAULT = 10
 MAX_CANDIDATE_ITEMS_BY_CATEGORY: dict[str, int] = {"CPU": 20, "GPU": 20}
+# 预算利用率下限（软约束）：低于该比例说明模型停在入门档，而不是预算不足
+BUDGET_UTILIZATION_FLOOR_PERCENT = 80
 # 摘要字段白名单：键为 State 中的规范名，值为工具输出里的候选字段名。
 # Java 规格用 snake_case 且 TDP 字段名为 `tdp_w`，State 统一成 `tdp_watt`。
 # 必须覆盖九条阻断级兼容规则读取的字段（插槽/内存代际/板型/长度/高度/功率/接口/条数），
@@ -674,6 +676,13 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
     candidate_sets: dict[str, list[dict[str, Any]]] = {}
     truncated: dict[str, int] = {}
     upstream_failed = False
+    # 预算上限用于剔除单件必超预算的候选；缺失时不做过滤
+    raw_budget = as_mapping(state.get("requirements")).get("budget_max_fen")
+    budget_max_fen = (
+        raw_budget
+        if isinstance(raw_budget, int) and not isinstance(raw_budget, bool)
+        else None
+    )
     for (category, _), result in zip(requests, results, strict=True):
         if isinstance(result, BaseException):
             upstream_failed = True
@@ -693,7 +702,9 @@ async def candidate_retriever(state: PCConfigState) -> dict[str, Any]:
         total = as_int(data.get("total"), len(items))
         counts[category.value] = total
         catalog_version = as_text(data.get("catalogVersion"), catalog_version)
-        summaries, dropped = _summarize_candidates(category.value, items)
+        summaries, dropped = _summarize_candidates(
+            category.value, items, budget_max_fen
+        )
         candidate_sets[category.value] = summaries
         if dropped:
             truncated[category.value] = dropped
@@ -813,12 +824,60 @@ def _candidate_summary(item: dict[str, Any]) -> dict[str, Any]:
     return summary
 
 
+def _candidate_price(item: dict[str, Any]) -> int | None:
+    """候选单价；只接受真正的整数分，缺失或非法值返回 None。"""
+    price = item.get("priceFen")
+    if isinstance(price, bool) or not isinstance(price, int):
+        return None
+    return price
+
+
+def _stratified_pick(items: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """按价格等距取样；items 必须已按价格升序排列。
+
+    `len(items) > limit` 时等距步长必然大于 1，不会取到重复项。
+    """
+    if len(items) <= limit:
+        return list(items)
+    if limit <= 1:
+        return [items[len(items) // 2]]
+    stride = (len(items) - 1) / (limit - 1)
+    return [items[round(index * stride)] for index in range(limit)]
+
+
 def _summarize_candidates(
-    category: str, items: list[dict[str, Any]]
+    category: str,
+    items: list[dict[str, Any]],
+    budget_max_fen: int | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
-    """按工具返回顺序截断；返回 (摘要列表, 被丢弃条数)。"""
+    """按价格分层取样后截断，避免字母序截断只暴露入门价位。
+
+    目录按 `hardware_id` 排序且远超提示词预算（CPU 71 条只进 20 条），
+    直接取前 N 会让 15k 预算也只能看到低价档。这里先剔除单件必然超预算的
+    候选，再按价格等距抽取，保证每个价位段都有代表；价格缺失的候选排在
+    最后，只在空位时补入。过滤后若一条不剩，退回全量分层，让 Java 报预算
+    错误，而不是伪装成「没有候选」。
+    """
     limit = MAX_CANDIDATE_ITEMS_BY_CATEGORY.get(category, MAX_CANDIDATE_ITEMS_DEFAULT)
-    return [_candidate_summary(item) for item in items[:limit]], max(0, len(items) - limit)
+    priced: list[tuple[int, dict[str, Any]]] = []
+    unpriced: list[dict[str, Any]] = []
+    for item in items:
+        price = _candidate_price(item)
+        if price is None:
+            unpriced.append(item)
+        else:
+            priced.append((price, item))
+    priced.sort(key=lambda pair: pair[0])
+
+    eligible = [
+        pair for pair in priced if budget_max_fen is None or pair[0] <= budget_max_fen
+    ]
+    pool = eligible or priced
+    selected = _stratified_pick([item for _, item in pool], limit)
+    if len(selected) < limit:
+        selected.extend(unpriced[: limit - len(selected)])
+    summaries = [_candidate_summary(item) for item in selected]
+    return summaries, max(0, len(items) - len(selected))
 
 
 def _decode_tool_result(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
@@ -1209,13 +1268,28 @@ def _budget_guidance_text(state: PCConfigState) -> str:
     total = sum(medians.values())
     header = "## 预算分配参考（软约束，最终以 Java 预算校验为准）"
     if total <= budget:
-        return "\n".join(
-            [
-                header,
-                f"- 八类候选中位价合计 {format_fen(total)}，不高于上限 {format_fen(budget)}；"
-                "优先选择价格不高于中位价的型号。",
-            ]
-        )
+        # 中位价低于预算时不能把中位价当上限：那会逼模型停在入门档，
+        # 用户给 15k 也只能配出 8k 档。这里按比例放大到预算，让参考线覆盖用途档位。
+        ratio = budget / total
+        floor_fen = budget * BUDGET_UTILIZATION_FLOOR_PERCENT // 100
+        lines = [
+            header,
+            f"- 八类候选中位价合计 {format_fen(total)}，低于上限 {format_fen(budget)}；"
+            "按用途档位把预算用足：以下参考线由中位价等比放大、合计约等于上限，"
+            "优先选不高于参考线的型号，可在一类略超、由另一类节省补回。",
+            f"- 档位要求：八类合计建议落在上限的 {BUDGET_UTILIZATION_FLOOR_PERCENT}%–100%"
+            f"（{format_fen(floor_fen)}–{format_fen(budget)}）；"
+            "明显低于该区间视为用途档位不足。",
+        ]
+        for category in REQUIRED_CATEGORIES:
+            reference = medians.get(category.value)
+            if reference is None:
+                continue
+            scaled = max(1, int(reference * ratio))
+            lines.append(
+                f"- {CATEGORY_LABELS[category.value]}：参考线 {format_fen(scaled)}"
+            )
+        return "\n".join(lines)
 
     floors = _category_price_floor(candidate_sets)
     lines = [

@@ -276,16 +276,21 @@ def test_build_strategy_rejects_activation_plan_other_than_deferred() -> None:
         _strategy(activation_plan="activate performance specialist")
 
 
-def test_build_strategy_rejects_extra_fields_and_duplicates() -> None:
+def test_build_strategy_rejects_extra_fields() -> None:
     with pytest.raises(ValidationError):
         _strategy(price_fen=100)
-    with pytest.raises(ValidationError):
-        _strategy(
-            component_priorities=[
-                {"category": "GPU", "focus": "显存容量"},
-                {"category": "GPU", "focus": "频率"},
-            ]
-        )
+
+
+def test_build_strategy_dedupes_duplicate_categories() -> None:
+    """重复类别只保留首条：形状偏差不该让整份策略退化为默认策略。"""
+    strategy = _strategy(
+        component_priorities=[
+            {"category": "GPU", "focus": "显存容量"},
+            {"category": "GPU", "focus": "频率"},
+        ]
+    )
+
+    assert [entry.focus for entry in strategy.component_priorities] == ["显存容量"]
 
 
 async def test_strategy_is_injected_into_architect_context(

@@ -729,6 +729,27 @@ def test_architect_context_scales_category_budget_when_medians_exceed_budget() -
     assert "跨代际或跨平台" in text
 
 
+def test_architect_context_scales_category_budget_up_when_medians_below_budget() -> None:
+    """中位价低于预算时必须放大到预算档位，不能把中位价当成软上限。"""
+    state: dict[str, Any] = {
+        "requirements": {"budget_max_fen": 1_500_000, "scenario": "GAMING"},
+        "candidate_sets": {
+            "CPU": [{"hardware_id": "cpu-a", "price_fen": 200_000}],
+            "GPU": [{"hardware_id": "gpu-a", "price_fen": 400_000}],
+        },
+    }
+
+    text = nodes_module._architect_context(state, {})
+
+    assert "预算分配参考" in text
+    # 中位价合计 6000 元，预算 15000 元 → 等比放大 2.5 倍
+    assert "CPU：参考线 ¥5,000.00" in text
+    assert "显卡：参考线 ¥10,000.00" in text
+    # 档位下限必须由代码算给模型：低于 80% 视为入门档
+    assert "80%–100%" in text
+    assert "¥12,000.00–¥15,000.00" in text
+
+
 def test_architect_context_omits_budget_guidance_without_prices() -> None:
     state: dict[str, Any] = {
         "requirements": {"budget_max_fen": 800000},
