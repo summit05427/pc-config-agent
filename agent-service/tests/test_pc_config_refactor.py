@@ -427,3 +427,59 @@ async def test_structured_output_none_and_fallback_invalid_returns_stage() -> No
     assert model.structured_calls == 1
     # 兜底只允许一次，不允许循环重试
     assert len(model.text_prompts) == 1
+
+
+class _FakeAuthError(Exception):
+    """模拟上游鉴权失败；异常文本含密钥片段，用于验证诊断只取类型与状态码。"""
+
+    status_code = 401
+
+    def __init__(self) -> None:
+        super().__init__("Authentication Fails, Your api key: sk-secret-1234 is invalid")
+
+
+class _AuthFailingRunnable:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        del messages, config
+        self.calls += 1
+        raise _FakeAuthError()
+
+
+class _AuthFailingModel:
+    """结构化与文本通道都失败；文本兜底才是「没有模型输出」的直接原因。"""
+
+    def __init__(self) -> None:
+        self.structured_calls = 0
+        self.runnable = _AuthFailingRunnable()
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        del schema, include_raw
+        return self.runnable
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
+        del messages, config
+        self.runnable.calls += 1
+        raise _FakeAuthError()
+
+
+async def test_structured_failure_exposes_error_type_and_status() -> None:
+    """两次都抛错时必须带回异常类型与状态码，且不得透出异常文本。"""
+    model = _AuthFailingModel()
+
+    outcome = await invoke_model_structured_outcome(
+        model,  # type: ignore[arg-type]
+        [HumanMessage(content="组装一台电脑")],
+        schema=BuildProposal,
+        config=None,
+        agent_id="pc-config",
+        purpose="build_architect",
+    )
+
+    assert outcome.value is None
+    assert outcome.error_type == "_FakeAuthError"
+    assert outcome.http_status == 401
+    # 结构化调用 + 文本兜底各一次
+    assert model.runnable.calls == 2

@@ -1,9 +1,8 @@
-"""PC 配置推荐流水线节点。
+"""PC 配置推荐的六个确定性节点。
 
 设计约束：
 - 节点不直接发 SSE，只累积 `tool_events`；
-- 需求解析与推荐说明调用 LLM，且必须打 `TAG_NOSTREAM`；
-- 策略与选型同样由 LLM 产出结构化结果，失败即失败，不做确定性兜底；
+- 只有需求解析与推荐说明调用 LLM，且必须打 `TAG_NOSTREAM`；
 - 型号、价格、总价、SKU、链接全部来自 Java 结构化结果；
 - 任何失败路径都写入明确 `workflow_status`，禁止静默返回空。
 """
@@ -25,6 +24,7 @@ from langchain_core.tools import BaseTool
 from langgraph.config import get_stream_writer
 
 from app.agent.pc.llm import (
+    StructuredOutcome,
     extract_json_object,
     invoke_model_structured,
     invoke_model_structured_outcome,
@@ -865,7 +865,7 @@ def _category_labels(raw: Any) -> str:
 
 
 def _architect_quality_feedback_text(feedback: dict[str, Any]) -> str:
-    """把质量评审的结构化发现翻译成换件要求；不出现内部参数名与原始数值。"""
+    """把质量评审的结构化发现翻译成换件要求；不出现求解器字段名与原始参数。"""
     findings = [as_mapping(item) for item in as_list(feedback.get("findings"))]
     if not findings:
         return ""
@@ -1037,8 +1037,14 @@ def _architect_failure(
     preserve: list[str] | None = None,
     repair_attempt: int = 0,
     stage: str | None = None,
+    error_type: str | None = None,
+    http_status: int | None = None,
 ) -> dict[str, Any]:
-    """按方案 §12.2 的形状描述失败；没有服务端明细时不编造受影响类别。"""
+    """按方案 §12.2 的形状描述失败；没有服务端明细时不编造受影响类别。
+
+    `error_type` / `http_status` 只承载异常类型与上游状态码：排查「模型没有输出」
+    时必须能区分鉴权失败、超时与 Provider 不支持，但不能把异常正文或密钥带出去。
+    """
     affected = list(categories or [])
     keep = list(preserve or [])
     all_categories = [category.value for category in REQUIRED_CATEGORIES]
@@ -1049,6 +1055,9 @@ def _architect_failure(
         "failure_type": failure_type,
         # 具体阶段：区分 Provider 不支持、Schema 非法、候选越界与组装失败
         "failure_stage": stage,
+        # 脱敏诊断：仅异常类型与 HTTP 状态码，不含异常文本、模型输出与密钥
+        "error_type": error_type,
+        "http_status": http_status,
         "affected_categories": affected,
         "affected_hardware_ids": list(hardware_ids or []),
         "violated_rule_ids": list(rule_ids or _FAILURE_RULE_IDS.get(failure_type, ())),
@@ -1414,8 +1423,8 @@ async def _request_architect_proposal(
     agent_id: str,
     architect_prompt: str,
     knowledge_text: str = "",
-) -> tuple[BuildProposal | None, str | None]:
-    outcome = await invoke_model_structured_outcome(
+) -> StructuredOutcome[BuildProposal]:
+    return await invoke_model_structured_outcome(
         model,
         [
             SystemMessage(content=architect_prompt),
@@ -1428,7 +1437,6 @@ async def _request_architect_proposal(
         # 推理模型的思考 token 计入输出：Architect 单独放大预算，其他节点保持全局值
         max_tokens=get_settings().agent.architect_max_tokens,
     )
-    return outcome.value, outcome.failure_stage
 
 
 def _architect_candidate_failure(
@@ -1604,7 +1612,7 @@ async def build_architect(
 ) -> dict[str, Any]:
     """LLM 选型：结构化提案 → 候选校验 → 增量校验 → Java 组装 → 有限修正。
 
-    模型不可用或结构化输出失败时直接失败，绝不回退到确定性拼装冒充 LLM 结果。
+    模型不可用或结构化输出失败时直接失败，绝不回退到旧求解器冒充 LLM 结果。
     """
     session = _architect_session(state)
     failure = as_mapping(state.get("build_failure"))
@@ -1615,7 +1623,7 @@ async def build_architect(
     )
 
     while True:
-        proposal, failure_stage = await _request_architect_proposal(
+        proposal_outcome = await _request_architect_proposal(
             state,
             failure,
             config,
@@ -1624,13 +1632,17 @@ async def build_architect(
             architect_prompt=architect_prompt,
             knowledge_text=knowledge_text,
         )
+        proposal = proposal_outcome.value
         if proposal is None:
             unavailable = _architect_failure(
                 FAILURE_MODEL_UNAVAILABLE,
                 message="模型未能返回符合 Schema 的选型提案。",
                 repair_attempt=session.repair_count,
                 # 模型返回空但未给出阶段时按 Schema 非法处理，避免失败不可定位
-                stage=failure_stage or FAILURE_STAGE_SCHEMA_INVALID,
+                stage=proposal_outcome.failure_stage or FAILURE_STAGE_SCHEMA_INVALID,
+                # 鉴权失败 / 超时等真实异常必须随失败一起落盘，否则只能看到笼统阶段
+                error_type=proposal_outcome.error_type,
+                http_status=proposal_outcome.http_status,
             )
             return _architect_failure_update(unavailable, session, last_proposal)
         last_proposal = proposal

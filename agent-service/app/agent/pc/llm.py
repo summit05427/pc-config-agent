@@ -130,6 +130,19 @@ async def _report_usage(
         )
 
 
+def _error_diagnostics(exc: Exception) -> tuple[str, int | None]:
+    """只提取异常类型与 HTTP 状态码。
+
+    异常文本可能含上游地址、请求正文或（BYOK 场景的）密钥片段，因此绝不进入
+    `build_failure`、日志或评测报告；调用方据此判断是鉴权失败还是 Provider 不支持。
+    """
+    status = getattr(exc, "status_code", None)
+    if not isinstance(status, int):
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+    return type(exc).__name__, status if isinstance(status, int) else None
+
+
 def _thread_id(config: RunnableConfig | None) -> str | None:
     if not config:
         return None
@@ -209,7 +222,7 @@ async def invoke_model_text(
     """调用模型并返回纯文本；任何失败都返回 None，由调用方使用确定性兜底。"""
     if model is None:
         return None
-    response = await _invoke_text_message(
+    outcome = await _invoke_text_message(
         model,
         messages,
         config=config,
@@ -217,7 +230,16 @@ async def invoke_model_text(
         purpose=purpose,
         max_tokens=max_tokens,
     )
-    return _message_text(response) if response is not None else None
+    return _message_text(outcome.message) if outcome.message is not None else None
+
+
+@dataclass(frozen=True, slots=True)
+class _TextOutcome:
+    """文本调用的结果；失败时只携带异常类型与状态码，不含任何正文。"""
+
+    message: BaseMessage | None
+    error_type: str | None = None
+    http_status: int | None = None
 
 
 async def _invoke_text_message(
@@ -228,7 +250,7 @@ async def _invoke_text_message(
     agent_id: str,
     purpose: str,
     max_tokens: int | None = None,
-) -> BaseMessage | None:
+) -> _TextOutcome:
     """文本通道的原始调用：返回完整消息，供需要 finish_reason 的诊断逻辑使用。"""
     thread_id = _thread_id(config)
     await run_hooks(
@@ -244,20 +266,26 @@ async def _invoke_text_message(
     started_at = perf_counter()
     response: BaseMessage | None = None
     error_type: str | None = None
+    http_status: int | None = None
     try:
         response = await _with_max_tokens(model, max_tokens).ainvoke(
             messages, config={"tags": [TAG_NOSTREAM]}
         )
     except Exception as exc:
-        # 只记录类型：异常文本可能含上游地址或对话内容
-        error_type = type(exc).__name__
-        logger.warning("pc.llm_failed", purpose=purpose, error_type=error_type)
+        # 只记录类型与状态码：异常文本可能含上游地址、对话内容或密钥片段
+        error_type, http_status = _error_diagnostics(exc)
+        logger.warning(
+            "pc.llm_failed",
+            purpose=purpose,
+            error_type=error_type,
+            http_status=http_status,
+        )
     finally:
         latency_ms = int((perf_counter() - started_at) * 1000)
         await _report_usage(runtime, invocation_id, response, latency_ms, error_type)
 
     if response is None:
-        return None
+        return _TextOutcome(None, error_type, http_status)
 
     text = _message_text(response)
     await run_hooks(
@@ -268,7 +296,7 @@ async def _invoke_text_message(
             text=text,
         )
     )
-    return response
+    return _TextOutcome(response)
 
 
 def _split_structured_result[SchemaT: BaseModel](
@@ -312,10 +340,16 @@ async def invoke_model_structured[SchemaT: BaseModel](
 
 @dataclass(frozen=True, slots=True)
 class StructuredOutcome[SchemaT: BaseModel]:
-    """结构化调用结果；`failure_stage` 供节点写入 `build_failure` 定位失败环节。"""
+    """结构化调用结果；`failure_stage` 供节点写入 `build_failure` 定位失败环节。
+
+    `error_type` / `http_status` 是脱敏诊断位：只保留异常类型与上游状态码，
+    不含异常文本、模型输出或密钥，评测报告可直接展示。
+    """
 
     value: SchemaT | None
     failure_stage: str | None
+    error_type: str | None = None
+    http_status: int | None = None
 
 
 def _json_schema_instruction(schema: type[BaseModel]) -> str:
@@ -347,6 +381,16 @@ def _dump_raw_if_enabled(purpose: str, finish_reason: str | None, text: str) -> 
         logger.warning("pc.llm_raw_dump_failed", purpose=purpose)
 
 
+@dataclass(frozen=True, slots=True)
+class _FallbackOutcome[SchemaT: BaseModel]:
+    """文本兜底结果；截断与异常诊断分开返回，避免把鉴权失败误报成 Provider 不支持。"""
+
+    value: SchemaT | None
+    is_truncated: bool
+    error_type: str | None = None
+    http_status: int | None = None
+
+
 async def _structured_text_fallback[SchemaT: BaseModel](
     model: BaseChatModel,
     messages: list[BaseMessage],
@@ -356,15 +400,16 @@ async def _structured_text_fallback[SchemaT: BaseModel](
     agent_id: str,
     purpose: str,
     max_tokens: int | None = None,
-) -> tuple[SchemaT | None, bool]:
+) -> _FallbackOutcome[SchemaT]:
     """一次性文本兜底：注入 Schema → 纯文本调用 → 提取 JSON → Pydantic 校验。
 
     只有结构化输出失败才会走到这里；不循环、不重试第二次。文本调用已复用
     文本通道的钩子、`TAG_NOSTREAM` 与用量上报，这里不再重复触发钩子。
 
-    返回 `(对象, 是否截断)`：截断要单独上报，否则会被误判成「Provider 不支持」。
+    返回截断标志与诊断信息：截断要单独上报，否则会被误判成「Provider 不支持」；
+    兜底本身抛错（如 BYOK 鉴权失败）时，异常类型要一路带回 `build_failure`。
     """
-    response = await _invoke_text_message(
+    outcome = await _invoke_text_message(
         model,
         [*messages, HumanMessage(content=_json_schema_instruction(schema))],
         config=config,
@@ -372,11 +417,20 @@ async def _structured_text_fallback[SchemaT: BaseModel](
         purpose=f"{purpose}:json_fallback",
         max_tokens=max_tokens,
     )
+    response = outcome.message
     if response is None:
-        logger.warning("pc.llm_fallback_invalid", purpose=purpose, reason="no_response")
-        return None, False
+        logger.warning(
+            "pc.llm_fallback_invalid",
+            purpose=purpose,
+            reason="no_response",
+            error_type=outcome.error_type,
+            http_status=outcome.http_status,
+        )
+        return _FallbackOutcome(
+            None, False, outcome.error_type, outcome.http_status
+        )
 
-    text = _message_text(response)
+    text = _message_text(response) or ""
     finish_reason = _finish_reason(response)
     output_chars, output_hash = _output_fingerprint(text)
     _dump_raw_if_enabled(purpose, finish_reason, text)
@@ -395,9 +449,9 @@ async def _structured_text_fallback[SchemaT: BaseModel](
             output_chars=output_chars,
             output_sha256_prefix=output_hash,
         )
-        return None, is_truncated
+        return _FallbackOutcome(None, is_truncated)
     try:
-        return schema.model_validate(payload), False
+        return _FallbackOutcome(schema.model_validate(payload), False)
     except ValueError:
         # 只记录结论：校验错误文本可能包含完整模型输出片段
         logger.warning(
@@ -409,7 +463,7 @@ async def _structured_text_fallback[SchemaT: BaseModel](
             output_chars=output_chars,
             output_sha256_prefix=output_hash,
         )
-        return None, is_truncated
+        return _FallbackOutcome(None, is_truncated)
 
 
 async def invoke_model_structured_outcome[SchemaT: BaseModel](
@@ -454,6 +508,7 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     parsed: SchemaT | None = None
     failure_stage = FAILURE_STAGE_PROVIDER_UNSUPPORTED
     error_type: str | None = None
+    http_status: int | None = None
     finish_reason: str | None = None
     output_chars = 0
     output_hash: str | None = None
@@ -475,8 +530,8 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
                 failure_stage = FAILURE_STAGE_SCHEMA_INVALID
                 error_type = "structured_output_invalid"
     except Exception as exc:
-        # 只记录类型：异常文本可能含上游地址或对话内容
-        error_type = type(exc).__name__
+        # 只记录类型与状态码：异常文本可能含上游地址、对话内容或密钥片段
+        error_type, http_status = _error_diagnostics(exc)
     finally:
         latency_ms = int((perf_counter() - started_at) * 1000)
         await _report_usage(runtime, invocation_id, raw_message, latency_ms, error_type)
@@ -485,19 +540,20 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
         failure_stage = FAILURE_STAGE_OUTPUT_TRUNCATED
 
     if parsed is None:
-        # 脱敏：只记录阶段、finish_reason、长度与哈希前缀，不落模型输出正文
+        # 脱敏：只记录阶段、异常类型、finish_reason、长度与哈希前缀，不落模型输出正文
         logger.warning(
             "pc.llm_structured_failed",
             purpose=purpose,
             failure_stage=failure_stage,
             error_type=error_type,
+            http_status=http_status,
             has_raw=raw_message is not None,
             finish_reason=finish_reason,
             is_truncated=is_truncated,
             output_chars=output_chars,
             output_sha256_prefix=output_hash,
         )
-        parsed, fallback_truncated = await _structured_text_fallback(
+        fallback = await _structured_text_fallback(
             model,
             messages,
             schema=schema,
@@ -506,11 +562,15 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
             purpose=purpose,
             max_tokens=max_tokens,
         )
-        if parsed is not None:
-            return StructuredOutcome(parsed, None)
-        if fallback_truncated:
-            return StructuredOutcome(None, FAILURE_STAGE_OUTPUT_TRUNCATED)
-        return StructuredOutcome(None, failure_stage)
+        if fallback.value is not None:
+            return StructuredOutcome(fallback.value, None)
+        # 两次都失败时以最后一次（兜底）异常为准：它才是「没有模型输出」的直接原因
+        return StructuredOutcome(
+            None,
+            FAILURE_STAGE_OUTPUT_TRUNCATED if fallback.is_truncated else failure_stage,
+            error_type=fallback.error_type or error_type,
+            http_status=fallback.http_status if fallback.http_status is not None else http_status,
+        )
 
     await run_hooks(
         HookContext(

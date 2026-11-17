@@ -481,7 +481,7 @@ async def test_llm_quality_retry_injects_structured_feedback(
     assert "目标值：¥2,500.00" in retry_prompt
     assert "必须保持不变" in retry_prompt
     assert "提高（不低于目标值）" in retry_prompt
-    # 内部价格参数不得原样进入模型上下文
+    # 求解器参数不得原样进入模型上下文
     assert "minCpuPriceFen" not in retry_prompt
     assert "maxGpuPriceFen" not in retry_prompt
 
@@ -499,6 +499,7 @@ async def test_model_none_fails_without_fallback(
     assert compose.calls == []
     assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
     assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_SCHEMA_INVALID
+    assert result["build_failure"]["error_type"] == "structured_output_invalid"
     assert build_result_payload(result) is None
 
 
@@ -514,6 +515,8 @@ async def test_unsupported_structured_output_reports_provider_stage(
     assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
     assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
     assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_PROVIDER_UNSUPPORTED
+    # 结构化调用抛错时异常类型必须落到 build_failure，便于区分鉴权失败与 Provider 不支持
+    assert result["build_failure"]["error_type"] == "RuntimeError"
     assert compose.calls == []
 
 
