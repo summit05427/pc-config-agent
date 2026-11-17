@@ -110,6 +110,7 @@
 | `AGENT__TOOL_TIMEOUT_SECONDS` / `TOOL_MAX_RETRIES` / `TOOL_MAX_OUTPUT_TOKENS` / `TOOL_MAX_CALLS_PER_TURN` | `10` / `1` / `4000` / `40` | 工具治理 |
 | `AGENT__TOOL_REDACT_OUTPUT` | `true` | 工具输出脱敏 |
 | `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `3` / `2` / `4096` | `build_architect` 配额 |
+| `AGENT__MULTI_AGENT_ENABLED` / `AGENT__CRITIC_ENABLED` | `false` / `true` | 多 Agent 骨架：默认关闭；开启后 Specialist 并行分析、Critic 只评审不改方案 |
 | `AGENT__SUMMARY_ENABLED` / `TRIGGER_TOKENS` | `true` / `4000` | 历史摘要 |
 | `AGENT__SESSION_INDEX_TTL_SECONDS` / `MAX` | `300` / `200` | 会话索引缓存 |
 | `HITL__ENABLED` / `HITL__INTERRUPT_TTL_SECONDS` | `false` / `1800` | 人在回路 |

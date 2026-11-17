@@ -990,6 +990,45 @@ def _architect_catalog_text(candidate_sets: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+_SPECIALIST_MAX_TEXT_CHARS = 1500
+_SPECIALIST_MAX_ITEMS = 3
+_SPECIALIST_ROLE_LABELS: dict[str, str] = {
+    "PERFORMANCE": "性能分析师",
+    "PLATFORM": "平台分析师",
+}
+_SPECIALIST_CONSTRAINT = "以下为专业分析建议，最终选型仍须从候选集选择并接受 Java 校验。"
+
+
+def _specialist_text(state: PCConfigState) -> str:
+    """把 Specialist 报告压成咨询意见；只读状态，不触发任何模型调用。"""
+    reports = as_mapping(state.get("specialist_reports"))
+    if not reports:
+        return ""
+    lines = ["## 专业分析建议（咨询意见）"]
+    for role, raw in reports.items():
+        report = as_mapping(raw)
+        if not report:
+            continue
+        role_name = str(role)
+        label = _SPECIALIST_ROLE_LABELS.get(role_name, "专业分析师")
+        lines.append(f"### {label}（{role_name}）")
+        summary = as_text(report.get("summary"))
+        if summary:
+            lines.append(summary)
+        for title, key in (("建议", "recommendations"), ("风险", "risks")):
+            items = [
+                as_text(item) for item in as_list(report.get(key)) if as_text(item)
+            ][:_SPECIALIST_MAX_ITEMS]
+            if items:
+                lines.append(f"- {title}：" + "；".join(items))
+    if len(lines) == 1:
+        return ""
+    # 先给正文留出约束句的位置，避免截断把「必须从候选集选择」这句关键约束吃掉
+    budget = _SPECIALIST_MAX_TEXT_CHARS - len(_SPECIALIST_CONSTRAINT) - 1
+    body = "\n".join(lines)[:budget]
+    return f"{body}\n- {_SPECIALIST_CONSTRAINT}"
+
+
 def _architect_repair_text(failure: dict[str, Any]) -> str:
     if not failure:
         return ""
@@ -1165,6 +1204,7 @@ def _architect_context(
         _requirements_text(as_mapping(state.get("requirements"))),
         _budget_guidance_text(state),
         _strategy_text(state),
+        _specialist_text(state),
         _architect_quality_feedback_text(as_mapping(state.get("quality_feedback"))),
         knowledge_text,
         _architect_catalog_text(as_mapping(state.get("candidate_sets"))),

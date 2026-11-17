@@ -48,6 +48,11 @@ class PCConfigState(TypedDict):
     # 结构化质量反馈：失败类型、逐项发现与必须保持不变的类别
     quality_feedback: NotRequired[dict[str, Any] | None]
     quality_retry_count: NotRequired[int]
+    # 多 Agent：各角色分析报告（按角色标识索引）与本次实际完成角色
+    specialist_reports: NotRequired[dict[str, dict[str, Any]]]
+    specialist_roles_used: NotRequired[list[str]]
+    # Critic 独立评审结果；只用于展示与观测，不参与路由或修正
+    critic_report: NotRequired[dict[str, Any] | None]
     workflow_status: NotRequired[str]
     # 节点不直接发 SSE：统一累积事件，由 turn.py 翻译成 tool_call / tool_result
     tool_events: NotRequired[Annotated[list[dict[str, Any]], lambda left, right: left + right]]

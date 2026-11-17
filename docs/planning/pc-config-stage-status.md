@@ -3,7 +3,7 @@
 | 项 | 内容 |
 | --- | --- |
 | 适用范围 | PC 配置从「Java 求解器选型」迁移到「Agent LLM 选型、Java 事实权威」的重构记录与后续计划 |
-| 状态 | Current（主体与 RAG 代码已落地；RAG 默认关闭；多 Agent 未开始） |
+| 状态 | Current（主体与 RAG 代码已落地；RAG 默认关闭；多 Agent 骨架已实现、默认关闭） |
 | 最后更新 | 2026-11-17 |
 | 权威性 | 本文记录重构目标、落地结果与边界；当前行为以代码与 [agent-workflows.md](../services/agent-service/agent-workflows.md) 为准 |
 
@@ -46,7 +46,7 @@
 | 评测 | `--fake` / `--real` | `agent-service/evals/` |
 | 旧求解器路径 | 已删除：无旧求解器节点、选型工具与求解端点 | `PcBuildInternalController.java` |
 | RAG | 已实现并本地验证：19 张卡片 / 49 切片入库，`recall@5` 0.9、`MRR@5` 0.75；仓库默认仍关闭 | `app/rag/knowledge/`、`evals/rag_eval.py` |
-| 多 Agent | 验收准备完成（单例筛选、2 条复杂场景用例、调用预算 ADR 0030）；实现未开始 | `evals/acceptance/`、ADR 0030 |
+| 多 Agent | 骨架已实现，默认关闭；单例真实验收通过：2/2 Specialist 成功、7 次调用、22.6s、硬约束 100% | `app/agent/pc/specialists.py`、`evals/acceptance/`、ADR 0030 |
 
 ### 3.1 Stage 1 门禁快照（2026-11-17）
 
@@ -84,8 +84,8 @@ Java 只保证「装得下、预算内」，不保证「搭得合理」。低端
 
 | 项 | 状态 | 下一步 |
 | --- | --- | --- |
-| RAG 知识库 | 规划中 | 确认语料来源与许可；接入 pgvector；定义引用格式 |
-| 多 Agent（Specialist / Critic） | 规划中 | 单图稳定后再评估拆分，不提前引入 |
+| RAG 知识库 | 本地已完成 | 确认语料许可与引用规范；视评测决定是否引入 rerank |
+| 多 Agent（Specialist / Critic） | 骨架已实现，默认关闭，完成 1 条单例真实验收 | 逐条验收第二条复杂场景；再决定 Critic 是否触发受限修正 |
 | 多方案对比与交互式换件 | 未实现 | 需要前端与快照链路改造 |
 | 报价核验闭环 | 未实现 | 补 `OWNER_VERIFIED` 与过期清理 |
 | 真实模型评测门禁 | 未实现 | 先扩用例，再评估 CI 成本 |

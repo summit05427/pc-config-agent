@@ -22,7 +22,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.constants import TAG_NOSTREAM
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.agent.hooks import HookContext, HookPoint, run_hooks
 from app.agent.pc.status import (
@@ -480,8 +480,12 @@ async def _structured_text_fallback[SchemaT: BaseModel](
         return _FallbackOutcome(None, is_truncated)
     try:
         return _FallbackOutcome(schema.model_validate(payload), False)
-    except ValueError:
-        # 只记录结论：校验错误文本可能包含完整模型输出片段
+    except ValidationError as exc:
+        # 只记录字段路径与错误类型：校验文本可能包含完整模型输出片段
+        invalid_fields = [
+            ".".join(str(part) for part in error.get("loc", ())) or "<root>"
+            for error in exc.errors()[:5]
+        ]
         logger.warning(
             "pc.llm_fallback_invalid",
             purpose=purpose,
@@ -490,6 +494,7 @@ async def _structured_text_fallback[SchemaT: BaseModel](
             is_truncated=is_truncated,
             output_chars=output_chars,
             output_sha256_prefix=output_hash,
+            invalid_fields=invalid_fields,
         )
         return _FallbackOutcome(None, is_truncated)
 

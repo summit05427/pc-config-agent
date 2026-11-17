@@ -287,6 +287,10 @@ class AgentSettings(BaseModel):
     # Architect 结构化选型的单独输出预算：推理模型的思考 token 计入输出，
     # 沿用 LLM__MAX_TOKENS=2048 会把 BuildProposal 的 JSON 截断
     architect_max_tokens: int = Field(default=4096, gt=0)
+    # 多 Agent 默认关闭：关闭时图路由绕过 Specialist/Critic，行为与单 Agent 完全一致
+    multi_agent_enabled: bool = False
+    # 仅当多 Agent 开启时生效；Critic 只评审、不直接修改方案
+    critic_enabled: bool = True
     # 工具默认超时（秒）；单个工具可在注册时覆盖
     tool_timeout_seconds: float = Field(default=10.0, gt=0)
     # 工具失败后的重试次数；0 表示不重试

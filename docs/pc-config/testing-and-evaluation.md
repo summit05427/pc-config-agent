@@ -98,7 +98,7 @@ corepack pnpm --dir frontend e2e:critical
 - 硬约束通过率取 `compatibility_report` 的逐条结论：全 PASS 才算通过，出现 `UNKNOWN` 一律计入 UNKNOWN 桶、不算通过；未产出配置的用例不参与分母。
 - 质量评审通过率为 [ADR 0029](../adr/0029-stage1-quality-gate-baseline-alternative.md) 的替代口径：`quality_review.issues` 为空且 `retry=false` 才算通过，`quality_passed` 为空的用例（未进入评审）不参与分母。
 - 修正成功率只统计 `architect_repair_count > 0` 且 `expects_success=true` 的用例，成功以图终态 `success` 为准；负向用例与未进入修正的用例不参与分母。
-- 单轮调用上限分两档：未启用 Specialist/Critic 的简单路径 ≤5 次；显式启用多 Agent 的复杂路径 ≤7 次，超限按失败记录，见 [ADR 0030](../adr/0030-multi-agent-call-budget.md)。
+- 单轮调用上限分两档：未启用 Specialist/Critic 的简单路径 ≤5 次；显式启用多 Agent 的复杂路径 ≤7 次，超限按失败记录，见 [ADR 0030](../adr/0030-multi-agent-call-budget.md)。修正与 Critic 共享最后 1 次预算：本轮已发生修正时跳过 Critic，避免叠加调用。
 
 ### 单例真实验收（多 Agent 前）
 

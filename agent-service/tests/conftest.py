@@ -100,6 +100,9 @@ os.environ["HITL__ENABLED"] = "false"
 # RAG 默认值由 embedding 配置推导：本地 .env 只要配了模型与维度就会自动开启，
 # 启动期会加载 pgvector 检索器并依赖真实库，因此测试必须显式关闭。
 os.environ["RAG__ENABLED"] = "false"
+# 多 Agent 默认关闭：本地 .env 若开启，图会额外调用 Specialist/Critic，
+# 既有「单轮四次模型调用」等断言随开发者环境漂移。
+os.environ["AGENT__MULTI_AGENT_ENABLED"] = "false"
 # 限流按用户计数，而集成测试共用一个 Redis 与同一批测试用户：
 # 沿用默认 20 次/分钟会让后跑的用例被前面的请求挤成 429，形成顺序相关的假失败。
 # 这里放大配额，只保留中间件调用路径；限流语义由 tests/test_rate_limit.py

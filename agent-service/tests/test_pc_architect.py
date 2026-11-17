@@ -666,3 +666,40 @@ def test_architect_context_omits_budget_guidance_without_prices() -> None:
     text = nodes_module._architect_context(state, {})
 
     assert "预算分配参考" not in text
+
+
+def test_architect_context_injects_specialist_advisory_before_catalog() -> None:
+    """Specialist 报告只作为咨询意见注入，并明确最终选型仍受候选集约束。"""
+    state: dict[str, Any] = {
+        "requirements": {"budget_max_fen": 800000, "scenario": "GAMING"},
+        "candidate_sets": {"CPU": [{"hardware_id": "cpu-a"}]},
+        "specialist_reports": {
+            "PERFORMANCE": {
+                "role": "PERFORMANCE",
+                "summary": "显卡档位与游戏负载基本匹配。",
+                "recommendations": ["优先更高显存", "关注 CPU 单核"],
+                "risks": ["部分候选缺少跑分"],
+            }
+        },
+    }
+
+    text = nodes_module._architect_context(state, {})
+
+    assert "PERFORMANCE" in text
+    assert "性能分析师" in text
+    assert "最终选型仍须从候选集选择" in text
+    assert text.index("专业分析建议") < text.index("## 候选清单")
+    # 建议要点进入上下文，但被压成要点列表而不是整段报告
+    assert "- 建议：" in text
+
+
+def test_architect_context_skips_empty_specialist_reports() -> None:
+    state: dict[str, Any] = {
+        "requirements": {"budget_max_fen": 800000},
+        "candidate_sets": {"CPU": [{"hardware_id": "cpu-a"}]},
+        "specialist_reports": {},
+    }
+
+    text = nodes_module._architect_context(state, {})
+
+    assert "专业分析建议" not in text

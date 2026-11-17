@@ -319,6 +319,13 @@ def test_graph_contains_pipeline_and_hitl_gates() -> None:
     assert {"build_solver", "build_validator"} & set(graph.nodes) == set()
 
 
+def test_graph_registers_multi_agent_nodes_even_when_disabled() -> None:
+    """多 Agent 默认关闭时不报错；节点仍注册，仅由路由绕过。"""
+    graph = _graph().get_graph()
+
+    assert {"specialist_panel", "critic_review"} <= set(graph.nodes)
+
+
 async def test_clarification_path_skips_retrieval(monkeypatch: pytest.MonkeyPatch) -> None:
     counters = _install_tools(monkeypatch)
     result = await _invoke(_graph(), "帮我配台电脑", "clarify")

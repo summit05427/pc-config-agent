@@ -5,6 +5,7 @@ LLM 只负责把自然语言解析成这里的结构，硬件、价格与链接�
 """
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -233,4 +234,60 @@ class BuildProposal(BaseModel):
         if set(categories) != set(REQUIRED_CATEGORIES):
             raise ValueError("selected_components 缺少必需类别")
         return self
+
+
+class SpecialistRole(StrEnum):
+    """并行分析角色；只负责给出方向性意见，不产出最终选型。"""
+
+    PERFORMANCE = "PERFORMANCE"
+    PLATFORM = "PLATFORM"
+
+
+class SpecialistReport(BaseModel):
+    """单个 Specialist 的分析产物。
+
+    为什么限制 `evidence`：证据只能是上下文中真实出现的候选 ID 或知识来源 ID，
+    否则报告会把编造的型号/跑分当成依据，最终污染 Architect 的上下文。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    role: SpecialistRole
+    # 期望 100-500 字；上限放宽到 2000，避免正常中文分析被 Schema 判为非法
+    summary: str = Field(min_length=1, max_length=2000)
+    # 只给方向（例如「优先高显存」），不允许指定最终型号
+    recommendations: list[str] = Field(min_length=1, max_length=5)
+    risks: list[str] = Field(default_factory=list, max_length=5)
+    affected_categories: list[HardwareCategory] = Field(min_length=1, max_length=8)
+    # 只能是候选 hardware_id 或 knowledge source_id，由提示词约束、不在代码里做匹配
+    evidence: list[str] = Field(default_factory=list, max_length=8)
+
+
+class CriticDecision(StrEnum):
+    """独立评审结论；REVISE 只表示「建议复核」，本轮不触发自动修正。"""
+
+    PASS = "PASS"
+    REVISE = "REVISE"
+    PASS_WITH_DISCLOSURE = "PASS_WITH_DISCLOSURE"
+
+
+class CriticIssue(BaseModel):
+    """Critic 发现的问题；`hardware_ids` 可空，问题不一定绑定具体硬件。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    severity: Literal["LOW", "MEDIUM", "HIGH"]
+    categories: list[HardwareCategory] = Field(max_length=8)
+    hardware_ids: list[str] = Field(default_factory=list, max_length=8)
+    description: str = Field(min_length=1, max_length=500)
+
+
+class CriticReport(BaseModel):
+    """对已通过 Java 校验方案的独立评审结果；不改方案、不改价格。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: CriticDecision
+    summary: str = Field(min_length=1, max_length=2000)
+    issues: list[CriticIssue] = Field(default_factory=list, max_length=8)
 
