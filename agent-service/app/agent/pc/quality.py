@@ -67,7 +67,7 @@ class QualityReview:
         }
 
     def to_feedback(self, repair_attempt: int) -> dict[str, Any]:
-        """结构化反馈：只描述类别、现状与方向，不下发内部价格门槛。"""
+        """结构化反馈：只描述类别、现状与方向，不下发任何求解器参数。"""
         affected = {
             category
             for finding in self.findings

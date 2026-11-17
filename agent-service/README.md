@@ -67,6 +67,13 @@ uv --directory agent-service run python -m evals --fake
 
 默认关闭（`RAG__ENABLED=false`），关闭时不导入检索器模块、不发外部请求。开启后需配置 `RAG__RETRIEVER_MODULE`（模块须暴露 `create_retriever()`），启动期校验失败会拒绝启动；检索按 `user_id` / `roles` 在检索前过滤，命中结果以 `citations` SSE 事件返回，检索异常降级为无引用。接入方式见 [agent-workflows.md §15](../docs/services/agent-service/agent-workflows.md)。
 
+内置 pgvector 检索器 `app.rag.knowledge.retriever` 在 `agent_service` 库内建 `kb_documents` / `kb_chunks` 两张表，检索时融合向量召回与全文召回。表结构见 `migrations/rag/20261116_001_create_knowledge_tables.sql`，回滚用同目录的 `*_rollback.sql`；`STORAGE__AUTO_SETUP=true` 时启动期也会幂等建表。种子卡片位于 `knowledge/cards/`，导入命令：
+
+```powershell
+uv run python scripts/import_knowledge_cards.py --dry-run   # 只统计切片
+uv run python scripts/import_knowledge_cards.py             # 写库（需配置 RAG__EMBEDDING_MODEL / DIMENSIONS）
+```
+
 ## 异步任务接口
 
 [app/services/task_runner.py](app/services/task_runner.py) 提供 `TaskRunner` 协议（提交 / 查询 / 取消）与默认 `InlineTaskRunner`：默认在提交时同步执行并立即返回终态，行为与直接调用一致；不新增 HTTP 路由。接入方用 `set_task_runner()` 换成队列 / Worker 实现即可，调用方与路由无需改动；处理器按 `kind` 注册，模板不内置任何任务类型。详见 [agent-workflows.md §16](../docs/services/agent-service/agent-workflows.md)。
