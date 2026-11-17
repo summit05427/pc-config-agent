@@ -652,6 +652,9 @@ def test_architect_context_scales_category_budget_when_medians_exceed_budget() -
     # 中位价合计 12000 元 > 预算 8000 元，压缩比例 2/3
     assert "CPU：不超过" in text
     assert "显卡：不超过" in text
+    # 参考线必须带该类最低价，并明确「跨代际凑预算」不可取
+    assert "该类最低" in text
+    assert "跨代际或跨平台" in text
 
 
 def test_architect_context_omits_budget_guidance_without_prices() -> None:

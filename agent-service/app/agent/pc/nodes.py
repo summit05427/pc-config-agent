@@ -1088,17 +1088,37 @@ def _category_median_prices(candidate_sets: dict[str, Any]) -> dict[str, int]:
     return medians
 
 
+def _category_price_floor(candidate_sets: dict[str, Any]) -> dict[str, int]:
+    """各类候选的最低价；用于提示「参考线已低于该类可用价」的不可行情况。"""
+    floors: dict[str, int] = {}
+    for category in REQUIRED_CATEGORIES:
+        prices = [
+            price
+            for item in as_list(candidate_sets.get(category.value))
+            if isinstance(price := as_mapping(item).get("price_fen"), int)
+            and not isinstance(price, bool)
+            and price > 0
+        ]
+        if prices:
+            floors[category.value] = min(prices)
+    return floors
+
+
 def _budget_guidance_text(state: PCConfigState) -> str:
     """按候选中位价折算的分类软上限，代码计算，不让模型自己编预算数字。
 
     首轮提案超预算的根因是模型不会做八类加总：给出压缩后的分类参考线，
     它才能在候选清单里挑得动；最终是否超预算仍由 Java `compose` 裁定。
+
+    参考线低于该类可用最低价时，必须提示「从别处腾挪」：否则模型会去挑更便宜的
+    跨代际/跨平台型号（例如用 DDR4 内存配 DDR5 主板），把预算问题变成兼容性问题。
     """
     requirements = as_mapping(state.get("requirements"))
     budget = requirements.get("budget_max_fen")
     if not isinstance(budget, int) or isinstance(budget, bool) or budget <= 0:
         return ""
-    medians = _category_median_prices(as_mapping(state.get("candidate_sets")))
+    candidate_sets = as_mapping(state.get("candidate_sets"))
+    medians = _category_median_prices(candidate_sets)
     if not medians:
         return ""
 
@@ -1113,6 +1133,7 @@ def _budget_guidance_text(state: PCConfigState) -> str:
             ]
         )
 
+    floors = _category_price_floor(candidate_sets)
     lines = [
         header,
         f"- 八类候选中位价合计 {format_fen(total)}，已超出上限 {format_fen(budget)}；"
@@ -1123,9 +1144,15 @@ def _budget_guidance_text(state: PCConfigState) -> str:
         if reference is None:
             continue
         scaled = max(1, int(reference * budget / total))
+        floor = floors.get(category.value)
+        suffix = f"（该类最低 {format_fen(floor)}）" if floor is not None else ""
         lines.append(
-            f"- {CATEGORY_LABELS[category.value]}：不超过 {format_fen(scaled)}"
+            f"- {CATEGORY_LABELS[category.value]}：不超过 {format_fen(scaled)}{suffix}"
         )
+    lines.append(
+        "- 若某类参考上限低于该类可用最低价，说明预算要从显卡、机箱、存储腾挪；"
+        "禁止为凑预算选择跨代际或跨平台的型号（如 DDR4 内存配 DDR5 主板、AM4 处理器配 AM5 主板）。"
+    )
     return "\n".join(lines)
 
 
