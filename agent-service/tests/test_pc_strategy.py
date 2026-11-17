@@ -242,12 +242,11 @@ def _install_tools(
     return partial_tool, compose_tool
 
 
-def _graph(model: StrategyArchitectModel, selection_mode: str = "llm") -> Any:
+def _graph(model: StrategyArchitectModel) -> Any:
     return build_pc_graph(
         model=model,  # type: ignore[arg-type]
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
-        selection_mode=selection_mode,
     )
 
 
@@ -323,16 +322,18 @@ async def test_strategy_falls_back_to_default_when_model_fails(
     assert "确定性默认策略" in model.prompts["architect"][0]
 
 
-def test_llm_mode_routes_through_strategist_and_solver_does_not() -> None:
-    """路由只读枚举状态与配置：llm 先定策略，solver 校验后直接检索。"""
+def test_routes_through_strategist_before_retrieval() -> None:
+    """路由只读枚举状态：参数合法时先定策略，再按类别检索。"""
     model = StrategyArchitectModel(strategies=[_strategy()], proposals=[_proposal()])
     llm_edges = {(edge.source, edge.target) for edge in _graph(model).get_graph().edges}
 
     assert ("build_strategist", "candidate_retriever") in llm_edges
     assert "build_strategist" in _graph(model).get_graph().nodes
     validated = {"workflow_status": STATUS_VALIDATED}
-    assert _route_after_validation(validated, selection_mode="llm") == "build_strategist"
-    assert _route_after_validation(validated, selection_mode="solver") == "candidate_retriever"
+    assert _route_after_validation(validated) == "build_strategist"
+    assert _route_after_validation({"workflow_status": "invalid"}) == (
+        "response_generator"
+    )
 
 
 async def test_partial_fail_repairs_and_never_composes(

@@ -101,24 +101,6 @@ class PCRequirements(BaseModel):
             raise ValueError("budget_min_fen 不能大于 budget_max_fen")
         return self
 
-    def to_solve_request(self, *, require_verified_offers: bool | None = None) -> dict[str, object]:
-        """转换成 Java `SolveRequest` 的 camelCase JSON。"""
-        verified = (
-            self.require_verified_offers
-            if require_verified_offers is None
-            else require_verified_offers
-        )
-        return {
-            "budgetMinFen": self.budget_min_fen,
-            "budgetMaxFen": self.budget_max_fen,
-            "scenario": self.scenario.value,
-            "preference": self.preference.value if self.preference else None,
-            "renderMode": self.render_mode.value if self.render_mode else None,
-            "minMemoryGb": self.min_memory_gb,
-            "minStorageGb": self.min_storage_gb,
-            "requireVerifiedOffers": verified,
-        }
-
 
 class RequirementExtraction(PCRequirements):
     """LLM 结构化输出的形状；与状态里的需求保持同一份 Schema。"""

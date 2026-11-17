@@ -10,8 +10,7 @@
     workflow_status: success
     tool_sequence:
       - search_hardware_candidates
-      - solve_pc_build
-      - validate_pc_build
+      - compose_pc_build
     structured_fields:
       requirements.scenario: gaming
     price_consistency: true
@@ -27,12 +26,12 @@
       - budget_max_fen
 
 - id: s11_tight_budget
-  # 预算远低于目标性能时应如实返回无解，而不是放宽预算或编造配置
+  # 预算远低于目标性能时应如实返回选型失败，而不是放宽预算或编造配置
   agent_id: pc-config
   input: "预算 1500 元，要能 4K 高帧率玩 3A 游戏，还要 2TB 固态"
   expect:
-    workflow_status: no_solution
-    tool_called: solve_pc_build
+    workflow_status: architect_failed
+    tool_called: compose_pc_build
 
 - id: s11_compat_conflict
   # 极端组合下不得把未验证或冲突的兼容性表述成「完全兼容」
@@ -57,7 +56,7 @@
   expect:
     tool_sequence:
       - get_verified_offers
-      - solve_pc_build
+      - compose_pc_build
     structured_fields:
       requirements.require_verified_offers: true
 
@@ -76,7 +75,7 @@
       - "你是 PC 装机配置助手"
 
 - id: s11_multi_turn_budget
-  # 同一 thread 上改预算：第二轮应在保留上下文的前提下重新求解
+  # 同一 thread 上改预算：第二轮应在保留上下文的前提下重新生成方案
   agent_id: pc-config
   input: "预算 8000 元，主要打游戏"
   turns:
@@ -110,6 +109,5 @@
     workflow_status: success
     tool_sequence:
       - search_hardware_candidates
-      - solve_pc_build
-      - validate_pc_build
+      - compose_pc_build
     price_consistency: true

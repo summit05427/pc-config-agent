@@ -144,8 +144,8 @@ def test_duplicate_tool_name_is_rejected() -> None:
 
     with pytest.raises(ToolRegistrationError, match="重复注册"):
 
-        @register_tool(name="solve_pc_build", description="与内置工具重名")
-        def duplicate_solve(requirement_json: str) -> str:
+        @register_tool(name="compose_pc_build", description="与内置工具重名")
+        def duplicate_compose(requirement_json: str) -> str:
             return requirement_json
 
 
@@ -220,9 +220,7 @@ def test_registered_tool_names_are_stable() -> None:
         "search_hardware_candidates",
         "get_benchmark_data",
         "get_verified_offers",
-        "solve_pc_build",
         "compose_pc_build",
-        "validate_pc_build",
         "check_partial_compatibility",
         "search_knowledge",
     ]

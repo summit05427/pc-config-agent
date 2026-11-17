@@ -34,7 +34,7 @@ def _build(cpu_fen: int, gpu_fen: int) -> dict[str, Any]:
     }
 
 
-def test_flags_cpu_gpu_imbalance_and_requests_constrained_retry() -> None:
+def test_flags_cpu_gpu_imbalance_and_requests_retry() -> None:
     review = review_build(
         requirements=PCRequirements(budget_max_fen=2_000_000, scenario=BuildScenario.GAMING),
         build=_build(76_900, 999_900),
@@ -43,7 +43,8 @@ def test_flags_cpu_gpu_imbalance_and_requests_constrained_retry() -> None:
 
     assert review.retry is True
     assert review.issues == ("cpu_gpu_imbalance",)
-    assert review.constraints["minCpuPriceFen"] == 249_975
+    assert review.findings[0]["target_value_fen"] == 249_975
+    assert review.findings[0]["direction"] == "increase"
 
 
 def test_stops_retrying_and_emits_notice_after_limit() -> None:
@@ -55,7 +56,6 @@ def test_stops_retrying_and_emits_notice_after_limit() -> None:
 
     assert review.retry is False
     assert NOTICE_IMBALANCE in review.notices
-    assert review.constraints == {}
 
 
 def test_office_build_caps_gpu_at_budget_percentage() -> None:
@@ -68,7 +68,8 @@ def test_office_build_caps_gpu_at_budget_percentage() -> None:
     assert review.retry is True
     assert "office_gpu_overspend" in review.issues
     # 600000 * 15% = 90000 分，低于当前显卡价格
-    assert review.constraints["maxGpuPriceFen"] == 90_000
+    assert review.findings[0]["target_value_fen"] == 90_000
+    assert review.findings[0]["direction"] == "decrease"
 
 
 def test_media_scenario_uses_office_gpu_policy() -> None:
@@ -79,7 +80,7 @@ def test_media_scenario_uses_office_gpu_policy() -> None:
     )
 
     assert "office_gpu_overspend" in review.issues
-    assert review.constraints["maxGpuPriceFen"] == 300_000
+    assert review.findings[0]["target_value_fen"] == 300_000
 
 
 def test_below_budget_min_only_notice_not_retry() -> None:

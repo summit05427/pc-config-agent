@@ -1,78 +1,20 @@
 package com.example.agent.pcbuild.domain;
 
-import java.util.Locale;
-
 /**
- * 工作负载画像：决定场景权重、候选排序策略与评分细则。
+ * 工作负载画像。
  *
- * <p>与 {@link BuildScenario} 的分工：画像表达「用户要做什么」，场景表达「CPU/GPU 权重」。
- * 画像到场景的映射由 {@link #scenarioFor(RenderMode)} 统一给出，避免调用方各自拼权重。</p>
+ * <p>画像表达「用户要做什么」，Java 只保留它到 {@link BuildScenario}（CPU/GPU 权重）的映射，
+ * 供草稿评分与结果解释使用；候选排序与选型由 Agent 负责。</p>
  */
 public enum WorkloadProfile {
 
-    GENERAL(50, 50, CandidateRanking.BALANCED),
-    GAMING(30, 70, CandidateRanking.SINGLE_THREAD_FIRST),
-    VIDEO_EDITING(55, 45, CandidateRanking.GPU_SCORE_FIRST),
-    PROGRAMMING(80, 20, CandidateRanking.MULTICORE_FIRST),
-    RENDERING(55, 45, CandidateRanking.BALANCED),
-    MEDIA(70, 30, CandidateRanking.BALANCED),
-    AI_INFERENCE(40, 60, CandidateRanking.VRAM_FIRST);
-
-    /** 候选排序策略；所有策略最终都以 {@code hardwareId} 升序兜底保证确定性。 */
-    public enum CandidateRanking {
-        BALANCED,
-        SINGLE_THREAD_FIRST,
-        MULTICORE_FIRST,
-        GPU_SCORE_FIRST,
-        VRAM_FIRST
-    }
-
-    private final int cpuWeight;
-    private final int gpuWeight;
-    private final CandidateRanking candidateRanking;
-
-    WorkloadProfile(int cpuWeight, int gpuWeight, CandidateRanking candidateRanking) {
-        this.cpuWeight = cpuWeight;
-        this.gpuWeight = gpuWeight;
-        this.candidateRanking = candidateRanking;
-    }
-
-    public int cpuWeight() {
-        return cpuWeight;
-    }
-
-    public int gpuWeight() {
-        return gpuWeight;
-    }
-
-    public CandidateRanking candidateRanking() {
-        return candidateRanking;
-    }
-
-    /**
-     * 解析外部传入的工作负载名称。
-     *
-     * <p>同时接受旧命名（{@code CREATIVE}/{@code BALANCED}/{@code OFFICE}/{@code WORKSTATION}），
-     * 保证历史请求仍可求解；无法识别时返回 {@code null}。</p>
-     *
-     * @param raw 原始文本，可为 {@code null}
-     * @return 命中画像；无法识别时为 {@code null}
-     */
-    public static WorkloadProfile parse(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        return switch (raw.trim().toUpperCase(Locale.ROOT)) {
-            case "GENERAL", "BALANCED", "OFFICE" -> GENERAL;
-            case "GAMING" -> GAMING;
-            case "VIDEO_EDITING", "CREATIVE" -> VIDEO_EDITING;
-            case "PROGRAMMING" -> PROGRAMMING;
-            case "RENDERING", "WORKSTATION" -> RENDERING;
-            case "MEDIA" -> MEDIA;
-            case "AI_INFERENCE" -> AI_INFERENCE;
-            default -> null;
-        };
-    }
+    GENERAL,
+    GAMING,
+    VIDEO_EDITING,
+    PROGRAMMING,
+    RENDERING,
+    MEDIA,
+    AI_INFERENCE;
 
     /**
      * 按画像与渲染取向给出实际使用的场景权重。

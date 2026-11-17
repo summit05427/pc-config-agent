@@ -30,17 +30,15 @@ ExpectationText = Annotated[
 ]
 ToolName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
 
-# 图跑完后可能的终态；`solved` 保留用于「求解成功但校验未完成」的中间观察
+# 图跑完后可能的终态
 WorkflowStatus = Literal[
     "success",
     "clarification",
     "invalid",
-    "no_solution",
     "no_candidates",
-    "compatibility_failed",
+    "architect_failed",
     "upstream_error",
     "aborted",
-    "solved",
 ]
 StructuredValue = str | int | float | bool
 # 只允许 `a` / `a.b` 形式的点路径，避免断言里出现下标或表达式
@@ -87,7 +85,7 @@ class EvalExpectation(BaseModel):
     must_contain: list[ExpectationText] = Field(default_factory=list, max_length=20)
     must_not_contain: list[ExpectationText] = Field(default_factory=list, max_length=20)
 
-    # 图跑完后的终态；给列表表示「任一命中即通过」，用于求解器可能落到多种终态的场景
+    # 图跑完后的终态；给列表表示「任一命中即通过」，用于可能落到多种终态的场景
     workflow_status: WorkflowStatus | list[WorkflowStatus] | None = None
     # 期望出现在需求/校验结果 missing_fields 中的槽位；只校验包含关系
     missing_slots: list[ToolName] = Field(default_factory=list, max_length=8)

@@ -1,8 +1,9 @@
-"""PC 配置推荐的六个确定性节点。
+"""PC 配置推荐流水线节点。
 
 设计约束：
 - 节点不直接发 SSE，只累积 `tool_events`；
-- 只有需求解析与推荐说明调用 LLM，且必须打 `TAG_NOSTREAM`；
+- 需求解析与推荐说明调用 LLM，且必须打 `TAG_NOSTREAM`；
+- 策略与选型同样由 LLM 产出结构化结果，失败即失败，不做确定性兜底；
 - 型号、价格、总价、SKU、链接全部来自 Java 结构化结果；
 - 任何失败路径都写入明确 `workflow_status`，禁止静默返回空。
 """
@@ -23,7 +24,6 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 from langgraph.config import get_stream_writer
 
-from app.agent.pc.hitl import build_compatibility_question
 from app.agent.pc.llm import (
     extract_json_object,
     invoke_model_structured,
@@ -79,16 +79,11 @@ from app.agent.pc.status import (
     FAILURE_STAGE_SCHEMA_INVALID,
     FAILURE_TOOL_ERROR,
     FAILURE_USER_TOKEN_MISSING,
-    SELECTION_MODE_LLM,
     STATUS_ARCHITECT_FAILED,
     STATUS_CLARIFICATION,
-    STATUS_COMPATIBILITY_FAILED,
     STATUS_INVALID,
     STATUS_NO_CANDIDATES,
-    STATUS_NO_SOLUTION,
     STATUS_RETRIEVED,
-    STATUS_RETRY,
-    STATUS_SOLVED,
     STATUS_SUCCESS,
     STATUS_UPSTREAM_ERROR,
     STATUS_VALIDATED,
@@ -396,7 +391,6 @@ async def requirement_parser(
         # 质量评审是单轮状态：新回合必须清空，避免上一轮的约束与提示串到下一轮
         "quality_review": None,
         "quality_notice": None,
-        "quality_constraints": None,
         "quality_feedback": None,
         "quality_retry_count": 0,
         "workflow_status": "parsed",
@@ -812,157 +806,6 @@ def _top_benchmark(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-async def build_solver(state: PCConfigState) -> dict[str, Any]:
-    """调用 Java 求解；无解时保留结构化原因，绝不放宽预算。"""
-    requirements = PCRequirements.model_validate(state.get("requirements") or {})
-    retry_count = as_int(state.get("retry_count"))
-    # 失败重解只放宽软偏好（是否只接受核验价），预算与兼容性约束保持不变
-    require_verified = False if retry_count > 0 else requirements.require_verified_offers
-    # 质量评审给出的约束只在本次图内生效，不写入用户需求，也不落库
-    quality_constraints = as_mapping(state.get("quality_constraints"))
-    args = {
-        "budget_min_fen": requirements.budget_min_fen,
-        "budget_max_fen": requirements.budget_max_fen,
-        "scenario": requirements.scenario.value,
-        "preference": requirements.preference.value if requirements.preference else None,
-        "render_mode": requirements.render_mode.value if requirements.render_mode else None,
-        "min_memory_gb": requirements.min_memory_gb,
-        "min_storage_gb": requirements.min_storage_gb,
-        "require_verified_offers": require_verified,
-        "min_cpu_price_fen": quality_constraints.get("minCpuPriceFen"),
-        "max_gpu_price_fen": quality_constraints.get("maxGpuPriceFen"),
-    }
-    events = [_tool_start("solve_pc_build", args)]
-    tool = get_governed_tool("solve_pc_build")
-    if tool is None:
-        return {
-            "workflow_status": STATUS_UPSTREAM_ERROR,
-            "tool_events": [_tool_end("solve_pc_build", "工具未注册")],
-        }
-
-    data, error = await _call_tool(tool, args)
-    if error is not None or data is None:
-        events.append(_tool_end("solve_pc_build", error or "求解失败"))
-        return {"workflow_status": STATUS_UPSTREAM_ERROR, "tool_events": events}
-
-    if not data.get("solved"):
-        failure = as_mapping(data.get("failure"))
-        events.append(_tool_end("solve_pc_build", "无可行配置"))
-        return {
-            "workflow_status": STATUS_NO_SOLUTION,
-            "tool_events": events,
-            "build_failure": failure,
-            "budget_report": {
-                "budget_max_fen": requirements.budget_max_fen,
-                "minimum_required_budget_fen": failure.get("minimumRequiredBudgetFen"),
-                "status": "NO_SOLUTION",
-            },
-        }
-
-    build = as_mapping(data.get("build"))
-    total_text = format_fen(as_int(build.get("totalPriceFen")))
-    events.append(_tool_end("solve_pc_build", f"总价 {total_text}"))
-    return {
-        "workflow_status": STATUS_SOLVED,
-        "tool_events": events,
-        "build_result": build,
-        "compatibility_report": as_mapping(build.get("compatibilityReport")),
-        "budget_report": {
-            "budget_max_fen": build.get("budgetMaxFen"),
-            "total_price_fen": as_int(build.get("totalPriceFen")),
-            "status": as_text(build.get("budgetStatus")),
-        },
-    }
-
-
-async def build_validator(state: PCConfigState) -> dict[str, Any]:
-    """校验八类组合；失败最多自动重解一次，次数来自配置。"""
-    if as_text(state.get("workflow_status")) != STATUS_SOLVED:
-        return {}
-
-    build = as_mapping(state.get("build_result"))
-    hardware_ids = _hardware_ids(build)
-    if hardware_ids is None:
-        return {
-            "workflow_status": STATUS_UPSTREAM_ERROR,
-            "tool_events": [_tool_end("validate_pc_build", "方案缺少硬件标识")],
-        }
-
-    events = [_tool_start("validate_pc_build", {"categories": sorted(hardware_ids)})]
-    tool = get_governed_tool("validate_pc_build")
-    if tool is None:
-        return {"workflow_status": STATUS_UPSTREAM_ERROR, "tool_events": events}
-
-    data, error = await _call_tool(tool, hardware_ids)
-    if error is not None or data is None:
-        # 校验不可用不能丢掉已求得的方案：如实标记为未验证
-        unknown = {
-            "overallStatus": "UNKNOWN",
-            "checks": [
-                {
-                    "ruleId": "validation_unavailable",
-                    "ruleName": "兼容性校验",
-                    "status": "UNKNOWN",
-                    "message": "兼容性校验服务暂不可用，本方案尚未完成验证。",
-                }
-            ],
-        }
-        events.append(_tool_end("validate_pc_build", error or "校验失败"))
-        unknown_state = {**state, "compatibility_report": unknown}
-        return _with_hitl_question(
-            {
-                "workflow_status": STATUS_SUCCESS,
-                "tool_events": events,
-                "compatibility_report": unknown,
-            },
-            build_compatibility_question(unknown_state),
-        )
-
-    report = as_mapping(data.get("report"))
-    overall = overall_compatibility(report)
-    events.append(_tool_end("validate_pc_build", f"兼容性 {overall}"))
-    if data.get("valid") is False or report.get("hasFailure") is True:
-        retry_count = as_int(state.get("retry_count"))
-        max_retries = get_settings().agent.max_solve_retries
-        if retry_count < max_retries:
-            return {
-                "workflow_status": STATUS_RETRY,
-                "tool_events": events,
-                "compatibility_report": report,
-                "retry_count": retry_count + 1,
-            }
-        return {
-            "workflow_status": STATUS_COMPATIBILITY_FAILED,
-            "tool_events": events,
-            "compatibility_report": report,
-        }
-
-    success = {
-        "workflow_status": STATUS_SUCCESS,
-        "tool_events": events,
-        "compatibility_report": report,
-    }
-    if overall == "UNKNOWN":
-        # 兼容性未验证：HITL 开启时先写入提问消息，恢复后不会重复生成
-        return _with_hitl_question(
-            success,
-            build_compatibility_question({**state, "compatibility_report": report}),
-        )
-    return success
-
-
-def _hardware_ids(build: dict[str, Any]) -> dict[str, str] | None:
-    ids: dict[str, str] = {}
-    for item in as_list(build.get("components")):
-        component = as_mapping(item)
-        category = as_text(component.get("category")).lower()
-        hardware_id = as_text(component.get("hardwareId"))
-        if category and hardware_id:
-            ids[category] = hardware_id
-    required = {category.value.lower() for category in REQUIRED_CATEGORIES}
-    return ids if required <= set(ids) else None
-
-
 def _architect_fen_text(value: Any) -> str:
     if isinstance(value, int) and not isinstance(value, bool) and value > 0:
         return format_fen(value)
@@ -1022,7 +865,7 @@ def _category_labels(raw: Any) -> str:
 
 
 def _architect_quality_feedback_text(feedback: dict[str, Any]) -> str:
-    """把质量评审的结构化发现翻译成换件要求；不出现求解器字段名与原始参数。"""
+    """把质量评审的结构化发现翻译成换件要求；不出现内部参数名与原始数值。"""
     findings = [as_mapping(item) for item in as_list(feedback.get("findings"))]
     if not findings:
         return ""
@@ -1266,7 +1109,6 @@ def _architect_failure_update(
         "partial_check_count": session.partial_checks,
         "knowledge_citations": session.knowledge_citations,
         "knowledge_call_count": session.knowledge_calls,
-        "selection_mode": SELECTION_MODE_LLM,
         "tool_events": session.events,
     }
 
@@ -1619,18 +1461,12 @@ def _architect_success_update(
         "build_result": build,
         "build_failure": None,
         "compatibility_report": as_mapping(build.get("compatibilityReport")),
-        "budget_report": {
-            "budget_max_fen": build.get("budgetMaxFen"),
-            "total_price_fen": as_int(build.get("totalPriceFen")),
-            "status": as_text(build.get("budgetStatus")),
-        },
         "build_proposal": proposal.model_dump(mode="json"),
         "architect_repair_count": session.repair_count,
         "partial_compatibility_reports": session.partial_reports,
         "partial_check_count": session.partial_checks,
         "knowledge_citations": session.knowledge_citations,
         "knowledge_call_count": session.knowledge_calls,
-        "selection_mode": SELECTION_MODE_LLM,
     }
 
 
@@ -1768,7 +1604,7 @@ async def build_architect(
 ) -> dict[str, Any]:
     """LLM 选型：结构化提案 → 候选校验 → 增量校验 → Java 组装 → 有限修正。
 
-    模型不可用或结构化输出失败时直接失败，绝不回退到旧求解器冒充 LLM 结果。
+    模型不可用或结构化输出失败时直接失败，绝不回退到确定性拼装冒充 LLM 结果。
     """
     session = _architect_session(state)
     failure = as_mapping(state.get("build_failure"))

@@ -23,7 +23,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.types import Command
 from psycopg_pool import AsyncConnectionPool
-from test_agent_graph import _install_tools
+from test_agent_graph import PipelineModel, _build, _install_tools
 
 from app.agent.pc.graph import build_pc_graph
 from app.agent.pc.status import STATUS_SUCCESS
@@ -77,13 +77,16 @@ async def test_hitl_interrupt_resumes_after_process_restart(
     url = os.environ[POSTGRES_URL_ENV]
     loop = asyncio.get_running_loop()
     assert isinstance(loop, asyncio.SelectorEventLoop), type(loop).__name__
-    counters = _install_tools(monkeypatch)
+    counters = _install_tools(
+        monkeypatch,
+        compose_payloads=[{"composed": True, "build": _build("PASS")}],
+    )
     profile = resolve_profile("pc-config")
     thread_id = f"hitl-pg-{uuid4().hex}"
 
     async with _saver(url) as saver:
         graph = build_pc_graph(
-            model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+            model=PipelineModel(), profile=profile, checkpointer=saver
         )
         await graph.ainvoke(
             {"messages": [HumanMessage("帮我配台电脑")], "use_history": True},
@@ -95,7 +98,7 @@ async def test_hitl_interrupt_resumes_after_process_restart(
     # 连接池与图全部丢弃后重新建立：状态只能来自 Postgres checkpointer
     async with _saver(url) as saver:
         rebuilt = build_pc_graph(
-            model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+            model=PipelineModel(), profile=profile, checkpointer=saver
         )
         await rebuilt.ainvoke(
             Command(
@@ -109,6 +112,6 @@ async def test_hitl_interrupt_resumes_after_process_restart(
         final = await rebuilt.aget_state(_config(thread_id))
         assert final.values["workflow_status"] == STATUS_SUCCESS
         assert not final.interrupts
-        assert counters["solve"] == 1
+        assert counters["compose"] == 1
 
         await saver.adelete_thread(thread_id)

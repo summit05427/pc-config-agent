@@ -25,14 +25,12 @@ from app.services.control_plane import (
 PC_CANDIDATES_PATH = "/internal/v1/pc/hardware/candidates"
 PC_BENCHMARKS_PATH = "/internal/v1/pc/benchmarks"
 PC_OFFERS_PATH = "/internal/v1/pc/offers"
-PC_SOLVE_PATH = "/internal/v1/pc/builds/solve"
 PC_COMPOSE_PATH = "/internal/v1/pc/builds/compose"
-PC_VALIDATE_PATH = "/internal/v1/pc/builds/validate"
 PC_VALIDATE_PARTIAL_PATH = "/internal/v1/pc/builds/validate-partial"
 PC_BUILD_PATH = "/internal/v1/pc/builds"
 
-# 求解要遍历候选组合，耗时明显高于普通查询；超时时间单独放宽
-SOLVE_TIMEOUT_SECONDS = 20.0
+# 组装会落快照，耗时高于普通查询；超时下限单独放宽
+PC_REQUEST_TIMEOUT_SECONDS = 20.0
 
 
 class PcApiClient:
@@ -47,7 +45,9 @@ class PcApiClient:
         self._settings = settings
         self._control_plane = control_plane
         self._base_url = settings.control_plane.base_url.rstrip("/")
-        self._timeout = max(settings.control_plane.timeout_seconds, SOLVE_TIMEOUT_SECONDS)
+        self._timeout = max(
+            settings.control_plane.timeout_seconds, PC_REQUEST_TIMEOUT_SECONDS
+        )
         self._client = client
         self._owns_client = client is None
 
@@ -111,23 +111,13 @@ class PcApiClient:
             params["category"] = category
         return await self._request("GET", PC_OFFERS_PATH, params=params)
 
-    async def solve(
-        self, request: dict[str, object], *, user_token: str
-    ) -> dict[str, object]:
-        return await self._request(
-            "POST", PC_SOLVE_PATH, user_token=user_token, json=request
-        )
-
     async def compose(
         self, request: dict[str, object], *, user_token: str
     ) -> dict[str, object]:
-        """按指定八类硬件生成方案并落快照；响应与 solve 成功分支同构。"""
+        """按指定八类硬件生成方案并落快照。"""
         return await self._request(
             "POST", PC_COMPOSE_PATH, user_token=user_token, json=request
         )
-
-    async def validate(self, hardware_ids: dict[str, str]) -> dict[str, object]:
-        return await self._request("POST", PC_VALIDATE_PATH, json=hardware_ids)
 
     async def validate_partial(self, components: dict[str, str]) -> dict[str, object]:
         """增量校验：任意子集，最少一项；无需用户令牌，只跑依赖已选类别的规则。"""

@@ -287,19 +287,18 @@ lease 端点错误：任务过期或撤销 404 `40206`、任务已兑换 409 `40
 | GET | `/internal/v1/pc/hardware/{hardwareId}` | 单条硬件详情，含规格与数据质量状态 |
 | GET | `/internal/v1/pc/benchmarks?category=&hardwareId=` | PassMark 跑分；无数据返回空结果，不猜测分数 |
 | GET | `/internal/v1/pc/offers?category=&hardwareId=&verifiedOnly=` | 报价列表，`verifiedOnly=true` 时只返回 `matchStatus=VERIFIED` |
-| POST | `/internal/v1/pc/builds/solve` | 确定性求解，返回 `buildId`、8 类组件、总价、兼容性报告 |
 | POST | `/internal/v1/pc/builds/compose` | 按调用方给定的 8 类硬件生成方案并落快照；请求体 `{"components":{八类硬件标识},"budgetMaxFen":可选}` |
 | POST | `/internal/v1/pc/builds/validate` | 复核完整性与兼容性，返回 `checks[]`、`overallStatus`、`ruleVersion` |
 | POST | `/internal/v1/pc/builds/validate-partial` | 任意已选组件子集的部分兼容性校验；不落库、不需用户令牌 |
 | GET | `/internal/v1/pc/builds/{buildId}` | 读取快照；仅所属用户可见，越权返回 403 `40302` |
 
-`compose` 只接受八个 `@NotBlank` 硬件标识与可选 `budgetMaxFen`（整数分，`>=1`，为空表示不限预算），不携带其他需求，按默认画像（`GENERAL`）生成；价格与总价只来自报价库的最低有效报价，逐件理由由服务端确定性生成，成功响应与 `solve` 成功分支的 `build` 结构一致并写入 append-only 快照。预算由服务端在写快照前强制校验，总价大于 `budgetMaxFen` 即失败，不放宽预算。失败语义：缺类别或类别不符 400 `40303`、任一选中硬件无可用报价 409 `40307`、兼容性存在硬冲突 422 `40308`、超出预算 422 `40309`，四种失败都不落库。
+`compose` 只接受八个 `@NotBlank` 硬件标识与可选 `budgetMaxFen`（整数分，`>=1`，为空表示不限预算），不携带其他需求，按默认画像（`GENERAL`）生成；价格与总价只来自报价库的最低有效报价，逐件理由由服务端确定性生成，成功响应即方案详情并写入 append-only 快照。预算由服务端在写快照前强制校验，总价大于 `budgetMaxFen` 即失败，不放宽预算。失败语义：缺类别或类别不符 400 `40303`、任一选中硬件无可用报价 409 `40307`、兼容性存在硬冲突 422 `40308`、超出预算 422 `40309`，四种失败都不落库。响应 `requirements` 回显 `workloadProfile` 与 `renderMode`，响应顶层含 `scoringVersion`。
 
-求解请求字段：`budgetMaxFen`（为空表示无硬预算）、`budgetMinFen`（为空表示用户只给了上限；仅用于校验与文案，不强制多花钱）、`minCpuPriceFen` / `maxGpuPriceFen`（质量评审带约束重解时使用的 CPU 价格下限与 GPU 价格上限，可为空）、`scenario`（`GENERAL` / `GAMING` / `VIDEO_EDITING` / `PROGRAMMING` / `RENDERING` / `MEDIA` / `AI_INFERENCE`；兼容旧值 `CREATIVE` / `WORKSTATION` / `OFFICE` / `GENERAL_USE` / `BALANCED`）、`renderMode`（可空，`CPU` / `GPU` / `BOTH`，仅在 `scenario=RENDERING` 时有意义）、`minMemoryGb`、`minStorageGb`、`requireVerifiedOffers`。`budgetMinFen > budgetMaxFen` 返回 400 `40304`。响应 `requirements` 回显 `workloadProfile` 与 `renderMode`，响应顶层含 `scoringVersion`。
+方案选型（选择哪套配置）由 Agent 侧的 LLM 决策，Java 不再提供求解端点；Java 只保留候选、最低有效价、草稿组装、兼容性校验与快照这些事实能力。
 
 报价字段含 `priceSource`：`OWNER_VERIFIED` 为人工核验价，`MOCK_DEMO` 为演示占位价。**`MOCK_DEMO` 不得在用户侧表述为已核验报价**，前端与 `response_generator` 必须显式标注。
 
-兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。每条 `checks[]` 额外携带 `riskLevel`（`BLOCKING` / `ADVISORY`）：`BLOCKING` 表示该字段缺失时方案不得标记为完全验证通过，但不阻断求解。
+兼容性状态为 `PASS` / `WARNING` / `FAIL` / `UNKNOWN`。参数缺失时必须返回 `UNKNOWN`，不得降级为 `PASS`。每条 `checks[]` 额外携带 `riskLevel`（`BLOCKING` / `ADVISORY`）：`BLOCKING` 表示该字段缺失时方案不得标记为完全验证通过，但不阻断生成方案。
 
 `validate-partial` 只执行「依赖类别全部已选」的规则，未覆盖的规则不出现在 `checks[]`；无可执行规则时 `overallStatus=UNKNOWN`，不得当 `PASS`；字段缺失同样返回 `UNKNOWN` 并回填 `missingFields`（形如 `cpu.socket`）。状态集合与 `/validate` 相同，因此 PSU 余量不足等情况仍返回 `WARNING`。
 

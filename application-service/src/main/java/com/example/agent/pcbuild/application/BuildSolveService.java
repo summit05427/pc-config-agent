@@ -14,7 +14,6 @@ import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.domain.HardwareSelection;
 import com.example.agent.pcbuild.domain.Offer;
 import com.example.agent.pcbuild.domain.PcBuildErrorCode;
-import com.example.agent.pcbuild.domain.SolveOutcome;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
 import com.example.agent.shared.error.BusinessException;
 import java.time.Instant;
@@ -31,9 +30,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 配置求解、指定组合生成与校验的应用服务。
+ * 指定组合生成、快照读取与兼容性校验的应用服务。
  *
- * <p>求解与指定组合成功时在同一事务内写入快照；失败不写库。校验接口不落库，也不要求用户令牌。</p>
+ * <p>指定组合成功时在同一事务内写入快照；失败不写库。校验接口不落库，也不要求用户令牌。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -56,32 +55,6 @@ public class BuildSolveService {
     private final OfferRepository offerRepository;
 
     private final BuildSnapshotService buildSnapshotService;
-
-    /**
-     * 求解并持久化快照。
-     *
-     * @param userId       所属用户
-     * @param requirements 需求
-     * @return 成功方案或结构化失败
-     */
-    @Transactional
-    public SolveExecutionResult solve(UUID userId, BuildRequirements requirements) {
-        SolveOutcome outcome = solver.solve(
-                requirements,
-                hardwareCatalogService.listSolverEligible(),
-                offerRepository.findAll(),
-                benchmarkRepository.findAll(),
-                hardwareCatalogService.catalogVersion(),
-                offerRepository.dataStatus(),
-                LocalDate.now());
-        if (!outcome.isSolved()) {
-            return SolveExecutionResult.failed(outcome.failure());
-        }
-        BuildResult result = BuildResult.fromDraft(
-                userId, UUID.randomUUID(), outcome.build(), Instant.now());
-        buildSnapshotService.save(result);
-        return SolveExecutionResult.solved(result);
-    }
 
     /**
      * 按指定八类硬件生成方案并持久化快照。

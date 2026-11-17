@@ -21,37 +21,100 @@ from app.agent.pc.nodes import build_result_payload
 from app.agent.pc.renderer import OBSERVED_PRICE_NOTICE, render_build_markdown
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
+    BuildProposal,
     BuildScenario,
-    PCRequirements,
+    BuildStrategy,
     Preference,
     RenderMode,
+    SelectedComponent,
 )
 from app.agent.profiles import resolve_profile
 from app.agent.registry import ToolExecutionError
 from app.core.exceptions import AppError
 from app.services.model_resolver import ResolvedRuntime
 
+REQUIREMENT_JSON = json.dumps(
+    {"budget_max_fen": 1_000_000, "scenario": "GAMING", "scenario_explicit": True}
+)
 
-class ScriptedModel:
-    """按调用顺序返回预设内容；解析节点与说明节点各调用一次。"""
 
-    def __init__(self, responses: list[str]) -> None:
-        self._responses = iter(responses)
-        self.calls: list[list[Any]] = []
+def _proposal() -> BuildProposal:
+    return BuildProposal(
+        selected_components=[
+            SelectedComponent(
+                category=category,
+                hardware_id=f"{category.value}-id",
+                reason_summary=f"{category.value} 的选型理由",
+            )
+            for category in REQUIRED_CATEGORIES
+        ]
+    )
+
+
+class _StructuredRunnable:
+    """按 Schema 分派：策略调用返回固定策略，其余视为选型提案。"""
+
+    def __init__(self, model: PipelineModel, schema: Any) -> None:
+        self._model = model
+        self._schema = schema
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        del messages, config
+        if self._schema is BuildStrategy:
+            return {
+                "raw": AIMessage(content="{}"),
+                "parsed": BuildStrategy(
+                    strategy_id="BALANCED", rationale_summary="按均衡策略组装。"
+                ),
+                "parsing_error": None,
+            }
+        self._model.structured_calls += 1
+        return {
+            "raw": AIMessage(content="{}"),
+            "parsed": self._model.proposal,
+            "parsing_error": None,
+        }
+
+
+class PipelineModel:
+    """解析走文本，策略与选型走结构化输出，正文走流式调用。"""
+
+    def __init__(
+        self,
+        *,
+        proposal: BuildProposal | None = None,
+        reason: str = "这套配置在预算内优先保证了游戏性能与散热余量。",
+        requirements: list[str] | None = None,
+    ) -> None:
+        self.proposal = proposal or _proposal()
+        self._reason = reason
+        # 解析结果按顺序返回；最后一轮之后复用最后一条（HITL 恢复会重新解析）
+        scripted = list(requirements or [REQUIREMENT_JSON])
+        self._requirements = iter(scripted)
+        self._last_requirement = scripted[-1]
+        self.structured_calls = 0
 
     async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
-        self.calls.append(list(messages))
-        return AIMessage(content=next(self._responses))
+        del messages, config
+        try:
+            self._last_requirement = next(self._requirements)
+        except StopIteration:
+            pass
+        return AIMessage(content=self._last_requirement)
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        del include_raw
+        return _StructuredRunnable(self, schema)
 
     async def astream(
         self, messages: Any, config: Any = None, **_kwargs: Any
     ) -> AsyncIterator[AIMessageChunk]:
         """说明节点走流式调用：先给思考分片，再给正文分片。"""
-        self.calls.append(list(messages))
+        del messages, config
         yield AIMessageChunk(
             content="", additional_kwargs={"reasoning_content": "先比较取舍。"}
         )
-        yield AIMessageChunk(content=next(self._responses))
+        yield AIMessageChunk(content=self._reason)
 
 
 class FakeTool:
@@ -171,15 +234,11 @@ def _install_tools(
     *,
     search_fail: bool = False,
     empty_category: str | None = None,
-    solve_payload: dict[str, Any] | None = None,
-    validate_payloads: list[dict[str, Any] | BaseException] | None = None,
-    solve_args: list[dict[str, Any]] | None = None,
+    compose_payloads: list[dict[str, Any]] | None = None,
 ) -> dict[str, int]:
-    """装配五类工具替身，返回可观测的调用计数。"""
-    counters = {"solve": 0, "validate": 0}
-    validate_payloads = validate_payloads or [
-        {"valid": True, "report": _build("PASS")["compatibilityReport"]}
-    ]
+    """装配查询、组装与增量校验工具替身，返回可观测的调用计数。"""
+    counters = {"compose": 0, "partial": 0}
+    payloads = compose_payloads or [{"composed": True, "build": _build()}]
 
     tools: dict[str, FakeTool] = {}
     for category in REQUIRED_CATEGORIES:
@@ -211,45 +270,37 @@ def _install_tools(
         async def ainvoke(self, args: dict[str, Any]) -> str:
             return json.dumps(_offer_payload(), ensure_ascii=False)
 
-    class SolveTool:
-        name = "solve_pc_build"
+    class ComposeTool:
+        name = "compose_pc_build"
 
         async def ainvoke(self, args: dict[str, Any]) -> str:
-            counters["solve"] += 1
-            if solve_args is not None:
-                solve_args.append(dict(args))
-            payload = solve_payload or {"solved": True, "build": _build(), "failure": None}
-            return json.dumps(payload, ensure_ascii=False)
+            index = min(counters["compose"], len(payloads) - 1)
+            counters["compose"] += 1
+            return json.dumps(payloads[index], ensure_ascii=False)
 
-    class ValidateTool:
-        name = "validate_pc_build"
+    class PartialTool:
+        name = "check_partial_compatibility"
 
         async def ainvoke(self, args: dict[str, Any]) -> str:
-            index = min(counters["validate"], len(validate_payloads) - 1)
-            counters["validate"] += 1
-            payload = validate_payloads[index]
-            if isinstance(payload, BaseException):
-                raise payload
-            return json.dumps(payload, ensure_ascii=False)
+            counters["partial"] += 1
+            return json.dumps({"overallStatus": "PASS", "checks": []}, ensure_ascii=False)
 
     registry: dict[str, Any] = {
         "search_hardware_candidates": SearchTool(),
         "get_benchmark_data": BenchmarkTool(),
         "get_verified_offers": OfferTool(),
-        "solve_pc_build": SolveTool(),
-        "validate_pc_build": ValidateTool(),
+        "compose_pc_build": ComposeTool(),
+        "check_partial_compatibility": PartialTool(),
     }
     monkeypatch.setattr(nodes_module, "get_governed_tool", registry.get)
     return counters
 
 
-def _graph(model: ScriptedModel | None = None):
+def _graph(model: PipelineModel | None = None):
     return build_pc_graph(
         model=model,
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
-        # 求解器流水线回归：显式指定 solver，默认模式变化不影响这些断言
-        selection_mode="solver",
     )
 
 
@@ -265,6 +316,7 @@ def test_graph_contains_pipeline_and_hitl_gates() -> None:
     assert set(PC_GRAPH_NODES) <= set(graph.nodes)
     assert {"clarification_gate", "compatibility_gate"} <= set(graph.nodes)
     assert "tools" not in graph.nodes
+    assert {"build_solver", "build_validator"} & set(graph.nodes) == set()
 
 
 async def test_clarification_path_skips_retrieval(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -272,26 +324,14 @@ async def test_clarification_path_skips_retrieval(monkeypatch: pytest.MonkeyPatc
     result = await _invoke(_graph(), "帮我配台电脑", "clarify")
     assert result["workflow_status"] == "clarification"
     assert "预算" in result["messages"][-1].content
-    assert counters["solve"] == 0
+    assert counters["compose"] == 0
 
 
 async def test_success_path_renders_deterministic_markdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_tools(monkeypatch)
-    model = ScriptedModel(
-        [
-            json.dumps(
-                {
-                    "budget_max_fen": 1_000_000,
-                    "scenario": "GAMING",
-                    "scenario_explicit": True,
-                }
-            ),
-            "这套配置在预算内优先保证了游戏性能与散热余量。",
-        ]
-    )
-    result = await _invoke(_graph(model), "预算一万元，打游戏", "success")
+    result = await _invoke(_graph(PipelineModel()), "预算一万元，打游戏", "success")
     answer = result["messages"][-1].content
     assert result["workflow_status"] == "success"
     assert "## 推荐配置" in answer
@@ -310,19 +350,7 @@ async def test_streams_reasoning_and_chunks_final_body(
 ) -> None:
     """成功路径以 custom 流下发思考与正文分片，拼接结果必须等于最终消息。"""
     _install_tools(monkeypatch)
-    model = ScriptedModel(
-        [
-            json.dumps(
-                {
-                    "budget_max_fen": 1_000_000,
-                    "scenario": "GAMING",
-                    "scenario_explicit": True,
-                }
-            ),
-            "这套配置在预算内优先保证了游戏性能与散热余量。",
-        ]
-    )
-    agent = _graph(model)
+    agent = _graph(PipelineModel())
     events = [
         event
         async for event in agent.astream(
@@ -365,12 +393,7 @@ async def test_model_reason_with_digits_is_rejected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_tools(monkeypatch)
-    model = ScriptedModel(
-        [
-            json.dumps({"budget_max_fen": 1_000_000, "scenario": "GAMING"}),
-            "这套配置售价 8299 元，显卡型号很强。",
-        ]
-    )
+    model = PipelineModel(reason="这套配置售价 8299 元，显卡型号很强。")
     result = await _invoke(_graph(model), "预算一万元，打游戏", "unsafe-reason")
     assert "8299" not in result["messages"][-1].content
     assert result["reason_summary"] == nodes_module._deterministic_reason(result)
@@ -388,89 +411,6 @@ async def test_upstream_error_path(monkeypatch: pytest.MonkeyPatch) -> None:
     result = await _invoke(_graph(), "8000 元，打游戏", "upstream")
     assert result["workflow_status"] == "upstream_error"
     assert "暂时不可用" in result["messages"][-1].content
-
-
-async def test_no_solution_path_keeps_budget_hard(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_tools(
-        monkeypatch,
-        solve_payload={
-            "solved": False,
-            "build": None,
-            "failure": {
-                "reason": "BUDGET_EXCEEDED",
-                "minimumRequiredBudgetFen": 9_500_000,
-                "message": "预算不足",
-            },
-        },
-    )
-    result = await _invoke(_graph(), "3000 元，打游戏", "no-solution")
-    answer = result["messages"][-1].content
-    assert result["workflow_status"] == "no_solution"
-    assert "预算不足" in answer
-    assert "没有放宽你的预算" in answer
-    assert build_result_payload(result) is None
-
-
-async def test_validation_retry_then_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    counters = _install_tools(
-        monkeypatch,
-        validate_payloads=[
-            {
-                "valid": False,
-                "report": {
-                    "overallStatus": "FAIL",
-                    "checks": [{"ruleId": "case", "status": "FAIL", "message": "冲突"}],
-                    "hasFailure": True,
-                },
-            },
-            {
-                "valid": True,
-                "report": _build("PASS")["compatibilityReport"],
-            },
-        ],
-    )
-    result = await _invoke(_graph(), "10000 元，打游戏", "retry")
-    assert counters["solve"] == 2
-    assert result["retry_count"] == 1
-    assert result["workflow_status"] == "success"
-
-
-async def test_validation_failure_after_retry(monkeypatch: pytest.MonkeyPatch) -> None:
-    failing = {
-        "valid": False,
-        "report": {
-            "overallStatus": "FAIL",
-            "checks": [{"ruleId": "case", "status": "FAIL", "message": "冲突"}],
-            "hasFailure": True,
-        },
-    }
-    counters = _install_tools(monkeypatch, validate_payloads=[failing, failing])
-    result = await _invoke(_graph(), "10000 元，打游戏", "retry-fail")
-    assert counters["solve"] == 2
-    assert result["workflow_status"] == "compatibility_failed"
-    assert "没有找到兼容的配置" in result["messages"][-1].content
-
-
-async def test_validation_upstream_failure_keeps_build(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _install_tools(
-        monkeypatch,
-        validate_payloads=[ToolExecutionError("配置数据暂时不可用，请稍后重试")],
-    )
-    result = await _invoke(_graph(), "10000 元，打游戏", "validate-down")
-    assert result["workflow_status"] == "success"
-    assert result["compatibility_report"]["overallStatus"] == "UNKNOWN"
-    assert "未验证" in result["messages"][-1].content
-    assert "兼容性：通过" not in result["messages"][-1].content
-
-
-async def test_fallback_parser_when_model_is_none(monkeypatch: pytest.MonkeyPatch) -> None:
-    _install_tools(monkeypatch)
-    result = await _invoke(_graph(None), "8000 元，主要打游戏", "fallback")
-    assert result["requirements"]["budget_max_fen"] == 800_000
-    assert result["requirements"]["scenario"] == "GAMING"
-    assert result["workflow_status"] == "success"
 
 
 @pytest.mark.parametrize(
@@ -525,33 +465,7 @@ async def test_rendering_without_render_mode_asks_once(
     assert "CPU 还是 GPU" in result["messages"][-1].content
     assert result["requirements"]["render_mode"] is None
     assert "render_mode" in result["requirements"]["missing_fields"]
-    assert counters["solve"] == 0
-
-
-async def test_rendering_render_mode_is_forwarded_to_solve(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    solve_args: list[dict[str, Any]] = []
-    _install_tools(monkeypatch, solve_args=solve_args)
-    model = ScriptedModel(
-        [
-            json.dumps(
-                {
-                    "budget_max_fen": 2_000_000,
-                    "scenario": "RENDERING",
-                    "scenario_explicit": True,
-                }
-            ),
-            "这套配置侧重 CPU 渲染需要的多核吞吐。",
-        ]
-    )
-
-    result = await _invoke(_graph(model), "预算两万，主要用 CPU 渲染", "render-cpu")
-
-    requirements = PCRequirements.model_validate(result["requirements"])
-    assert requirements.render_mode is RenderMode.CPU
-    assert requirements.to_solve_request()["renderMode"] == "CPU"
-    assert solve_args and solve_args[0]["render_mode"] == "CPU"
+    assert counters["compose"] == 0
 
 
 @pytest.mark.parametrize(
@@ -562,21 +476,13 @@ async def test_rendering_render_mode_is_forwarded_to_solve(
         ("8000 元，打游戏", None),
     ],
 )
-async def test_preference_is_forwarded_to_solve(
-    monkeypatch: pytest.MonkeyPatch,
-    text: str,
-    expected: Preference | None,
+def test_preference_is_detected_only_from_explicit_wording(
+    text: str, expected: Preference | None
 ) -> None:
-    solve_args: list[dict[str, Any]] = []
-    _install_tools(monkeypatch, solve_args=solve_args)
+    """偏好只取用户原话中的明确措辞，不按场景或预算猜测。"""
+    requirements = nodes_module.fallback_requirements(text)
 
-    result = await _invoke(_graph(None), text, f"preference-{expected}")
-
-    requirements = PCRequirements.model_validate(result["requirements"])
     assert requirements.preference is expected
-    assert solve_args and solve_args[0]["preference"] == (
-        expected.value if expected else None
-    )
 
 
 def test_build_result_payload_projects_java_workload_and_risk() -> None:
@@ -699,7 +605,7 @@ def test_value_preference_without_budget_uses_neutral_wording() -> None:
 
 async def test_runtime_is_not_persisted(monkeypatch: pytest.MonkeyPatch) -> None:
     _install_tools(monkeypatch)
-    agent = _graph(None)
+    agent = _graph(PipelineModel())
     config = {
         "configurable": {
             "thread_id": "runtime-state",
@@ -712,7 +618,7 @@ async def test_runtime_is_not_persisted(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 async def test_model_usage_is_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
-    """带运行时模型时，解析与说明两次调用各上报一条用量。"""
+    """带运行时模型时，解析、策略、选型与说明四次调用各上报一条用量。"""
     _install_tools(monkeypatch)
     records: list[Any] = []
 
@@ -720,12 +626,7 @@ async def test_model_usage_is_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
         records.append(record)
 
     monkeypatch.setattr("app.agent.pc.llm.record_usage", capture)
-    model = ScriptedModel(
-        [
-            json.dumps({"budget_max_fen": 1_000_000, "scenario": "GAMING"}),
-            "这套配置更偏向游戏性能。",
-        ]
-    )
+    model = PipelineModel(reason="这套配置更偏向游戏性能。")
     runtime = ResolvedRuntime(
         task_id="task-usage",
         provider="openai",
@@ -736,7 +637,7 @@ async def test_model_usage_is_recorded(monkeypatch: pytest.MonkeyPatch) -> None:
         {"messages": [HumanMessage("预算一万元，打游戏")], "use_history": True},
         {"configurable": {"thread_id": "usage", "model_runtime": runtime}},
     )
-    assert len(records) == 2
+    assert len(records) == 4
     assert all(record["prompt_tokens"] is None for record in records)
     assert all(record["task_id"] == "task-usage" for record in records)
 

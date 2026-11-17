@@ -63,7 +63,7 @@ def test_example_cases_are_loadable() -> None:
         "pc_injection",
     ):
         assert expected_id in case_ids
-    assert cases[0].expect.tool_called == "solve_pc_build"
+    assert cases[0].expect.tool_called == "compose_pc_build"
 
 
 def test_load_cases_rejects_missing_directory(tmp_path: Path) -> None:
@@ -99,7 +99,7 @@ def test_fake_mode_passes_registered_tool_case() -> None:
         id="pc_tool",
         agent_id="pc-config",
         input="预算 8000 元，主要打游戏",
-        expect={"tool_called": "solve_pc_build"},
+        expect={"tool_called": "compose_pc_build"},
     )
     result = run_case(case)
 
@@ -129,7 +129,7 @@ def test_fake_mode_fails_for_tool_not_bound_by_profile(
         id="unbound_tool",
         agent_id="no-tools",
         input="预算 8000 元，主要打游戏",
-        expect={"tool_called": "solve_pc_build"},
+        expect={"tool_called": "compose_pc_build"},
     )
     result = run_case(case)
 
@@ -356,7 +356,7 @@ async def test_real_runner_passes_resolved_model_into_graph(
     captured: dict[str, Any] = {}
 
     def fake_build_pc_graph(
-        *, model: Any, profile: Any, checkpointer: Any = None, selection_mode: Any = None
+        *, model: Any, profile: Any, checkpointer: Any = None, **kwargs: Any
     ) -> SimpleNamespace:
         captured["model"] = model
         return SimpleNamespace()
@@ -497,14 +497,14 @@ async def test_resume_if_interrupted_submits_answer_and_reports_convergence() ->
 
 
 def test_ordered_subsequence_allows_intermediate_tools() -> None:
-    assert _ordered_subsequence(["solve_pc_build", "validate_pc_build"], [
+    assert _ordered_subsequence(["compose_pc_build", "search_knowledge"], [
         "search_hardware_candidates",
-        "solve_pc_build",
-        "validate_pc_build",
+        "compose_pc_build",
+        "search_knowledge",
     ])
     assert not _ordered_subsequence(
-        ["validate_pc_build", "solve_pc_build"],
-        ["solve_pc_build", "validate_pc_build"],
+        ["search_knowledge", "compose_pc_build"],
+        ["compose_pc_build", "search_knowledge"],
     )
 
 
@@ -518,8 +518,8 @@ def test_value_matches_is_type_strict() -> None:
 
 
 def test_workflow_status_accepts_any_of() -> None:
-    state = {"workflow_status": "no_solution"}
-    check = _check_workflow_status(["no_solution", "compatibility_failed"], state)
+    state = {"workflow_status": "architect_failed"}
+    check = _check_workflow_status(["architect_failed", "invalid"], state)
     assert check.status == STATUS_PASSED
     assert _check_workflow_status(["success"], state).status == STATUS_FAILED
 

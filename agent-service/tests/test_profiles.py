@@ -32,9 +32,7 @@ def test_default_profile_is_pc_config() -> None:
         "search_hardware_candidates",
         "get_benchmark_data",
         "get_verified_offers",
-        "solve_pc_build",
         "compose_pc_build",
-        "validate_pc_build",
         "check_partial_compatibility",
         "search_knowledge",
     ]
@@ -53,9 +51,7 @@ def test_pc_profile_uses_pc_tools() -> None:
         "search_hardware_candidates",
         "get_benchmark_data",
         "get_verified_offers",
-        "solve_pc_build",
         "compose_pc_build",
-        "validate_pc_build",
         "check_partial_compatibility",
         "search_knowledge",
     }
@@ -78,7 +74,7 @@ def test_new_yaml_is_discovered_without_core_changes(tmp_path: Path) -> None:
                 "display_name: 评审助手",
                 "system_prompt: pc-config-system",
                 "tools:",
-                "  - solve_pc_build",
+                "  - compose_pc_build",
             ]
         ),
     )
@@ -86,7 +82,7 @@ def test_new_yaml_is_discovered_without_core_changes(tmp_path: Path) -> None:
     profiles = load_profiles(directory)
 
     assert set(profiles) == {"reviewer"}
-    assert profiles["reviewer"].tools == ["solve_pc_build"]
+    assert profiles["reviewer"].tools == ["compose_pc_build"]
 
 
 def test_builtin_profiles_are_loaded() -> None:
@@ -174,8 +170,8 @@ def test_profile_tools_semantics() -> None:
     assert resolve_profile_tools(empty_profile) == []
 
     subset_profile = resolve_profile(None).model_copy(
-        update={"tools": ["solve_pc_build"]}
+        update={"tools": ["compose_pc_build"]}
     )
     assert [tool.name for tool in resolve_profile_tools(subset_profile)] == [
-        "solve_pc_build"
+        "compose_pc_build"
     ]

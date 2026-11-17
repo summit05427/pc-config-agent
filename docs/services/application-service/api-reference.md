@@ -650,11 +650,11 @@ v1 的 `/api/v1/models`、`/api/v1/model-connections` 继续返回全量数组�
 | `GET` | `/internal/v1/pc/hardware/{hardwareId}` | 服务令牌 | 单硬件详情；不存在 404 `40301` |
 | `GET` | `/internal/v1/pc/benchmarks` | 服务令牌 | 可选 `hardwareId` / `category`；无数据返回空列表，不猜分 |
 | `GET` | `/internal/v1/pc/offers` | 服务令牌 | 可选 `hardwareId` / `category` / `verifiedOnly`；响应含 `dataStatus`、`priceUnit=CNY_FEN`、`verifiedOfferCount`、`mockOfferCount` |
-| `POST` | `/internal/v1/pc/builds/solve` | 服务令牌 + `X-User-Token` | 请求 `budgetMaxFen` / `scenario` / `minMemoryGb` / `minStorageGb` / `requireVerifiedOffers`；成功写快照，无解返回 `solved=false` 与结构化 `failure` |
+| `POST` | `/internal/v1/pc/builds/compose` | 服务令牌 + `X-User-Token` | 请求 `{"components":{八类标识},"budgetMaxFen":可选}`；取报价库最低有效报价、复用 `BuildDraft` 逻辑生成理由并写快照；总价超 `budgetMaxFen` 返回 422 `40309`；无可用报价 409 `40307`，硬冲突 422 `40308`，失败均不落库 |
 | `POST` | `/internal/v1/pc/builds/validate` | 服务令牌 | 请求固定八个类别字段；缺类别 400 `40303`；只校验不落库 |
 | `GET` | `/internal/v1/pc/builds/{buildId}` | 服务令牌 + `X-User-Token` | 按 `build_id + user_id` 查询，归属判断下推到 SQL；不存在或他人 404 `40302` |
 
-- 错误码：`40301` 硬件不存在、`40302` 快照不存在或非本人、`40303` 配置不完整、`40304` 需求非法、`40305` 目录不可用、`40306` 用户令牌无效。
+- 错误码：`40301` 硬件不存在、`40302` 快照不存在或非本人、`40303` 配置不完整、`40305` 目录不可用、`40306` 用户令牌无效、`40307` 所选硬件缺少可用报价、`40308` 所选硬件存在兼容性冲突、`40309` 配置总价超过预算上限。
 - 金额一律人民币整数分；`priceSource=OWNER_VERIFIED` 表示人工核验价，`MOCK_DEMO` 表示演示占位价，**不得表述为已核验**。
 - scope 复用 `model-runtime:read`（服务令牌默认携带）；实现细节见 [docs/pc-config/api-contract.md](../../pc-config/api-contract.md)。
 

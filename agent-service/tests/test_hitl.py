@@ -1,6 +1,6 @@
 """HITL 门控测试：中断、恢复、终止与恢复请求校验。
 
-图相关用例复用 test_agent_graph 的假工具与脚本化模型，不访问 Java 服务或真实 LLM；
+图相关用例复用 test_agent_graph 的假工具与假模型，不访问 Java 服务或真实 LLM；
 恢复校验只测纯函数，不建立 SSE 连接。
 """
 
@@ -15,7 +15,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command, Interrupt
 from pydantic import ValidationError
-from test_agent_graph import ScriptedModel, _build, _install_tools
+from test_agent_graph import (
+    REQUIREMENT_JSON,
+    PipelineModel,
+    _build,
+    _install_tools,
+)
 
 from app.agent.pc.graph import build_pc_graph
 from app.agent.pc.hitl import build_compatibility_question
@@ -32,6 +37,16 @@ from app.core.error_codes import (
 from app.core.exceptions import AppError, HitlResumeInvalidError
 from app.services.turn import _interrupt_events
 
+CLARIFY_REQUIREMENT_JSON = json.dumps(
+    {
+        "scenario": "BALANCED",
+        "scenario_explicit": False,
+        "needs_clarification": True,
+        "missing_fields": ["budget_max_fen", "scenario"],
+    }
+)
+# 第一轮故意缺预算与用途，触发澄清门控；恢复后模型返回完整需求
+
 
 @pytest.fixture
 def hitl_on(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,13 +59,11 @@ def hitl_on(monkeypatch: pytest.MonkeyPatch) -> None:
     get_settings.cache_clear()
 
 
-def _graph(model: ScriptedModel | None = None):
+def _graph(model: PipelineModel | None = None):
     return build_pc_graph(
         model=model,
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
-        # HITL 用例断言求解器路径的澄清/确认流程，固定 solver 避免默认值漂移
-        selection_mode="solver",
     )
 
 
@@ -92,8 +105,15 @@ async def test_clarification_without_hitl_keeps_original_flow(
 async def test_clarification_interrupt_and_resume(
     monkeypatch: pytest.MonkeyPatch, hitl_on: None
 ) -> None:
-    counters = _install_tools(monkeypatch)
-    agent = _graph()
+    counters = _install_tools(
+        monkeypatch,
+        compose_payloads=[{"composed": True, "build": _build("PASS")}],
+    )
+    agent = _graph(
+        PipelineModel(
+            requirements=[CLARIFY_REQUIREMENT_JSON, REQUIREMENT_JSON],
+        )
+    )
     await _start(agent, "帮我配台电脑", "hitl-clarify")
 
     snapshot = await agent.aget_state(_config("hitl-clarify"))
@@ -126,7 +146,7 @@ async def test_clarification_interrupt_and_resume(
 
     final = await agent.aget_state(_config("hitl-clarify"))
     assert final.values["workflow_status"] == STATUS_SUCCESS
-    assert counters["solve"] == 1
+    assert counters["compose"] == 1
     # 恢复后重新解析，用户补充信息并入同一条用户消息而不是新增一轮
     human_messages = [
         message
@@ -178,17 +198,9 @@ async def test_unknown_compatibility_interrupt_and_abort(
 ) -> None:
     _install_tools(
         monkeypatch,
-        validate_payloads=[
-            {"valid": True, "report": _build("UNKNOWN")["compatibilityReport"]}
-        ],
+        compose_payloads=[{"composed": True, "build": _build("UNKNOWN")}],
     )
-    model = ScriptedModel(
-        [
-            json.dumps({"budget_max_fen": 1_000_000, "scenario": "GAMING"}),
-            "这套配置在预算内优先保证了游戏性能。",
-        ]
-    )
-    agent = _graph(model)
+    agent = _graph(PipelineModel())
     await _start(agent, "预算一万元，打游戏", "hitl-compat")
 
     snapshot = await agent.aget_state(_config("hitl-compat"))
@@ -211,26 +223,33 @@ async def test_interrupt_survives_graph_rebuild(
     monkeypatch: pytest.MonkeyPatch, hitl_on: None
 ) -> None:
     """模拟 Agent 重启：新编译的图复用同一 checkpoint 存储仍能恢复中断。"""
-    counters = _install_tools(monkeypatch)
+    counters = _install_tools(
+        monkeypatch,
+        compose_payloads=[{"composed": True, "build": _build("PASS")}],
+    )
     profile = resolve_profile("pc-config")
     saver = MemorySaver()
     thread_id = "hitl-restart"
 
     await _start(
         build_pc_graph(
-            model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+            model=PipelineModel(requirements=[CLARIFY_REQUIREMENT_JSON]),
+            profile=profile,
+            checkpointer=saver,
         ),
         "帮我配台电脑",
         thread_id,
     )
     paused = await build_pc_graph(
-        model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+        model=PipelineModel(requirements=[CLARIFY_REQUIREMENT_JSON]),
+        profile=profile,
+        checkpointer=saver,
     ).aget_state(_config(thread_id))
     assert len(paused.interrupts) == 1
 
     # 重新构图等价于新进程装配图：状态只来自 checkpoint，而非内存中的上一实例
     rebuilt = build_pc_graph(
-        model=None, profile=profile, checkpointer=saver, selection_mode="solver"
+        model=PipelineModel(), profile=profile, checkpointer=saver
     )
     await rebuilt.ainvoke(
         Command(
@@ -244,7 +263,7 @@ async def test_interrupt_survives_graph_rebuild(
 
     final = await rebuilt.aget_state(_config(thread_id))
     assert final.values["workflow_status"] == STATUS_SUCCESS
-    assert counters["solve"] == 1
+    assert counters["compose"] == 1
     assert not final.interrupts
 
 

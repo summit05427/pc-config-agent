@@ -15,7 +15,7 @@ import java.util.StringJoiner;
  * @param specifications       归一化规格
  * @param dataQualityStatus    数据质量状态，{@code PARTIAL} 表示存在未核验字段
  * @param lifecycleStatus      生命周期状态
- * @param recommendationStatus 推荐状态，只有 {@code ELIGIBLE} 可进入求解
+ * @param recommendationStatus 推荐状态，取自目录数据
  */
 public record Hardware(
         String hardwareId,
@@ -29,29 +29,12 @@ public record Hardware(
         String lifecycleStatus,
         String recommendationStatus) {
 
-    private static final String RECOMMENDATION_ELIGIBLE = "ELIGIBLE";
-    private static final String LIFECYCLE_DISCONTINUED = "DISCONTINUED";
-    private static final String LIFECYCLE_EOL = "EOL";
     private static final String UNKNOWN_LABEL = "UNKNOWN";
 
     public Hardware {
         Objects.requireNonNull(hardwareId, "hardwareId");
         Objects.requireNonNull(category, "category");
         Objects.requireNonNull(specifications, "specifications");
-    }
-
-    /**
-     * 是否允许进入求解候选池。
-     *
-     * <p>下架与停产硬件不参与推荐，避免把无法购买的商品算进预算。</p>
-     *
-     * @return 推荐状态为 {@code ELIGIBLE} 且非停产时为 {@code true}
-     */
-    public boolean isSolverEligible() {
-        boolean isRecommended = RECOMMENDATION_ELIGIBLE.equalsIgnoreCase(recommendationStatus);
-        boolean isRetired = LIFECYCLE_DISCONTINUED.equalsIgnoreCase(lifecycleStatus)
-                || LIFECYCLE_EOL.equalsIgnoreCase(lifecycleStatus);
-        return isRecommended && !isRetired;
     }
 
     /**

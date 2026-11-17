@@ -31,7 +31,7 @@ class PCConfigState(TypedDict):
     candidate_truncated: NotRequired[dict[str, int]]
     build_result: NotRequired[dict[str, Any] | None]
     build_failure: NotRequired[dict[str, Any] | None]
-    # LLM 选型产物与修正计数：仅在 `AGENT__PC_SELECTION_MODE=llm` 时写入
+    # LLM 选型产物与修正计数
     build_proposal: NotRequired[dict[str, Any] | None]
     architect_repair_count: NotRequired[int]
     # 提交整机前的增量校验：报告与已用次数（同一回合内累计，受配置上限约束）
@@ -40,17 +40,12 @@ class PCConfigState(TypedDict):
     # 知识检索引用（函数级业务引用）与已用次数；由 turn.py 去重后下发 citations 事件
     knowledge_citations: NotRequired[list[dict[str, Any]]]
     knowledge_call_count: NotRequired[int]
-    selection_mode: NotRequired[str]
     compatibility_report: NotRequired[dict[str, Any] | None]
-    budget_report: NotRequired[dict[str, Any] | None]
     reason_summary: NotRequired[str | None]
-    retry_count: NotRequired[int]
-    # 质量评审：问题列表、可下发提示与重解约束（仅图内流转）
+    # 质量评审：问题列表、可下发提示与重解反馈（仅图内流转）
     quality_review: NotRequired[dict[str, Any] | None]
     quality_notice: NotRequired[str | None]
-    # solver 模式的重解参数；llm 模式不写入，避免把求解器价格门槛当成模型约束
-    quality_constraints: NotRequired[dict[str, Any] | None]
-    # llm 模式的结构化质量反馈：失败类型、逐项发现与必须保持不变的类别
+    # 结构化质量反馈：失败类型、逐项发现与必须保持不变的类别
     quality_feedback: NotRequired[dict[str, Any] | None]
     quality_retry_count: NotRequired[int]
     workflow_status: NotRequired[str]

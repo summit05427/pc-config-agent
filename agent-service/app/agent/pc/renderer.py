@@ -23,10 +23,8 @@ from app.agent.pc.status import (
     STATUS_ABORTED,
     STATUS_ARCHITECT_FAILED,
     STATUS_CLARIFICATION,
-    STATUS_COMPATIBILITY_FAILED,
     STATUS_INVALID,
     STATUS_NO_CANDIDATES,
-    STATUS_NO_SOLUTION,
     STATUS_UPSTREAM_ERROR,
     UPSTREAM_ERROR_MESSAGE,
 )
@@ -517,19 +515,8 @@ def render_failure_markdown(state: Mapping[str, Any]) -> str:
             return f"{EMPTY_CANDIDATES_MESSAGE}缺少类别：{labels}。"
         return EMPTY_CANDIDATES_MESSAGE
 
-    if status == STATUS_NO_SOLUTION:
-        failure = as_mapping(state.get("build_failure"))
-        return _render_solve_failure(failure)
-
     if status == STATUS_ARCHITECT_FAILED:
         return _render_architect_failure(as_mapping(state.get("build_failure")))
-
-    if status == STATUS_COMPATIBILITY_FAILED:
-        report = as_mapping(state.get("compatibility_report"))
-        lines = ["## 暂时没有找到兼容的配置", ""]
-        lines.append("自动重试后仍存在硬性兼容冲突，未生成推荐方案。")
-        lines.extend(_compatibility_section(report))
-        return "\n".join(lines)
 
     if status == STATUS_UPSTREAM_ERROR:
         return UPSTREAM_ERROR_MESSAGE
@@ -564,30 +551,6 @@ def _render_architect_failure(failure: dict[str, Any]) -> str:
     detail = as_text(failure.get("authoritative_error_details"))
     if detail and detail not in message:
         lines.extend(["", f"说明：{detail}"])
-    return "\n".join(lines)
-
-
-def _render_solve_failure(failure: dict[str, Any]) -> str:
-    reason = as_text(failure.get("reason"))
-    minimum = failure.get("minimumRequiredBudgetFen")
-    message = as_text(failure.get("message"))
-    lines = ["## 当前条件下没有可行配置", ""]
-    if reason == "BUDGET_EXCEEDED" and isinstance(minimum, int):
-        lines.append(
-            f"预算不足以覆盖最低可行总价 {format_fen(minimum)}。"
-            "我没有放宽你的预算；可以提高预算或放宽容量/场景要求后重试。"
-        )
-    elif reason == "NO_CANDIDATES":
-        missing = [as_text(item) for item in as_list(failure.get("missingCategories"))]
-        labels = "、".join(CATEGORY_LABELS.get(item, item) for item in missing) or "部分类别"
-        lines.append(f"缺少可用候选硬件：{labels}。")
-    elif reason == "NO_COMPATIBLE_BUILD":
-        lines.append("现有候选无法组成兼容配置，我没有放宽预算或忽略兼容性。")
-    else:
-        lines.append("没有满足全部约束的配置，我没有自行放宽预算。")
-    if message and message not in lines[-1]:
-        lines.append("")
-        lines.append(f"说明：{message}")
     return "\n".join(lines)
 
 

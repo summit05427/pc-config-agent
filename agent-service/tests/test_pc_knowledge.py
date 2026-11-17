@@ -384,7 +384,6 @@ def _graph(model: ArchitectModel) -> Any:
         model=model,  # type: ignore[arg-type]
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
-        selection_mode="llm",
     )
 
 

@@ -7,7 +7,7 @@
   agent_id: pc-config
   input: "预算 8000 元，主要打游戏，帮我配一台电脑"
   expect:
-    tool_called: solve_pc_build
+    tool_called: compose_pc_build
     must_contain:
       - "推荐配置"
 

@@ -1,7 +1,5 @@
 package com.example.agent.pcbuild.domain;
 
-import java.util.Locale;
-
 /**
  * 场景权重：决定 CPU 与 GPU 跑分在总分中的占比。
  *
@@ -32,32 +30,5 @@ public enum BuildScenario {
 
     public int gpuWeight() {
         return gpuWeight;
-    }
-
-    /**
-     * 解析外部传入的场景名。
-     *
-     * @param raw 原始文本，可为 {@code null}
-     * @return 命中场景；无法识别时为 {@code null}
-     */
-    public static BuildScenario parse(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        String normalized = raw.trim().toUpperCase(Locale.ROOT);
-        // Agent 侧按产品语义使用 video_editing / general_use 命名，这里做一次收敛
-        return switch (normalized) {
-            case "VIDEO_EDITING" -> CREATIVE;
-            case "GENERAL_USE" -> BALANCED;
-            case "GAMING" -> GAMING;
-            case "CREATIVE" -> CREATIVE;
-            case "PROGRAMMING" -> PROGRAMMING;
-            case "WORKSTATION" -> WORKSTATION;
-            case "OFFICE" -> OFFICE;
-            case "MEDIA" -> MEDIA;
-            case "BALANCED" -> BALANCED;
-            case "AI_INFERENCE" -> AI_INFERENCE;
-            default -> null;
-        };
     }
 }

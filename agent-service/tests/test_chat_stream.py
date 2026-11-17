@@ -13,6 +13,12 @@ from langgraph.checkpoint.memory import MemorySaver
 from pydantic import SecretStr
 from redis.exceptions import ConnectionError as RedisConnectionError
 
+from app.agent.pc.schemas import (
+    REQUIRED_CATEGORIES,
+    BuildProposal,
+    BuildStrategy,
+    SelectedComponent,
+)
 from app.api.v1 import chat as chat_module
 from app.core.config import get_settings
 from app.core.exceptions import AppError
@@ -734,29 +740,54 @@ def test_stream_passes_runtime_into_graph_config(
     assert _parse_sse(response.text)[-1][0] == "done"
 
 
+class _PcStructured:
+    """策略调用返回固定策略；选型调用返回完整八类提案。"""
+
+    def __init__(self, schema: Any) -> None:
+        self._schema = schema
+
+    async def ainvoke(self, messages: Any, config: Any = None) -> Any:
+        del messages, config
+        if self._schema is BuildStrategy:
+            parsed: Any = BuildStrategy(
+                strategy_id="BALANCED", rationale_summary="按均衡策略组装。"
+            )
+        else:
+            parsed = BuildProposal(
+                selected_components=[
+                    SelectedComponent(
+                        category=category,
+                        hardware_id=f"{category.value}-id",
+                        reason_summary="覆盖需求",
+                    )
+                    for category in REQUIRED_CATEGORIES
+                ]
+            )
+        return {"raw": AIMessage(content="{}"), "parsed": parsed, "parsing_error": None}
+
+
 class _PcModel:
-    """PC 流水线假模型：先返回需求 JSON，再返回安全的推荐说明。"""
+    """PC 流水线假模型：解析返回需求 JSON，策略/选型走结构化，正文走流式。"""
 
     def __init__(self) -> None:
-        self._responses = iter(
-            [
-                json.dumps(
-                    {
-                        "budget_max_fen": 800_000,
-                        "scenario": "GAMING",
-                        "scenario_explicit": True,
-                    }
-                ),
-                "这套配置更偏向游戏性能。",
-            ]
+        self._requirement = json.dumps(
+            {
+                "budget_max_fen": 800_000,
+                "scenario": "GAMING",
+                "scenario_explicit": True,
+            }
         )
 
     async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
-        return AIMessage(content=next(self._responses))
+        return AIMessage(content=self._requirement)
+
+    def with_structured_output(self, schema: Any, *, include_raw: bool = False) -> Any:
+        del include_raw
+        return _PcStructured(schema)
 
     async def astream(self, messages: Any, config: Any = None, **_kwargs: Any) -> Any:
         """说明节点走流式调用；测试只关心最终正文与用量记录。"""
-        yield AIMessageChunk(content=next(self._responses))
+        yield AIMessageChunk(content="这套配置更偏向游戏性能。")
 
 
 class _PcTool:
@@ -826,10 +857,10 @@ def _pc_agent() -> Any:
             "mockOfferCount": 0,
             "list": [],
         },
-        "solve_pc_build": lambda args: {"solved": True, "build": build, "failure": None},
-        "validate_pc_build": lambda args: {
-            "valid": True,
-            "report": {"overallStatus": "PASS", "checks": []},
+        "compose_pc_build": lambda args: {"composed": True, "build": build},
+        "check_partial_compatibility": lambda args: {
+            "overallStatus": "PASS",
+            "checks": [],
         },
     }
     tools = {name: _PcTool(name, handler) for name, handler in handlers.items()}
@@ -841,8 +872,6 @@ def _pc_agent() -> Any:
         model=_PcModel(),
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
-        # 本文件覆盖 SSE 与用量旁路，固定走确定性求解器，避免受默认选型模式影响
-        selection_mode="solver",
     )
 
 
@@ -897,8 +926,8 @@ def test_usage_record_is_captured_without_blocking_stream(
 
     assert response.status_code == 200
     assert _parse_sse(response.text)[-1][0] == "done"
-    # 解析与说明各调用一次模型，用量上报确实被触发
-    assert len(records) == 2
+    # 解析、策略、选型与说明各调用一次模型，用量上报确实被触发
+    assert len(records) == 4
     assert records[0]["task_id"] == "task-usage"
 
 

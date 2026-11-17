@@ -99,31 +99,6 @@ public record BuildRequirements(
     }
 
     /**
-     * 兼容旧调用的八参构造：偏好为 {@code null}，保持原有选优策略。
-     *
-     * @param budgetMaxFen          预算上限，单位分
-     * @param scenario              场景
-     * @param minMemoryGb           最低内存容量
-     * @param minStorageGb          最低存储容量
-     * @param requireVerifiedOffers 是否只接受人工核验报价
-     * @param workloadProfile       工作负载画像
-     * @param renderMode            渲染取向
-     * @param scoringVersion        评分策略版本
-     */
-    public BuildRequirements(
-            Long budgetMaxFen,
-            BuildScenario scenario,
-            Integer minMemoryGb,
-            Integer minStorageGb,
-            boolean requireVerifiedOffers,
-            WorkloadProfile workloadProfile,
-            RenderMode renderMode,
-            String scoringVersion) {
-        this(budgetMaxFen, null, null, null, scenario, minMemoryGb, minStorageGb,
-                requireVerifiedOffers, workloadProfile, renderMode, scoringVersion, null);
-    }
-
-    /**
      * 兼容旧调用的五参构造：画像与渲染取向由场景推导。
      *
      * @param budgetMaxFen          预算上限，单位分
@@ -147,20 +122,6 @@ public record BuildRequirements(
      */
     public boolean hasBudget() {
         return budgetMaxFen != null;
-    }
-
-    /**
-     * 去掉预算上下限的副本，用于计算「最低可行总价」的探针搜索。
-     *
-     * <p>质量约束（CPU 价格下限 / GPU 价格上限）属于需求本身，探针必须沿用；
-     * 只有预算上下限需要清空。</p>
-     *
-     * @return 预算为 {@code null}、其余条件不变的需求
-     */
-    public BuildRequirements withoutBudget() {
-        return new BuildRequirements(null, null, minCpuPriceFen, maxGpuPriceFen, scenario,
-                minMemoryGb, minStorageGb, requireVerifiedOffers, workloadProfile, renderMode,
-                scoringVersion, preference);
     }
 
     /**

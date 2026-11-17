@@ -50,7 +50,6 @@ def test_agent_defaults_are_stable() -> None:
     assert settings.default_profile == "pc-config"
     assert settings.tool_timeout_seconds == 10.0
     assert settings.tool_max_retries == 1
-    assert settings.max_solve_retries == 1
     # Architect 结构化选型单独放大输出预算：推理模型思考 token 会挤占 2048
     assert settings.architect_max_tokens == 4096
 
@@ -63,9 +62,7 @@ def test_default_tool_specs_are_stable() -> None:
         "search_hardware_candidates",
         "get_benchmark_data",
         "get_verified_offers",
-        "solve_pc_build",
         "compose_pc_build",
-        "validate_pc_build",
         "check_partial_compatibility",
         "search_knowledge",
     ]
@@ -81,7 +78,7 @@ def test_default_tool_specs_are_stable() -> None:
     assert search_spec.max_retries is None
     assert search_spec.required_roles == ()
 
-    solve_spec = get_tool_spec("solve_pc_build")
-    assert solve_spec is not None
-    assert solve_spec.timeout_seconds == 60.0
-    assert solve_spec.is_read_only is False
+    partial_spec = get_tool_spec("check_partial_compatibility")
+    assert partial_spec is not None
+    assert partial_spec.timeout_seconds == 30.0
+    assert partial_spec.is_read_only is True

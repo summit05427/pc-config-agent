@@ -14,7 +14,6 @@ public enum PcBuildErrorCode implements ErrorCode {
     HARDWARE_NOT_FOUND(40301, HttpStatus.NOT_FOUND, "硬件不存在"),
     BUILD_NOT_FOUND(40302, HttpStatus.NOT_FOUND, "配置快照不存在或不属于当前用户"),
     BUILD_INCOMPLETE(40303, HttpStatus.BAD_REQUEST, "配置必须包含八个硬件类别"),
-    REQUIREMENT_INVALID(40304, HttpStatus.BAD_REQUEST, "求解需求不合法"),
     CATALOG_UNAVAILABLE(40305, HttpStatus.SERVICE_UNAVAILABLE, "硬件目录不可用"),
     USER_TOKEN_INVALID(40306, HttpStatus.UNAUTHORIZED, "缺少或无效的用户访问令牌"),
     BUILD_OFFER_UNAVAILABLE(40307, HttpStatus.CONFLICT, "所选硬件缺少可用报价"),

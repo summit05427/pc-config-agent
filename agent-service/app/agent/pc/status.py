@@ -11,20 +11,13 @@ STATUS_INVALID = "invalid"
 STATUS_VALIDATED = "validated"
 STATUS_RETRIEVED = "retrieved"
 STATUS_NO_CANDIDATES = "no_candidates"
-STATUS_NO_SOLUTION = "no_solution"
-STATUS_SOLVED = "solved"
 STATUS_RETRY = "retry"
-STATUS_COMPATIBILITY_FAILED = "compatibility_failed"
 STATUS_UPSTREAM_ERROR = "upstream_error"
 STATUS_SUCCESS = "success"
 # LLM 选型在候选校验、Java 组装或修正上限后仍无有效方案
 STATUS_ARCHITECT_FAILED = "architect_failed"
 # 用户在 HITL 确认环节主动终止；属于终态，不再继续生成方案
 STATUS_ABORTED = "aborted"
-
-# 选型模式：solver 保持原确定性求解器；llm 由 Build Architect 结构化选型
-SELECTION_MODE_SOLVER = "solver"
-SELECTION_MODE_LLM = "llm"
 
 # 策略来源：MODEL 是模型产物；DEFAULT 是模型不可用/非法时的确定性兜底，不得混用
 STRATEGY_SOURCE_MODEL = "MODEL"
@@ -64,9 +57,7 @@ TERMINAL_FAILURE_STATUSES = frozenset(
         STATUS_CLARIFICATION,
         STATUS_INVALID,
         STATUS_NO_CANDIDATES,
-        STATUS_NO_SOLUTION,
         STATUS_UPSTREAM_ERROR,
-        STATUS_COMPATIBILITY_FAILED,
         STATUS_ARCHITECT_FAILED,
         STATUS_ABORTED,
     }

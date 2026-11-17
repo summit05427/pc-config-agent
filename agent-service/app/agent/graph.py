@@ -32,7 +32,7 @@ def build_agent(
     """按 Profile 组装 PC 图。
 
     `model=None` 时尝试使用进程默认模型；LLM 不可用时 Build Architect 以结构化失败
-    收尾，不会回退求解器冒充 LLM 结果（显式 solver 模式仍走确定性流水线）。
+    收尾，不会回退到确定性拼装冒充选型结果。
     """
     active_profile = profile if profile is not None else resolve_profile(None)
     chat_model = model

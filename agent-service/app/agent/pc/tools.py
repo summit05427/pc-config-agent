@@ -33,8 +33,6 @@ logger = structlog.get_logger(__name__)
 
 # 查询类工具一轮最多覆盖 8 个类别，留出重试余量
 MAX_CATEGORY_CALLS_PER_TURN = 12
-# 求解在兼容性失败后允许自动重解一次，配额留出余量
-MAX_SOLVE_CALLS_PER_TURN = 3
 # Architect 首次组装 + 两次修正各一次，配额留出余量
 MAX_COMPOSE_CALLS_PER_TURN = 3
 # 增量校验只检查已选核心组件，单轮配额由节点按 AGENT__ARCHITECT_MAX_PARTIAL_CHECKS 再收一层
@@ -64,15 +62,6 @@ _COMPOSE_FAILURES: dict[str, tuple[str, bool]] = {
     PC_BUILD_INCOMPATIBLE: (FAILURE_COMPATIBILITY_CONFLICT, True),
     PC_BUDGET_EXCEEDED: (FAILURE_BUDGET_EXCEEDED, True),
 }
-
-
-def _require_user_token() -> str:
-    """求解与快照读取属于用户维度；缺失身份时给安全错误而不是匿名代查。"""
-    turn = get_current_tool_turn()
-    token = turn.user_token if turn is not None else None
-    if not token:
-        raise ToolExecutionError("缺少用户身份，无法生成配置，请重新登录后再试")
-    return token
 
 
 async def _call_client(operation: Any) -> dict[str, object]:
@@ -137,50 +126,6 @@ async def get_verified_offers(
             category=category,
             verified_only=verified_only,
         )
-    )
-
-
-@register_tool(
-    name="solve_pc_build",
-    description="按预算与场景求解一套完整的八类硬件配置；无解时返回结构化失败原因。",
-    # 候选池按平台分组后，运行时候选组合明显变多：Java 性能基线在中等预算 GAMING 场景
-    # 实测单次求解约 29 秒（BuildSolverBenchmarkTests 场景 A），25 秒会在真实请求上误判超时。
-    timeout_seconds=60,
-    max_output_tokens=8000,
-    max_calls_per_turn=MAX_SOLVE_CALLS_PER_TURN,
-    is_read_only=False,
-)
-async def solve_pc_build(
-    budget_min_fen: int | None = None,
-    budget_max_fen: int | None = None,
-    scenario: str = "BALANCED",
-    preference: str | None = None,
-    render_mode: str | None = None,
-    min_memory_gb: int | None = None,
-    min_storage_gb: int | None = None,
-    require_verified_offers: bool = False,
-    min_cpu_price_fen: int | None = None,
-    max_gpu_price_fen: int | None = None,
-) -> dict[str, object]:
-    """求解配置；预算单位为整数分，上下限分别表达区间与开区间。
-
-    `min_cpu_price_fen` / `max_gpu_price_fen` 是质量评审给出的可选约束，
-    用于避免低端 CPU 搭配旗舰显卡或办公场景过度购买独显。
-    """
-    request: dict[str, object] = {
-        "budgetMinFen": budget_min_fen,
-        "budgetMaxFen": budget_max_fen,
-        "scenario": scenario,
-        "preference": preference,
-        "renderMode": render_mode,
-        "minMemoryGb": min_memory_gb,
-        "minStorageGb": min_storage_gb,
-        "requireVerifiedOffers": require_verified_offers,
-        "minCpuPriceFen": min_cpu_price_fen,
-        "maxGpuPriceFen": max_gpu_price_fen,
-    }
-    return await _call_client(
-        get_pc_client().solve(request, user_token=_require_user_token())
     )
 
 
@@ -256,37 +201,6 @@ def _compose_failure(reason: str, message: str, *, retryable: bool) -> dict[str,
         "composed": False,
         "failure": {"reason": reason, "message": message, "retryable": retryable},
     }
-
-
-@register_tool(
-    name="validate_pc_build",
-    description="校验八类硬件组合的兼容性；UNKNOWN 表示尚未验证，不能当作通过。",
-    timeout_seconds=10,
-    max_output_tokens=4000,
-    max_calls_per_turn=MAX_SOLVE_CALLS_PER_TURN,
-)
-async def validate_pc_build(
-    cpu: str,
-    motherboard: str,
-    memory: str,
-    gpu: str,
-    psu: str,
-    case: str,
-    cooler: str,
-    storage: str,
-) -> dict[str, object]:
-    """按类别校验配置；八个标识缺一不可。"""
-    hardware_ids = {
-        "cpu": cpu,
-        "motherboard": motherboard,
-        "memory": memory,
-        "gpu": gpu,
-        "psu": psu,
-        "case": case,
-        "cooler": cooler,
-        "storage": storage,
-    }
-    return await _call_client(get_pc_client().validate(hardware_ids))
 
 
 @register_tool(

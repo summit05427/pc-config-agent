@@ -4,15 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.agent.pcbuild.application.BuildSolveService;
-import com.example.agent.pcbuild.application.SolveExecutionResult;
 import com.example.agent.pcbuild.application.port.BuildSnapshotRepository;
-import com.example.agent.pcbuild.domain.BuildRequirements;
-import com.example.agent.pcbuild.domain.BuildScenario;
-import com.example.agent.pcbuild.domain.BuildSolverVersion;
+import com.example.agent.pcbuild.domain.BuildResult;
 import com.example.agent.pcbuild.domain.BuildSnapshot;
-import com.example.agent.pcbuild.domain.Preference;
+import com.example.agent.pcbuild.domain.BuildSolverVersion;
+import com.example.agent.pcbuild.domain.HardwareCategory;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
 import com.example.agent.shared.error.BusinessException;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +42,17 @@ class BuildSnapshotPersistenceTests {
         registry.add("spring.datasource.password", POSTGRES::getPassword);
     }
 
+    /** 兼容且八件均有有效报价的基线组合。 */
+    private static final Map<HardwareCategory, String> COMPLETE_HARDWARE_IDS = Map.of(
+            HardwareCategory.CPU, "cpu-amd-ryzen-7-9800x3d",
+            HardwareCategory.MOTHERBOARD, "motherboard-msi-mag-b850m-mortar-wifi",
+            HardwareCategory.MEMORY, "memory-corsair-vengeance-32-gb-2-x-16-gb-ddr5-5600-cl40",
+            HardwareCategory.GPU, "gpu-geforce-rtx-5070-ti-16gb-563955",
+            HardwareCategory.PSU, "psu-segotep-gm750w",
+            HardwareCategory.CASE, "case-lian-li-lancool-205-mesh",
+            HardwareCategory.COOLER, "cooler-thermalright-peerless-assassin",
+            HardwareCategory.STORAGE, "storage-kingston-nv3-1-tb-591379");
+
     @Autowired
     private BuildSolveService buildSolveService;
 
@@ -49,17 +60,15 @@ class BuildSnapshotPersistenceTests {
     private BuildSnapshotRepository buildSnapshotRepository;
 
     @Test
-    void solvedBuild_shouldBeReadableByOwnerWithAllComponents() {
+    void composedBuild_shouldBeReadableByOwnerWithAllComponents() {
         UUID userId = UUID.randomUUID();
-        SolveExecutionResult execution = buildSolveService.solve(userId, requirements());
-        assertThat(execution.isSolved()).isTrue();
+        BuildResult result = buildSolveService.composeAndSnapshot(userId, completeIds(), null);
 
-        UUID buildId = execution.build().buildId();
-        BuildResultResponse response = buildSolveService.requireBuild(userId, buildId);
+        BuildResultResponse response = buildSolveService.requireBuild(userId, result.buildId());
 
-        assertThat(response.buildId()).isEqualTo(buildId);
+        assertThat(response.buildId()).isEqualTo(result.buildId());
         assertThat(response.components()).hasSize(8);
-        assertThat(response.totalPriceFen()).isEqualTo(execution.build().totalPriceFen());
+        assertThat(response.totalPriceFen()).isEqualTo(result.totalPriceFen());
         assertThat(response.verifiedOfferCount() + response.demoOfferCount()).isEqualTo(8);
         // 九条兼容性规则（原八条 + 内存条数）。
         assertThat(response.compatibilityReport().checks()).hasSize(9);
@@ -78,11 +87,10 @@ class BuildSnapshotPersistenceTests {
     @Test
     void requirementsSnapshot_shouldCarryProfileRenderModeAndScoringVersion() {
         UUID userId = UUID.randomUUID();
-        SolveExecutionResult execution = buildSolveService.solve(userId, requirements());
-        assertThat(execution.isSolved()).isTrue();
+        BuildResult result = buildSolveService.composeAndSnapshot(userId, completeIds(), null);
 
         BuildSnapshot snapshot = buildSnapshotRepository
-                .findByIdAndUserId(execution.build().buildId(), userId)
+                .findByIdAndUserId(result.buildId(), userId)
                 .orElseThrow();
         assertThat(snapshot.requirementsSnapshot())
                 .contains("\"workloadProfile\"")
@@ -91,28 +99,11 @@ class BuildSnapshotPersistenceTests {
     }
 
     @Test
-    void requirementsSnapshot_shouldCarryPreference() {
-        UUID userId = UUID.randomUUID();
-        BuildRequirements valueRequirements = new BuildRequirements(
-                2_000_000L, BuildScenario.GAMING, null, null, false,
-                null, null, null, Preference.VALUE);
-        SolveExecutionResult execution = buildSolveService.solve(userId, valueRequirements);
-        assertThat(execution.isSolved()).isTrue();
-
-        BuildSnapshot snapshot = buildSnapshotRepository
-                .findByIdAndUserId(execution.build().buildId(), userId)
-                .orElseThrow();
-        // 快照按带空格的 JSON 序列化，断言空格后的值而非紧凑格式。
-        assertThat(snapshot.requirementsSnapshot()).contains("\"preference\": \"VALUE\"");
-    }
-
-    @Test
     void snapshot_shouldNotBeReadableByAnotherUser() {
         UUID owner = UUID.randomUUID();
-        SolveExecutionResult execution = buildSolveService.solve(owner, requirements());
-        UUID buildId = execution.build().buildId();
+        BuildResult result = buildSolveService.composeAndSnapshot(owner, completeIds(), null);
 
-        assertThatThrownBy(() -> buildSolveService.requireBuild(UUID.randomUUID(), buildId))
+        assertThatThrownBy(() -> buildSolveService.requireBuild(UUID.randomUUID(), result.buildId()))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(
                         ((BusinessException) exception).getErrorCode().code()).isEqualTo(40302));
@@ -126,7 +117,7 @@ class BuildSnapshotPersistenceTests {
                         ((BusinessException) exception).getErrorCode().code()).isEqualTo(40302));
     }
 
-    private BuildRequirements requirements() {
-        return new BuildRequirements(2_000_000L, BuildScenario.GAMING, null, null, false);
+    private static Map<HardwareCategory, String> completeIds() {
+        return new EnumMap<>(COMPLETE_HARDWARE_IDS);
     }
 }

@@ -14,7 +14,7 @@ import org.springframework.stereotype.Service;
  * 硬件目录查询服务。
  *
  * <p>排序键固定为「类别枚举顺序 → hardware_id」，同一份 fixture 每次返回相同顺序，
- * 供 Agent 稳定展示与求解器复现。</p>
+ * 供 Agent 稳定展示与快照读取复用。</p>
  */
 @Service
 @RequiredArgsConstructor
@@ -35,16 +35,6 @@ public class HardwareCatalogService {
     public List<Hardware> listCandidates(HardwareCategory category) {
         return repository.findAll().stream()
                 .filter(hardware -> category == null || hardware.category() == category)
-                .sorted(STABLE_ORDER)
-                .toList();
-    }
-
-    /**
-     * @return 仅包含可参与求解的硬件
-     */
-    public List<Hardware> listSolverEligible() {
-        return repository.findAll().stream()
-                .filter(Hardware::isSolverEligible)
                 .sorted(STABLE_ORDER)
                 .toList();
     }

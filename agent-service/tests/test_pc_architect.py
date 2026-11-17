@@ -46,7 +46,7 @@ from app.agent.pc.status import (
 from app.agent.profiles import resolve_profile
 from app.agent.prompts import load_pc_prompt
 from app.agent.tool_context import ToolTurn
-from app.core.config import AuthSettings, Settings, get_settings
+from app.core.config import get_settings
 from app.services import control_plane
 from app.services.control_plane import ControlPlaneError
 
@@ -323,13 +323,7 @@ def _install_tools(
     monkeypatch: pytest.MonkeyPatch,
     *,
     compose_outcomes: list[dict[str, Any]] | None = None,
-    solve_outcomes: list[dict[str, Any]] | None = None,
-) -> tuple[ComposeTool, ComposeTool]:
-    solve = ComposeTool(
-        solve_outcomes
-        or [{"solved": True, "build": _compose_build(), "failure": None}],
-        name="solve_pc_build",
-    )
+) -> ComposeTool:
     compose = ComposeTool(
         compose_outcomes or [{"composed": True, "build": _compose_build()}]
     )
@@ -339,11 +333,9 @@ def _install_tools(
         ),
         "get_benchmark_data": FakeTool("get_benchmark_data", {"list": []}),
         "get_verified_offers": FakeTool("get_verified_offers", {"list": []}),
-        "solve_pc_build": solve,
         "compose_pc_build": compose,
-        "validate_pc_build": FakeTool(
-            "validate_pc_build",
-            {"valid": True, "report": {"overallStatus": "PASS", "checks": []}},
+        "check_partial_compatibility": FakeTool(
+            "check_partial_compatibility", {"overallStatus": "PASS", "checks": []}
         ),
     }
 
@@ -356,15 +348,14 @@ def _install_tools(
 
     tools["search_hardware_candidates"] = SearchTool()
     monkeypatch.setattr(nodes_module, "get_governed_tool", tools.get)
-    return solve, compose
+    return compose
 
 
-def _graph(model: ArchitectModel | None, selection_mode: str) -> Any:
+def _graph(model: ArchitectModel | None) -> Any:
     return build_pc_graph(
         model=model,  # type: ignore[arg-type]
         profile=resolve_profile("pc-config"),
         checkpointer=MemorySaver(),
-        selection_mode=selection_mode,
     )
 
 
@@ -375,39 +366,15 @@ async def _run(agent: Any, thread_id: str) -> dict[str, Any]:
     )
 
 
-def test_default_selection_mode_is_llm(public_key_pem: str, monkeypatch: Any) -> None:
-    """默认走 LLM 选型；solver 只能由配置显式选择。"""
-    monkeypatch.delenv("AGENT__PC_SELECTION_MODE", raising=False)
-    settings = Settings(_env_file=None, auth=AuthSettings(jwt_public_key=public_key_pem))
-
-    assert settings.agent.pc_selection_mode == "llm"
-
-
-async def test_solver_mode_keeps_solver_path(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """显式 solver 模式不得触发 Build Architect，节点序列保持原状。"""
-    solve, compose = _install_tools(monkeypatch)
-    model = ArchitectModel([_proposal()])
-
-    result = await _run(_graph(model, "solver"), "mode-solver")
-
-    assert result["workflow_status"] == STATUS_SUCCESS
-    assert len(solve.calls) == 1
-    assert model.structured_calls == 0
-    assert compose.calls == []
-
-
 async def test_llm_mode_composes_valid_proposal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, compose = _install_tools(monkeypatch)
+    compose = _install_tools(monkeypatch)
     model = ArchitectModel([_proposal()])
 
-    result = await _run(_graph(model, "llm"), "mode-llm")
+    result = await _run(_graph(model), "mode-llm")
 
     assert result["workflow_status"] == STATUS_SUCCESS
-    assert result["selection_mode"] == "llm"
     assert result["build_result"]["buildId"] == "build-llm-1"
     assert result["compatibility_report"]["overallStatus"] == "UNKNOWN"
     assert len(result["build_proposal"]["selected_components"]) == len(REQUIRED_CATEGORIES)
@@ -431,7 +398,7 @@ async def test_out_of_pool_id_repairs_without_calling_compose(
         [_proposal({"CPU": "NOT-IN-POOL"}), _proposal()]
     )
 
-    result = await _run(_graph(model, "llm"), "repair-out-of-pool")
+    result = await _run(_graph(model), "repair-out-of-pool")
 
     assert result["workflow_status"] == STATUS_SUCCESS
     assert model.structured_calls == 2
@@ -444,7 +411,7 @@ async def test_out_of_pool_id_repairs_without_calling_compose(
 async def test_budget_exceeded_repairs_once_then_succeeds(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, compose = _install_tools(
+    compose = _install_tools(
         monkeypatch,
         compose_outcomes=[
             {
@@ -460,7 +427,7 @@ async def test_budget_exceeded_repairs_once_then_succeeds(
     )
     model = ArchitectModel([_proposal(), _proposal()])
 
-    result = await _run(_graph(model, "llm"), "repair-budget")
+    result = await _run(_graph(model), "repair-budget")
 
     assert result["workflow_status"] == STATUS_SUCCESS
     assert len(compose.calls) == 2
@@ -471,10 +438,10 @@ async def test_budget_exceeded_repairs_once_then_succeeds(
 async def test_repair_limit_fails_without_returning_unverified_build(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _, compose = _install_tools(monkeypatch)
+    compose = _install_tools(monkeypatch)
     model = ArchitectModel([_proposal({"CPU": "BAD"})] * (ARCHITECT_MAX_REPAIRS + 1))
 
-    result = await _run(_graph(model, "llm"), "repair-limit")
+    result = await _run(_graph(model), "repair-limit")
 
     assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
     assert model.structured_calls == ARCHITECT_MAX_REPAIRS + 1
@@ -500,7 +467,7 @@ async def test_llm_quality_retry_injects_structured_feedback(
     )
     model = ArchitectModel([_proposal(), _proposal()])
 
-    result = await _run(_graph(model, "llm"), "quality-llm")
+    result = await _run(_graph(model), "quality-llm")
 
     assert result["workflow_status"] == STATUS_SUCCESS
     assert model.structured_calls == 2
@@ -514,47 +481,22 @@ async def test_llm_quality_retry_injects_structured_feedback(
     assert "目标值：¥2,500.00" in retry_prompt
     assert "必须保持不变" in retry_prompt
     assert "提高（不低于目标值）" in retry_prompt
-    # 求解器参数不得原样进入模型上下文
+    # 内部价格参数不得原样进入模型上下文
     assert "minCpuPriceFen" not in retry_prompt
     assert "maxGpuPriceFen" not in retry_prompt
 
 
-async def test_solver_quality_retry_keeps_solver_constraints(
+async def test_model_none_fails_without_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """solver 模式质量重解仍走 build_solver，并携带原有价格约束参数。"""
-    solve, _ = _install_tools(
-        monkeypatch,
-        solve_outcomes=[
-            {
-                "solved": True,
-                "build": _build_with_prices(50_000, 1_000_000),
-                "failure": None,
-            },
-            {"solved": True, "build": _compose_build(), "failure": None},
-        ],
-    )
-
-    result = await _run(_graph(None, "solver"), "quality-solver")
-
-    assert result["workflow_status"] == STATUS_SUCCESS
-    assert len(solve.calls) == 2
-    assert solve.calls[1]["min_cpu_price_fen"] == 250_000
-    assert result.get("quality_feedback") is None
-
-
-async def test_model_none_fails_without_solver_fallback(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    solve, compose = _install_tools(monkeypatch)
+    compose = _install_tools(monkeypatch)
     model = ArchitectModel([None])
 
-    result = await _run(_graph(model, "llm"), "model-none")
+    result = await _run(_graph(model), "model-none")
 
     assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
     assert model.structured_calls == 1
     assert compose.calls == []
-    assert solve.calls == []
     assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
     assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_SCHEMA_INVALID
     assert build_result_payload(result) is None
@@ -564,16 +506,15 @@ async def test_unsupported_structured_output_reports_provider_stage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Provider 不支持结构化输出且文本兜底不合法时，失败阶段必须是 provider_unsupported。"""
-    solve, compose = _install_tools(monkeypatch)
+    compose = _install_tools(monkeypatch)
     model = UnsupportedStructuredModel()
 
-    result = await _run(_graph(model, "llm"), "provider-unsupported")  # type: ignore[arg-type]
+    result = await _run(_graph(model), "provider-unsupported")  # type: ignore[arg-type]
 
     assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
     assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
     assert result["build_failure"]["failure_stage"] == FAILURE_STAGE_PROVIDER_UNSUPPORTED
     assert compose.calls == []
-    assert solve.calls == []
 
 
 async def test_architect_structured_call_uses_dedicated_output_budget(
@@ -586,7 +527,7 @@ async def test_architect_structured_call_uses_dedicated_output_budget(
     _install_tools(monkeypatch)
     model = _BudgetTrackingModel([_proposal()])
 
-    result = await _run(_graph(model, "llm"), "architect-budget")
+    result = await _run(_graph(model), "architect-budget")
 
     assert result["workflow_status"] == STATUS_SUCCESS
     assert 2048 in model.budgets
@@ -602,7 +543,7 @@ async def test_truncated_architect_output_reports_output_truncated(
     _install_tools(monkeypatch)
     model = _TruncatedProposalModel()
 
-    result = await _run(_graph(model, "llm"), "architect-truncated")  # type: ignore[arg-type]
+    result = await _run(_graph(model), "architect-truncated")  # type: ignore[arg-type]
 
     assert result["workflow_status"] == STATUS_ARCHITECT_FAILED
     assert result["build_failure"]["failure_type"] == FAILURE_MODEL_UNAVAILABLE
@@ -670,15 +611,12 @@ async def test_compose_tool_forwards_user_token_and_eight_ids(
     assert captured["request"]["budgetMaxFen"] == 500_000
 
 
-def test_selection_mode_only_changes_configured_edges() -> None:
-    """路由只读枚举状态与配置：solver 不经过 Architect，llm 走 Architect。"""
+def test_routes_read_status_enum_only() -> None:
+    """路由只读枚举状态：检索成功后进入 Architect，质量重解回到 Architect。"""
     retrieved = {"workflow_status": STATUS_RETRIEVED}
-    assert _route_after_retrieval(retrieved, selection_mode="solver") == "build_solver"
-    assert _route_after_retrieval(retrieved, selection_mode="llm") == "build_architect"
-    # 质量重解同样按模式回流，回环上限由 quality.py 与 ARCHITECT_MAX_REPAIRS 控制
+    assert _route_after_retrieval(retrieved) == "build_architect"
     retry = {"workflow_status": STATUS_RETRY}
-    assert _route_after_quality_review(retry, selection_mode="solver") == "build_solver"
-    assert _route_after_quality_review(retry, selection_mode="llm") == "build_architect"
+    assert _route_after_quality_review(retry) == "build_architect"
 
 
 def test_pc_build_error_codes_keep_business_semantics() -> None:

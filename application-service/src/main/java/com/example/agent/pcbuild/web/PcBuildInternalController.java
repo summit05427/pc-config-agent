@@ -3,7 +3,6 @@ package com.example.agent.pcbuild.web;
 import com.example.agent.pcbuild.application.BuildResultFactory;
 import com.example.agent.pcbuild.application.BuildSolveService;
 import com.example.agent.pcbuild.application.InternalUserTokenResolver;
-import com.example.agent.pcbuild.application.SolveExecutionResult;
 import com.example.agent.pcbuild.domain.BuildResult;
 import com.example.agent.pcbuild.domain.CompatibilityReport;
 import com.example.agent.pcbuild.web.dto.BuildResultResponse;
@@ -11,8 +10,6 @@ import com.example.agent.pcbuild.web.dto.CompatibilityReportResponse;
 import com.example.agent.pcbuild.web.dto.ComposeRequest;
 import com.example.agent.pcbuild.web.dto.PartialValidateRequest;
 import com.example.agent.pcbuild.web.dto.PartialValidateResponse;
-import com.example.agent.pcbuild.web.dto.SolveRequest;
-import com.example.agent.pcbuild.web.dto.SolveResponse;
 import com.example.agent.pcbuild.web.dto.ValidateRequest;
 import com.example.agent.pcbuild.web.dto.ValidateResponse;
 import com.example.agent.shared.api.ApiResponse;
@@ -28,9 +25,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * PC 配置求解内部接口。
+ * PC 配置内部接口。
  *
- * <p>求解与读取快照属于用户维度：除服务令牌外必须携带 {@code X-User-Token}，
+ * <p>指定组合与读取快照属于用户维度：除服务令牌外必须携带 {@code X-User-Token}，
  * 用户身份只从令牌 {@code sub} 解析。校验接口不落库，只需要服务令牌。</p>
  */
 @RestController
@@ -48,27 +45,6 @@ public class PcBuildInternalController {
     private final InternalUserTokenResolver userTokenResolver;
 
     /**
-     * 求解配置。
-     *
-     * @param request   需求
-     * @param userToken 用户访问令牌
-     * @return 方案或结构化失败
-     */
-    @PostMapping("/solve")
-    public ApiResponse<SolveResponse> solve(
-            @Valid @RequestBody SolveRequest request,
-            @RequestHeader(value = USER_TOKEN_HEADER, required = false) String userToken) {
-        UUID userId = userTokenResolver.requireUserId(userToken);
-        SolveExecutionResult result = buildSolveService.solve(userId, request.toRequirements());
-        if (!result.isSolved()) {
-            return ApiResponse.success(SolveResponse.failed(
-                    SolveResponse.Failure.from(result.failure())));
-        }
-        BuildResultResponse build = buildResultFactory.toResponse(result.build());
-        return ApiResponse.success(SolveResponse.solved(build));
-    }
-
-    /**
      * 按指定八类硬件生成方案并落快照。
      *
      * <p>价格由服务端从报价库取最低有效报价，逐件理由由服务端确定性生成，
@@ -76,7 +52,7 @@ public class PcBuildInternalController {
      *
      * @param request   八类硬件标识与可选预算上限
      * @param userToken 用户访问令牌
-     * @return 已落库方案，结构与 solve 成功分支的 {@code build} 一致
+     * @return 已落库方案
      */
     @PostMapping("/compose")
     public ApiResponse<BuildResultResponse> compose(

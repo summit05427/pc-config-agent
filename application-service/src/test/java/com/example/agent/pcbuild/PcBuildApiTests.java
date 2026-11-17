@@ -1,6 +1,5 @@
 package com.example.agent.pcbuild;
 
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.empty;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -60,7 +59,7 @@ class PcBuildApiTests {
 
     private static final String OFFERS_PATH = "/internal/v1/pc/offers";
 
-    private static final String SOLVE_PATH = "/internal/v1/pc/builds/solve";
+    private static final String COMPOSE_PATH = "/internal/v1/pc/builds/compose";
 
     private static final String VALIDATE_PATH = "/internal/v1/pc/builds/validate";
 
@@ -269,33 +268,33 @@ class PcBuildApiTests {
     }
 
     @Test
-    void solve_shouldPersistSnapshotAndEnforceOwnership() throws Exception {
+    void compose_shouldPersistSnapshotAndEnforceOwnership() throws Exception {
         String bearer = bearerToken();
         String adminToken = userToken("admin", ADMIN_PASSWORD);
         String demoToken = userToken("demo", DEMO_PASSWORD);
 
-        MvcResult result = mockMvc.perform(post(SOLVE_PATH)
+        MvcResult result = mockMvc.perform(post(COMPOSE_PATH)
                         .header(HttpHeaders.AUTHORIZATION, bearer)
                         .header(USER_TOKEN_HEADER, adminToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"budgetMaxFen\":2000000,\"scenario\":\"GAMING\"}"))
+                        .content("{\"components\":" + BASELINE_VALIDATE_BODY
+                                + ",\"budgetMaxFen\":2000000}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.solved").value(true))
-                .andExpect(jsonPath("$.data.build.buildId").isNotEmpty())
-                .andExpect(jsonPath("$.data.build.totalPriceFen").value(
+                .andExpect(jsonPath("$.data.buildId").isNotEmpty())
+                .andExpect(jsonPath("$.data.totalPriceFen").value(
                         org.hamcrest.Matchers.lessThanOrEqualTo(2_000_000)))
-                .andExpect(jsonPath("$.data.build.components.length()").value(8))
-                .andExpect(jsonPath("$.data.build.componentReasons.length()").value(8))
-                .andExpect(jsonPath("$.data.build.componentReasons[0].reason").isNotEmpty())
-                .andExpect(jsonPath("$.data.build.componentReasons[0].priceFen").isNumber())
-                .andExpect(jsonPath("$.data.build.reasonSummary").isNotEmpty())
-                .andExpect(jsonPath("$.data.build.scoringVersion").value("pc-scoring-1.0.0"))
-                .andExpect(jsonPath("$.data.build.requirements.workloadProfile").value("GAMING"))
-                .andExpect(jsonPath("$.data.build.requirements.renderMode").value("BOTH"))
-                .andExpect(jsonPath("$.data.build.offerDataStatus").value("PLATFORM_OBSERVED_ONLY"))
-                .andExpect(jsonPath("$.data.build.components[*].priceSource", not(empty())))
+                .andExpect(jsonPath("$.data.components.length()").value(8))
+                .andExpect(jsonPath("$.data.componentReasons.length()").value(8))
+                .andExpect(jsonPath("$.data.componentReasons[0].reason").isNotEmpty())
+                .andExpect(jsonPath("$.data.componentReasons[0].priceFen").isNumber())
+                .andExpect(jsonPath("$.data.reasonSummary").isNotEmpty())
+                .andExpect(jsonPath("$.data.scoringVersion").value("pc-scoring-1.0.0"))
+                .andExpect(jsonPath("$.data.requirements.workloadProfile").value("GENERAL"))
+                .andExpect(jsonPath("$.data.requirements.renderMode").value("BOTH"))
+                .andExpect(jsonPath("$.data.offerDataStatus").value("PLATFORM_OBSERVED_ONLY"))
+                .andExpect(jsonPath("$.data.components[*].priceSource", not(empty())))
                 .andReturn();
-        String buildId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.build.buildId");
+        String buildId = JsonPath.read(result.getResponse().getContentAsString(), "$.data.buildId");
 
         mockMvc.perform(get(BUILDS_PATH + "/" + buildId)
                         .header(HttpHeaders.AUTHORIZATION, bearer)
@@ -312,55 +311,6 @@ class PcBuildApiTests {
                         .header(USER_TOKEN_HEADER, demoToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(40302));
-    }
-
-    @Test
-    void solve_shouldRequireUserToken() throws Exception {
-        mockMvc.perform(post(SOLVE_PATH)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"budgetMaxFen\":2000000}"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value(40306));
-    }
-
-    @Test
-    void solve_shouldRejectUnknownPreference() throws Exception {
-        mockMvc.perform(post(SOLVE_PATH)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
-                        .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"budgetMaxFen\":2000000,\"preference\":\"SERVER\"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value(40304));
-    }
-
-    @Test
-    void solve_shouldReturnStructuredFailureWhenBudgetTooLow() throws Exception {
-        mockMvc.perform(post(SOLVE_PATH)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
-                        .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"budgetMaxFen\":100000}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.solved").value(false))
-                .andExpect(jsonPath("$.data.build").doesNotExist())
-                .andExpect(jsonPath("$.data.failure.reason").value("BUDGET_EXCEEDED"))
-                .andExpect(jsonPath("$.data.failure.minimumRequiredBudgetFen",
-                        greaterThan(100_000)));
-    }
-
-    @Test
-    void solve_shouldNotSilentlyUseMockPricesWhenVerifiedOnly() throws Exception {
-        mockMvc.perform(post(SOLVE_PATH)
-                        .header(HttpHeaders.AUTHORIZATION, bearerToken())
-                        .header(USER_TOKEN_HEADER, userToken("admin", ADMIN_PASSWORD))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"budgetMaxFen\":2000000,\"requireVerifiedOffers\":true}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.solved").value(false))
-                .andExpect(jsonPath("$.data.failure.reason").value("NO_CANDIDATES"))
-                .andExpect(jsonPath("$.data.failure.missingCategories", not(empty())));
     }
 
     private String bearerToken() throws Exception {
