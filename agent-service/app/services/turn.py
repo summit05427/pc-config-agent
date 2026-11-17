@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 import structlog
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, RemoveMessage
 from langgraph.types import Command
 
 from app.agent.hooks import (
@@ -43,7 +43,14 @@ logger = structlog.get_logger(__name__)
 AUTO_TITLE_LENGTH = 40
 
 TurnEventType = Literal[
-    "token", "reasoning", "tool_call", "tool_result", "citations", "interrupt", "done"
+    "token",
+    "reasoning",
+    "stage",
+    "tool_call",
+    "tool_result",
+    "citations",
+    "interrupt",
+    "done",
 ]
 
 
@@ -133,6 +140,8 @@ async def _turn_events(request: TurnRequest, outcome: TurnOutcome) -> AsyncItera
     citations: list[Citation] = []
     # 同一回合内 turn 级 RAG 与工具级知识引用共用一份已下发集合，按 source_id 去重
     sent_citation_ids: set[str] = set()
+    # 已下发的引用载荷：与消息一起落库，刷新页面后仍能回放来源
+    citation_payloads: list[dict[str, Any]] = []
     # RAG 默认关闭；开启时先按权限过滤检索，再把引用与提示词片段带进本轮
     if get_settings().rag.enabled:
         citations = await _retrieve_citations(
@@ -142,18 +151,26 @@ async def _turn_events(request: TurnRequest, outcome: TurnOutcome) -> AsyncItera
         )
         fresh_payloads = _fresh_citation_payloads(citations, sent_citation_ids)
         if fresh_payloads:
+            citation_payloads.extend(fresh_payloads)
             yield TurnEvent("citations", {"citations": fresh_payloads})
     turn_prompt = _compose_turn_prompt(preference_prompt, build_retrieval_prompt(citations))
 
+    had_reasoning = False
     async for event in _agent_events(
         request, turn_prompt, use_history, outcome, sent_citation_ids
     ):
+        if event.type == "citations":
+            raw_payloads = event.data.get("citations")
+            if isinstance(raw_payloads, list):
+                citation_payloads.extend(raw_payloads)
+        elif event.type == "reasoning":
+            had_reasoning = True
         yield event
 
     # 生成已结束：此后即使客户端在落库阶段断开，本轮也应记为完成
     outcome.completed = True
     # 先落库再发 done：前端收到 done 后立即查询历史即可看到本轮消息
-    final_values = await _persist_turn(request)
+    final_values = await _persist_turn(request, citation_payloads, had_reasoning)
     # HITL 暂停：问题消息已落库，不再发 done，前端据此进入等待回答状态
     if outcome.interrupted:
         return
@@ -266,6 +283,10 @@ def _chunk_events(
 ) -> list[TurnEvent]:
     """messages 模式：思考内容与正文分成独立事件，可缓冲时等钩子通过后再放行。"""
     message_chunk, _metadata = chunk
+    # 完整消息（非 AIMessageChunk）只可能来自节点 return 的 AIMessage：正文已经由
+    # custom 分块或 updates 路径下发过，再走 messages 流会整段重复追加（实测一轮 3 份）。
+    if not isinstance(message_chunk, AIMessageChunk):
+        return []
     events: list[TurnEvent] = []
     # LiteLLM 把各厂商的思考内容统一成 reasoning_content，由 llm.py 的
     # ReasoningChatOpenAI 保留到 additional_kwargs，这里不再区分 Provider
@@ -317,6 +338,24 @@ def _custom_events(
     return [event]
 
 
+# 节点完成 → 前端阶段枚举。工具事件通常在 build_architect 节点结束后成批返回，
+# 若不按节点推进，用户在等待期间只会看到「正在解析需求」。未知节点直接忽略，
+# 保证其它 Agent 的更新不会被误标成 PC 阶段。
+_NODE_STAGE_EVENTS: dict[str, str] = {
+    "requirement_parser": "parsing",
+    "requirement_validator": "parsing",
+    "clarification_gate": "parsing",
+    "build_strategist": "strategizing",
+    "candidate_retriever": "retrieving",
+    "specialist_panel": "analyzing",
+    "build_architect": "composing",
+    "quality_review": "validating",
+    "critic_review": "reviewing",
+    "compatibility_gate": "validating",
+    "response_generator": "generating",
+}
+
+
 def _update_events(
     chunk: dict[str, Any],
     pending_events: list[TurnEvent],
@@ -335,6 +374,9 @@ def _update_events(
             # 节点已返回说明 after_model 钩子通过，此时才放行本轮缓冲
             events.extend(pending_events)
             pending_events.clear()
+        stage = _NODE_STAGE_EVENTS.get(node)
+        if stage is not None:
+            events.append(TurnEvent("stage", {"stage": stage}))
         if not isinstance(update, dict):
             continue
         events.extend(_tool_event_events(update.get("tool_events")))
@@ -491,7 +533,11 @@ def _agent_config(request: TurnRequest) -> dict[str, Any]:
     )
 
 
-async def _persist_turn(request: TurnRequest) -> dict[str, Any]:
+async def _persist_turn(
+    request: TurnRequest,
+    citation_payloads: list[dict[str, Any]] | None = None,
+    had_reasoning: bool = False,
+) -> dict[str, Any]:
     """把本轮结束后的完整消息写入会话存储，并返回最终状态供 done 使用。
 
     历史接口不读 checkpointer，所以必须在发 `done` 之前完成写入。
@@ -518,6 +564,9 @@ async def _persist_turn(request: TurnRequest) -> dict[str, Any]:
             replace_existing=request.regenerate or request.resume is not None,
             # 结构化结果随消息落库，刷新后详情面板不再依赖前端内存缓存
             build_result=build_result if isinstance(build_result, dict) else None,
+            # 引用与思考可见性同理：历史接口需要它们，才能刷新后回放来源与提示
+            citations=citation_payloads or None,
+            had_reasoning=had_reasoning,
         )
         return values if isinstance(values, dict) else {}
     except Exception as exc:

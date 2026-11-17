@@ -120,6 +120,44 @@ def _route_after_quality_review(state: dict[str, Any]) -> str:
     return NODE_RESPONSE_GENERATOR
 
 
+def _route_after_review(
+    state: PCConfigState,
+    *,
+    allow_critic: bool,
+    multi_agent_enabled: bool,
+    critic_enabled: bool,
+) -> str:
+    """质量评审 / Critic 之后共用的路由决策。
+
+    优先级：重试 > 兼容性未验证门控 > Critic 修正 > Critic 评审 > 收尾。
+    - `allow_critic=False`（Critic 节点之后）最多回 Architect 一次，
+      Architect 在入口占住剩余修正配额，保证「重提案 + 最多 1 次修正」后收口；
+    - Critic 只在首提案未发生修正时评审，避免复杂场景突破 ADR 0030 的 9 次上限。
+    """
+    status = state.get("workflow_status")
+    if status == STATUS_RETRY:
+        return NODE_BUILD_ARCHITECT
+    if status == STATUS_SUCCESS and overall_compatibility(
+        as_mapping(state.get("compatibility_report"))
+    ) == "UNKNOWN":
+        return NODE_COMPATIBILITY_GATE
+    if (
+        not allow_critic
+        and status == STATUS_SUCCESS
+        and state.get("critic_revision_requested") is True
+    ):
+        return NODE_BUILD_ARCHITECT
+    if (
+        allow_critic
+        and status == STATUS_SUCCESS
+        and multi_agent_enabled
+        and critic_enabled
+        and as_int(state.get("architect_repair_count")) == 0
+    ):
+        return NODE_CRITIC_REVIEW
+    return NODE_RESPONSE_GENERATOR
+
+
 def build_pc_graph(
     *,
     model: BaseChatModel | None,
@@ -152,28 +190,13 @@ def build_pc_graph(
         return NODE_BUILD_ARCHITECT
 
     def route_after_review(state: PCConfigState, *, allow_critic: bool) -> str:
-        """质量评审/Critic 之后共用的路由；`allow_critic` 防止 Critic 自循环。
-
-        兼容性 UNKNOWN 优先于 Critic：方案未验证时先走 HITL 门控，
-        与单 Agent 时代的 `_route_after_quality_review` 语义保持一致。
-        """
-        status = state.get("workflow_status")
-        if status == STATUS_RETRY:
-            return NODE_BUILD_ARCHITECT
-        if status == STATUS_SUCCESS and overall_compatibility(
-            as_mapping(state.get("compatibility_report"))
-        ) == "UNKNOWN":
-            return NODE_COMPATIBILITY_GATE
-        if (
-            allow_critic
-            and status == STATUS_SUCCESS
-            and agent_settings.multi_agent_enabled
-            and agent_settings.critic_enabled
-            # 修正已占用最后 1 次预算，本轮不再评审，保证复杂场景 ≤7 次调用
-            and as_int(state.get("architect_repair_count")) == 0
-        ):
-            return NODE_CRITIC_REVIEW
-        return NODE_RESPONSE_GENERATOR
+        """把图构建期读取的配置固化进纯函数，便于单测覆盖路由分支。"""
+        return _route_after_review(
+            state,
+            allow_critic=allow_critic,
+            multi_agent_enabled=agent_settings.multi_agent_enabled,
+            critic_enabled=agent_settings.critic_enabled,
+        )
 
     graph: StateGraph = StateGraph(PCConfigState)
     graph.add_node(
@@ -325,7 +348,7 @@ def build_pc_graph(
             NODE_RESPONSE_GENERATOR: NODE_RESPONSE_GENERATOR,
         },
     )
-    # Critic 只评审：复用同一路由但关闭 Critic 分支，避免自循环
+    # Critic 之后复用同一路由：允许回 Architect 修正一次，但关闭 Critic 分支避免自循环
     graph.add_conditional_edges(
         NODE_CRITIC_REVIEW,
         partial(route_after_review, allow_critic=False),

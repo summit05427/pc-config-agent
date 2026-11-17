@@ -264,7 +264,7 @@ class SpecialistReport(BaseModel):
 
 
 class CriticDecision(StrEnum):
-    """独立评审结论；REVISE 只表示「建议复核」，本轮不触发自动修正。"""
+    """独立评审结论；REVISE 在存在 HIGH/MEDIUM 问题时触发一次受限修正。"""
 
     PASS = "PASS"
     REVISE = "REVISE"

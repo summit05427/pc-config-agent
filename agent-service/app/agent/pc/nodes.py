@@ -169,12 +169,43 @@ _PREFERENCE_KEYWORDS: tuple[tuple[Preference, tuple[str, ...]], ...] = (
     (Preference.VALUE, ("性价比", "便宜点", "够用就行", "别太贵", "省钱")),
 )
 
-# Architect 修正上限：首次提案之外最多再修正两次，避免无限重选
-ARCHITECT_MAX_REPAIRS = 2
+# Architect 修正上限：首次提案之外最多再修正三次，覆盖“兼容性→预算→兼容性”的连环回退
+ARCHITECT_MAX_REPAIRS = 3
+# Critic 修正的失败类型与提示词上限：只注入可执行问题，避免评审全文挤占选型上下文
+_CRITIC_REVISION_FAILURE_TYPE = "CRITIC_REVISION"
+_CRITIC_REVISION_MAX_ISSUES = 5
+_CRITIC_REVISION_MAX_TEXT = 400
 # 知识检索工具名；调用次数受 AGENT__ARCHITECT_MAX_KNOWLEDGE_CALLS 与工具配额双重限制
 KNOWLEDGE_TOOL_NAME = "search_knowledge"
 # 单条引用片段进入提示词的上限：只保留解释取舍所需的长度
 MAX_KNOWLEDGE_PROMPT_SNIPPET_CHARS = 300
+
+# 典型“改了也不解决问题”的修正约束：只给方向，不替模型选具体型号。
+_REPAIR_HINTS: dict[str, str] = {
+    "motherboard_memory_type": (
+        "主板与内存代数不匹配：B650/B760 等 DDR5 平台必须搭配 DDR5 内存；"
+        "请改回 DDR5，或同时更换支持该内存的主板，不要只降低内存代数。"
+    ),
+    "cpu_socket_motherboard": "CPU 插槽与主板不匹配：更换 CPU 时必须同步更换对应插槽的主板。",
+    "motherboard_case_form_factor": "主板板型与机箱不匹配：MicroATX 机箱不能安装 ATX 主板。",
+    "gpu_case_length": "显卡长度超过机箱限长：换更短的显卡或更大的机箱。",
+    "cooler_case_height": "散热器高度超过机箱限高：换更矮的散热器或更大的机箱。",
+    "memory_module_count": "内存条数超过主板插槽数：减少条数或改为单条大容量。",
+    "gpu_psu_power": "电源额定功率不足：提高电源功率或更换低功耗显卡。",
+}
+_BUDGET_REPAIR_HINT = (
+    "预算不足时优先降低显卡/CPU 档位或内存容量，必须保持 CPU 插槽与内存代数不变。"
+)
+
+
+def _repair_hint(rule_ids: list[str]) -> str:
+    for rule_id in rule_ids:
+        hint = _REPAIR_HINTS.get(rule_id)
+        if hint:
+            return hint
+    return ""
+
+
 # 场景 → 检索词：只描述取舍方向，不携带型号、价格或任何用户隐私字段
 _KNOWLEDGE_SCENARIO_TERMS: dict[str, str] = {
     "GAMING": "游戏 装机 显卡 与 处理器 预算 取舍 原则",
@@ -1053,6 +1084,15 @@ def _architect_repair_text(failure: dict[str, Any]) -> str:
         if text:
             lines.append(f"- {label}：{text}")
     lines.append(f"- 已用修正次数：{as_int(failure.get('repair_attempt'))}/{ARCHITECT_MAX_REPAIRS}")
+    critic_issues = as_list(failure.get("critic_issues"))
+    if critic_issues:
+        lines.append("- Critic 待修正问题：")
+        for raw in critic_issues[:_CRITIC_REVISION_MAX_ISSUES]:
+            issue = as_mapping(raw)
+            description = as_text(issue.get("description"))
+            if description:
+                severity = as_text(issue.get("severity"), "MEDIUM")
+                lines.append(f"  - [{severity}] {description}")
     return "\n".join(lines)
 
 
@@ -1305,6 +1345,8 @@ def _architect_failure_update(
         "knowledge_citations": session.knowledge_citations,
         "knowledge_call_count": session.knowledge_calls,
         "tool_events": session.events,
+        # Architect 已消费 Critic 修正请求：无论成功失败都必须清空，防止重复进入
+        "critic_revision_requested": False,
     }
 
 
@@ -1453,7 +1495,9 @@ def _partial_failure(
     ]
     return _architect_failure(
         FAILURE_COMPATIBILITY_CONFLICT,
-        message="增量校验发现已选核心组件冲突：" + "、".join(rule_ids or ["compatibility_rules"]),
+        message="增量校验发现已选核心组件冲突："
+        + "、".join(rule_ids or ["compatibility_rules"])
+        + (f"。{hint}" if (hint := _repair_hint(rule_ids)) else ""),
         categories=categories,
         hardware_ids=hardware_ids,
         rule_ids=tuple(rule_ids) or ("compatibility_rules",),
@@ -1530,7 +1574,38 @@ def _compose_args(
         if isinstance(budget_max, int) and not isinstance(budget_max, bool) and budget_max > 0
         else None
     )
+    # 画像必须随组装请求下发：Java 只按画像推导评分权重与理由，
+    # 缺省会让 GAMING 方案被写成「均衡」并丢失预算结论。
+    args["workload_profile"] = _compose_workload_profile(requirements.get("scenario"))
     return args
+
+
+# Agent 侧历史场景值与 Java WorkloadProfile 的差异项；其余同名直接透传。
+_COMPOSE_WORKLOAD_ALIASES = {
+    "BALANCED": "GENERAL",
+    "OFFICE": "GENERAL",
+    "CREATIVE": "VIDEO_EDITING",
+    "WORKSTATION": "PROGRAMMING",
+}
+
+_COMPOSE_WORKLOAD_PROFILES = {
+    "GENERAL",
+    "GAMING",
+    "VIDEO_EDITING",
+    "PROGRAMMING",
+    "RENDERING",
+    "MEDIA",
+    "AI_INFERENCE",
+}
+
+
+def _compose_workload_profile(raw_scenario: Any) -> str | None:
+    """把解析场景收敛到 Java 支持的画像枚举；无法识别时交给服务端回落。"""
+    scenario = as_text(raw_scenario).upper()
+    if not scenario:
+        return None
+    mapped = _COMPOSE_WORKLOAD_ALIASES.get(scenario, scenario)
+    return mapped if mapped in _COMPOSE_WORKLOAD_PROFILES else None
 
 
 async def _compose_proposal(
@@ -1587,6 +1662,8 @@ def _compose_payload_outcome(
         failure_payload = as_mapping(data.get("failure"))
         reason = as_text(failure_payload.get("reason"), FAILURE_TOOL_ERROR)
         message = as_text(failure_payload.get("message"), "服务端未能生成配置。")
+        if reason == FAILURE_BUDGET_EXCEEDED:
+            message = f"{message}。{_BUDGET_REPAIR_HINT}"
         retryable = failure_payload.get("retryable") is not False
         events.append(_tool_end("compose_pc_build", message))
         return _ComposeOutcome(
@@ -1679,6 +1756,8 @@ def _architect_success_update(
         "partial_check_count": session.partial_checks,
         "knowledge_citations": session.knowledge_citations,
         "knowledge_call_count": session.knowledge_calls,
+        # 修正请求已被本次重提案消费，清空后路由不会再进 Architect
+        "critic_revision_requested": False,
     }
 
 
@@ -1806,6 +1885,49 @@ def _knowledge_prompt_text(citations: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def _critic_revision_failure(state: PCConfigState) -> dict[str, Any]:
+    """把 Critic 的 HIGH/MEDIUM 问题转成 Architect 修正上下文。
+
+    只保留可执行问题：每条描述截断到固定长度，类别与硬件 ID 用于提示「必须保持不变」的边界；
+    LOW 问题不进入修正，避免为「可以更好」额外消耗一次调用。
+    """
+    report = as_mapping(state.get("critic_report"))
+    issues = [
+        as_mapping(item)
+        for item in as_list(report.get("issues"))
+        if as_text(as_mapping(item).get("severity")) in {"HIGH", "MEDIUM"}
+    ]
+    categories: list[str] = []
+    hardware_ids: list[str] = []
+    prompt_issues: list[dict[str, str]] = []
+    for issue in issues[:_CRITIC_REVISION_MAX_ISSUES]:
+        for raw in as_list(issue.get("categories")):
+            text = as_text(raw)
+            if text and text not in categories:
+                categories.append(text)
+        for raw in as_list(issue.get("hardware_ids")):
+            text = as_text(raw)
+            if text and text not in hardware_ids:
+                hardware_ids.append(text)
+        prompt_issues.append(
+            {
+                "severity": as_text(issue.get("severity"), "MEDIUM"),
+                "description": as_text(issue.get("description"))[
+                    :_CRITIC_REVISION_MAX_TEXT
+                ],
+            }
+        )
+    return {
+        "failure_type": _CRITIC_REVISION_FAILURE_TYPE,
+        "message": as_text(report.get("summary"))[:_CRITIC_REVISION_MAX_TEXT],
+        "affected_categories": categories,
+        "affected_hardware_ids": hardware_ids,
+        "critic_issues": prompt_issues,
+        # 与入口抬升后的配额保持一致，提示词里的「已用次数」才不会误导模型
+        "repair_attempt": ARCHITECT_MAX_REPAIRS - 1,
+    }
+
+
 async def build_architect(
     state: PCConfigState,
     config: RunnableConfig,
@@ -1820,6 +1942,11 @@ async def build_architect(
     """
     session = _architect_session(state)
     failure = as_mapping(state.get("build_failure"))
+    if state.get("critic_revision_requested") is True:
+        # Critic 修正只允许一次内部重试：把已用配额抬到上限前一位，
+        # 使「重提案 + 最多 1 次修正」后必定收口，整轮 ≤9 次调用。
+        session.repair_count = max(session.repair_count, ARCHITECT_MAX_REPAIRS - 1)
+        failure = _critic_revision_failure(state) or failure
     last_proposal: BuildProposal | None = None
     # 提案前查一次方法学依据；RAG 关闭或配额耗尽时为空文本
     knowledge_text = await _architect_knowledge(
@@ -1973,6 +2100,18 @@ def _chunk_body(body: str, limit: int = STREAM_CHUNK_CHARS) -> list[str]:
     return chunks
 
 
+# 正文必须整段通过输出校验后才能下发，因此这不是模型原始 token 流；
+# 分块之间让出事件循环，让 SSE 逐块写回，避免前端在同一帧收到整段文本。
+BODY_STREAM_INTERVAL_SECONDS = 0.015
+
+
+async def _stream_body(body: str, emit: Callable[[dict[str, Any]], None]) -> None:
+    """整段校验通过后按块下发正文，块间让出事件循环以获得逐块渲染。"""
+    for piece in _chunk_body(body):
+        emit({"kind": STREAM_KIND_TOKEN, "text": piece})
+        await asyncio.sleep(BODY_STREAM_INTERVAL_SECONDS)
+
+
 async def response_generator(
     state: PCConfigState,
     config: RunnableConfig,
@@ -1987,8 +2126,7 @@ async def response_generator(
     status = as_text(state.get("workflow_status"))
     if status != STATUS_SUCCESS:
         body = render_failure_markdown(state)
-        for piece in _chunk_body(body):
-            emit({"kind": STREAM_KIND_TOKEN, "text": piece})
+        await _stream_body(body, emit)
         return {"messages": [AIMessage(content=body)]}
 
     build = as_mapping(state.get("build_result"))
@@ -2020,8 +2158,7 @@ async def response_generator(
     if quality_notice:
         # 质量提示放在自检之后追加：它描述的是取舍事实，不参与兼容性文案断言
         body = f"{body}\n\n> 质量提示：{quality_notice}"
-    for piece in _chunk_body(body):
-        emit({"kind": STREAM_KIND_TOKEN, "text": piece})
+    await _stream_body(body, emit)
     return {
         "messages": [AIMessage(content=body)],
         "build_result": build,

@@ -90,6 +90,10 @@ def main(argv: list[str] | None = None) -> int:
 
     started_at = perf_counter()
     if args.real:
+        # psycopg 异步驱动只支持 SelectorEventLoop；真实评测里的 search_knowledge 会连库，
+        # Windows 默认 Proactor 会让工具连续超时，必须与 run.py / rag_eval 保持一致。
+        if sys.platform == "win32":
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         # 延迟导入：假模型模式不需要装配真实模型与 Provider 适配器
         from evals.runners.real_model import run_cases as run_real_cases
 

@@ -26,6 +26,7 @@ from app.agent.pc.status import (
     STATUS_RETRIEVED,
     STATUS_UPSTREAM_ERROR,
 )
+from app.services.model_resolver import ResolvedRuntime
 
 SUMMARY_KEYS = {
     "hardware_id",
@@ -427,6 +428,78 @@ async def test_structured_output_none_and_fallback_invalid_returns_stage() -> No
     assert model.structured_calls == 1
     # 兜底只允许一次，不允许循环重试
     assert len(model.text_prompts) == 1
+
+
+class _NamedDeepSeekFallbackModel(_FallbackModel):
+    """带网关模型名的替身，用于验证无运行时也能按 provider 前缀预判。"""
+
+    model_name = "deepseek:deepseek-flash"
+
+
+async def test_deepseek_provider_skips_json_schema_before_first_400(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """预置 Provider 后首次结构化调用直接走文本兜底，不再白付一次 400。
+
+    BYOK 的模型名是网关占位符 `byok-model`，只能依赖运行时 provider 判断。
+    """
+    records: list[Any] = []
+
+    async def capture(record: Any) -> None:
+        records.append(record)
+
+    monkeypatch.setattr("app.agent.pc.llm.record_usage", capture)
+    model = _FallbackModel(
+        json.dumps({"selected_components": _components()}, ensure_ascii=False)
+    )
+    runtime = ResolvedRuntime(
+        task_id="task-skip",
+        provider="deepseek",
+        model_key="deepseek:deepseek-flash",
+        credential_source="BYOK",
+    )
+
+    outcome = await invoke_model_structured_outcome(
+        model,  # type: ignore[arg-type]
+        [HumanMessage(content="组装一台电脑")],
+        schema=BuildProposal,
+        config={"configurable": {"thread_id": "skip", "model_runtime": runtime}},
+        agent_id="pc-config",
+        purpose="build_architect",
+    )
+
+    assert isinstance(outcome.value, BuildProposal)
+    assert model.structured_calls == 0
+    assert len(model.text_prompts) == 1
+    # 跳过结构化调用后，用量只有兜底那次文本调用
+    assert len(records) == 1
+
+
+async def test_deepseek_model_name_presets_unsupported_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """无运行时配置时，模型名的 `deepseek:` 前缀同样触发预置跳过。"""
+    records: list[Any] = []
+
+    async def capture(record: Any) -> None:
+        records.append(record)
+
+    monkeypatch.setattr("app.agent.pc.llm.record_usage", capture)
+    model = _NamedDeepSeekFallbackModel(
+        json.dumps({"selected_components": _components()}, ensure_ascii=False)
+    )
+
+    outcome = await invoke_model_structured_outcome(
+        model,  # type: ignore[arg-type]
+        [HumanMessage(content="组装一台电脑")],
+        schema=BuildProposal,
+        config=None,
+        agent_id="pc-config",
+        purpose="build_architect",
+    )
+
+    assert isinstance(outcome.value, BuildProposal)
+    assert model.structured_calls == 0
 
 
 class _FakeAuthError(Exception):

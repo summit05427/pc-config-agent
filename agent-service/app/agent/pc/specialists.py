@@ -3,7 +3,8 @@
 设计边界：
 - 默认关闭（`AGENT__MULTI_AGENT_ENABLED=false`），关闭时图路由直接绕过本模块；
 - Specialist 只读结构化需求、策略与候选摘要，不调用工具、不产出最终选型；
-- Critic 只评审已通过 Java 校验的方案，不改方案、不改价格、不触发修正；
+- Critic 只评审已通过 Java 校验的方案，不改方案、不改价格；
+  仅当判定 REVISE 且存在 HIGH/MEDIUM 问题时请求一次受限修正，LOW 问题只做披露；
 - 任何模型失败都降级为空结果，绝不阻断回合或伪造内容。
 """
 
@@ -23,6 +24,7 @@ from app.agent.pc.renderer import as_int, as_list, as_mapping, as_text
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
     BuildScenario,
+    CriticDecision,
     CriticReport,
     PCRequirements,
     SpecialistReport,
@@ -47,6 +49,7 @@ COMPLEX_SCENARIOS = frozenset(
 SPECIALIST_MAX_CONTEXT_CHARS = 4000
 # Critic 与 Specialist 使用同一量级的上下文预算，避免评审被候选清单淹没
 CRITIC_MAX_CONTEXT_CHARS = 4000
+
 # 每类最多 6 条候选：足够判断档位，又不会把上下文撑爆
 MAX_CANDIDATES_PER_CATEGORY = 6
 
@@ -190,6 +193,20 @@ def _critic_context(state: PCConfigState) -> str:
     return text[:CRITIC_MAX_CONTEXT_CHARS]
 
 
+# 只有影响可用性的问题才值得再花一次修正调用；LOW 问题只做披露，
+# 避免为了「可以更好」再消耗一次模型调用与交付时延。
+_CRITIC_ACTIONABLE_SEVERITIES = frozenset({"HIGH", "MEDIUM"})
+
+
+def _requires_revision(report: CriticReport) -> bool:
+    """REVISE + HIGH/MEDIUM 才触发受限修正；其余结论保持只评审。"""
+    if report.decision is not CriticDecision.REVISE:
+        return False
+    return any(
+        issue.severity in _CRITIC_ACTIONABLE_SEVERITIES for issue in report.issues
+    )
+
+
 async def critic_review(
     state: PCConfigState,
     config: RunnableConfig,
@@ -198,7 +215,7 @@ async def critic_review(
     agent_id: str,
     critic_prompt: str,
 ) -> dict[str, Any]:
-    """独立评审成功方案；结果只写状态，不影响路由、方案与价格。"""
+    """独立评审成功方案；结果默认只写状态，REVISE + 高严重度问题才请求修正。"""
     settings = get_settings().agent
     if not (settings.multi_agent_enabled and settings.critic_enabled):
         return {}
@@ -206,8 +223,8 @@ async def critic_review(
         return {}
     if not as_mapping(state.get("build_result")):
         return {}
-    # 修正与 Critic 共享最后 1 次调用预算：已发生修正时本轮不再评审，
-    # 否则复杂场景会突破 ADR 0030 的 7 次上限
+    # 已发生修正时本轮不再评审：Critic 只评审「首提案」，
+    # 否则复杂场景会突破 ADR 0030 的 9 次调用上限
     if as_int(state.get("architect_repair_count")) > 0:
         logger.info("pc.critic_skipped", reason="repair_budget_used")
         return {}
@@ -226,5 +243,14 @@ async def critic_review(
     if not isinstance(report, CriticReport):
         logger.warning("pc.critic_failed", error_type="empty_result")
         return {}
-    logger.info("pc.critic_reviewed", decision=report.decision.value)
-    return {"critic_report": report.model_dump(mode="json")}
+    requires_revision = _requires_revision(report)
+    logger.info(
+        "pc.critic_reviewed",
+        decision=report.decision.value,
+        requires_revision=requires_revision,
+    )
+    return {
+        "critic_report": report.model_dump(mode="json"),
+        # 显式写回 False：避免上一轮遗留标记让本轮误触发修正
+        "critic_revision_requested": requires_revision,
+    }

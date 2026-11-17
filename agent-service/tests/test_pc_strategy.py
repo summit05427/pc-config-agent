@@ -343,11 +343,11 @@ async def test_partial_fail_repairs_and_never_composes(
         monkeypatch, partial=[_partial_report("FAIL")]
     )
     monkeypatch.setattr(
-        nodes_module, "get_settings", lambda: _settings_with_partial_checks(3)
+        nodes_module, "get_settings", lambda: _settings_with_partial_checks(4)
     )
     model = StrategyArchitectModel(
         strategies=[_strategy()],
-        proposals=[_proposal(), _proposal(), _proposal()],
+        proposals=[_proposal(), _proposal(), _proposal(), _proposal()],
     )
 
     result = await _run(_graph(model), "stage2-partial-fail")
@@ -359,9 +359,9 @@ async def test_partial_fail_repairs_and_never_composes(
     assert "cpu_socket_match" in model.prompts["architect"][1]
     assert "受影响类别：CPU、MOTHERBOARD" in model.prompts["architect"][1]
     assert "必须保持不变" in model.prompts["architect"][1]
-    # 三次提案全部先校验，修正次数用尽后失败，从未提交整机
-    assert len(partial_tool.calls) == 3
-    assert result["partial_check_count"] == 3
+    # 四次提案全部先校验，修正次数用尽后失败，从未提交整机
+    assert len(partial_tool.calls) == 4
+    assert result["partial_check_count"] == 4
 
 
 async def test_partial_fail_then_pass_composes_once(

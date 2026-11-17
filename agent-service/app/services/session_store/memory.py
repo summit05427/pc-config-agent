@@ -42,6 +42,8 @@ class InMemorySessionStore:
         title: str | None,
         replace_existing: bool = False,
         build_result: dict[str, Any] | None = None,
+        citations: list[dict[str, Any]] | None = None,
+        had_reasoning: bool = False,
     ) -> None:
         now = self._clock()
         record = self._records.get((user_id, thread_id))
@@ -60,10 +62,17 @@ class InMemorySessionStore:
              if payload["role"] == "assistant"),
             None,
         )
+        metadata: dict[str, Any] = {}
+        if citations:
+            metadata["citations"] = citations
+        if had_reasoning:
+            metadata["had_reasoning"] = True
         for seq, payload in enumerate(payloads):
             payload["created_at"] = now
             if build_result is not None and seq == last_assistant_seq:
                 payload["build_result"] = build_result
+            if metadata and seq == last_assistant_seq:
+                payload["metadata"] = metadata
             if replace_existing:
                 record.messages[seq] = payload
             else:

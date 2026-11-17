@@ -135,6 +135,33 @@ async def test_tool_calls_roundtrip(store: Any) -> None:
     assert items[1]["name"] == "t"
 
 
+async def test_citations_and_reasoning_metadata_roundtrip(store: Any) -> None:
+    """引用与思考可见性跨刷新可回放，且只挂在最后一条助手消息上。"""
+    user_id = _user_id()
+    messages = [HumanMessage("RTX 5070 跑分能直接比吗"), AIMessage("不能直接比较")]
+
+    await store.record_turn(
+        user_id,
+        "t-1",
+        messages,
+        None,
+        citations=[
+            {
+                "source_id": "kb-1",
+                "title": "跑分口径",
+                "snippet": "不同平台口径不同",
+                "score": 0.82,
+            }
+        ],
+        had_reasoning=True,
+    )
+
+    items, _ = await store.read_messages(user_id, "t-1", page=1, size=20)
+    assert "citations" not in items[0]
+    assert items[1]["citations"][0]["source_id"] == "kb-1"
+    assert items[1]["had_reasoning"] is True
+
+
 async def test_model_key_roundtrip(store: Any) -> None:
     user_id = _user_id()
     await store.record_turn(user_id, "t-1", [], None)

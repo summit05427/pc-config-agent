@@ -150,9 +150,17 @@ def test_stream_emits_tool_events(client: TestClient, monkeypatch: Any) -> None:
 
     events = _parse_sse(response.text)
     names = [event for event, _ in events]
-    assert names == ["tool_call", "tool_result", "token", "done"]
-    assert events[0][1]["name"] == "get_current_time"
-    assert events[1][1]["preview"].startswith("2026-10-24")
+    # 阶段事件用于推进指示器，工具顺序断言只看其余业务事件
+    assert [name for name in names if name != "stage"] == [
+        "tool_call",
+        "tool_result",
+        "token",
+        "done",
+    ]
+    tool_call_payload = next(data for name, data in events if name == "tool_call")
+    tool_result_payload = next(data for name, data in events if name == "tool_result")
+    assert tool_call_payload["name"] == "get_current_time"
+    assert tool_result_payload["preview"].startswith("2026-10-24")
 
 
 class StubRetriever:
@@ -454,6 +462,8 @@ def test_persists_messages_with_client_thread_id(
             title: str | None,
             replace_existing: bool = False,
             build_result: Any = None,
+            citations: Any = None,
+            had_reasoning: bool = False,
         ) -> None:
             captured["storage"] = (user_id, thread_id, stored)
             captured["meta"] = (user_id, thread_id, title)

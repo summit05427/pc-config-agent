@@ -61,6 +61,36 @@ async def test_record_turn_keeps_first_title() -> None:
     assert entries[0].title == "第一句"
 
 
+async def test_record_turn_persists_citations_and_reasoning_flag() -> None:
+    """引用与思考可见性只挂最后一条助手消息，历史读取可直接回放。"""
+    store = get_session_store()
+    messages = [
+        HumanMessage(content="RTX 5070 跑分能直接比吗"),
+        AIMessage(content="不能直接比较"),
+    ]
+
+    await store.record_turn(
+        "user-1",
+        "rag",
+        messages,
+        None,
+        citations=[
+            {
+                "source_id": "kb-1",
+                "title": "跑分口径",
+                "snippet": "不同平台口径不同",
+                "score": 0.82,
+            }
+        ],
+        had_reasoning=True,
+    )
+    payloads, _ = await store.read_messages("user-1", "rag", page=1, size=20)
+
+    assert "citations" not in payloads[0]
+    assert payloads[1]["citations"][0]["source_id"] == "kb-1"
+    assert payloads[1]["had_reasoning"] is True
+
+
 async def test_list_orders_recent_first_and_paginates() -> None:
     """最近活跃倒序 + 分页；其他用户的会话不进入结果。"""
     clock = {"value": datetime(2026, 10, 29, 8, 0, tzinfo=UTC)}

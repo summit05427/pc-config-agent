@@ -19,6 +19,11 @@ from app.services import turn as turn_module
 from app.services.turn import TurnOutcome, TurnRequest, run_turn
 
 
+def _event_types(events: list[Any]) -> list[str]:
+    """阶段事件只用于推进指示器；业务顺序断言过滤掉 stage，避免噪声耦合。"""
+    return [event.type for event in events if event.type != "stage"]
+
+
 class _ToolGraph:
     """依次产出工具调用、工具结果与正文，并暴露最终状态。"""
 
@@ -161,11 +166,15 @@ class _FakeStore:
         title: str | None,
         replace_existing: bool = False,
         build_result: Any = None,
+        citations: Any = None,
+        had_reasoning: bool = False,
     ) -> None:
         if self._error is not None:
             raise self._error
         self.calls.append((user_id, thread_id, title))
         self.replace_existing = replace_existing
+        self.citations = citations
+        self.had_reasoning = had_reasoning
         self.build_result = build_result
 
 
@@ -206,12 +215,76 @@ async def test_run_turn_translates_events_and_persists_before_done(
             assert _bind_fake_store.calls
         event_types.append(event.type)
 
-    assert event_types == ["tool_call", "tool_result", "token", "done"]
+    assert [item for item in event_types if item != "stage"] == [
+        "tool_call",
+        "tool_result",
+        "token",
+        "done",
+    ]
     assert _bind_fake_store.calls == [("u1", "t1", "现在几点？")]
     assert outcome.completed is True
     # 运行时与递归上限随 configurable 传给图，thread_id 用服务端命名空间
     assert graph.config is not None
     assert graph.config["configurable"]["thread_id"] == "u1:t1"
+
+
+async def test_run_turn_emits_node_stage_events(_bind_fake_store: _FakeStore) -> None:
+    """节点完成时下发阶段事件，工具事件成批到达前指示器也能继续推进。"""
+
+    class _StageGraph(_RecordingGraph):
+        async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
+            self.inputs = inputs
+            yield "updates", {"requirement_parser": {}}
+            yield "updates", {"build_architect": {}}
+            yield "updates", {
+                "response_generator": {"messages": [AIMessage(content="配置完成")]}
+            }
+
+    events = [event async for event in run_turn(_request(_StageGraph()), TurnOutcome())]
+
+    stages = [event.data["stage"] for event in events if event.type == "stage"]
+    assert stages == ["parsing", "composing", "generating"]
+    # 未知节点不产生阶段事件
+    assert all(event.type != "stage" or "stage" in event.data for event in events)
+
+
+async def test_run_turn_persists_citations_and_reasoning_flag(
+    _bind_fake_store: _FakeStore,
+) -> None:
+    """引用与思考可见性随本轮落库，刷新后历史接口可回放。"""
+
+    class _KnowledgeGraph(_RecordingGraph):
+        async def astream(self, inputs: Any, config: Any, stream_mode: Any = None) -> Any:
+            self.inputs = inputs
+            yield "custom", {"kind": "reasoning", "text": "先查一下资料"}
+            yield "updates", {
+                "response_generator": {
+                    "messages": [AIMessage(content="不能直接比较")],
+                    "knowledge_citations": [
+                        {
+                            "source_id": "kb-1",
+                            "title": "跑分口径",
+                            "snippet": "不同平台口径不同",
+                            "score": 0.82,
+                        }
+                    ],
+                }
+            }
+
+    events = [
+        event async for event in run_turn(_request(_KnowledgeGraph()), TurnOutcome())
+    ]
+
+    assert _event_types(events) == ["reasoning", "citations", "token", "done"]
+    assert _bind_fake_store.citations == [
+        {
+            "source_id": "kb-1",
+            "title": "跑分口径",
+            "snippet": "不同平台口径不同",
+            "score": 0.82,
+        }
+    ]
+    assert _bind_fake_store.had_reasoning is True
 
 
 async def test_done_event_carries_build_result(
@@ -246,7 +319,7 @@ async def test_run_turn_passes_preferences_into_agent_state() -> None:
         )
     ]
 
-    assert [event.type for event in events] == ["token", "done"]
+    assert _event_types(events) == ["token", "done"]
     assert graph.inputs is not None
     assert graph.inputs["use_history"] is False
     assert "回答尽量简短" in graph.inputs["preference_prompt"]
@@ -260,7 +333,7 @@ async def test_run_turn_regenerate_removes_last_answer(
 
     events = [event async for event in run_turn(_request(graph, regenerate=True), TurnOutcome())]
 
-    assert [event.type for event in events] == ["token", "done"]
+    assert _event_types(events) == ["token", "done"]
     assert graph.inputs is not None
     (regenerate_input,) = graph.inputs["messages"]
     assert isinstance(regenerate_input, RemoveMessage)
@@ -274,7 +347,7 @@ async def test_run_turn_regenerate_falls_back_without_history() -> None:
 
     events = [event async for event in run_turn(_request(graph, regenerate=True), TurnOutcome())]
 
-    assert [event.type for event in events] == ["token", "done"]
+    assert _event_types(events) == ["token", "done"]
     assert graph.inputs is not None
     (message,) = graph.inputs["messages"]
     assert isinstance(message, HumanMessage)
@@ -303,7 +376,7 @@ async def test_run_turn_keeps_streaming_when_persist_fails(
 
     events = [event async for event in run_turn(_request(_RecordingGraph()), outcome)]
 
-    assert [event.type for event in events] == ["token", "done"]
+    assert _event_types(events) == ["token", "done"]
     assert outcome.completed is True
 
 
@@ -323,7 +396,7 @@ async def test_run_turn_releases_buffered_tokens_after_model_update() -> None:
     finally:
         reset_hooks()
 
-    assert [event.type for event in events] == ["token", "done"]
+    assert _event_types(events) == ["token", "done"]
     assert events[0].data == {"text": "你好"}
 
 
@@ -331,7 +404,7 @@ async def test_run_turn_emits_reasoning_before_token() -> None:
     """思考内容以独立 reasoning 事件下发，不能混进正文。"""
     events = [event async for event in run_turn(_request(_ReasoningGraph()), TurnOutcome())]
 
-    assert [event.type for event in events] == ["reasoning", "token", "done"]
+    assert _event_types(events) == ["reasoning", "token", "done"]
     assert events[0].data == {"text": "先分析"}
     assert events[1].data == {"text": "答案"}
 
@@ -351,14 +424,14 @@ async def test_reasoning_is_buffered_with_tokens() -> None:
     finally:
         reset_hooks()
 
-    assert [event.type for event in events] == ["reasoning", "token", "done"]
+    assert _event_types(events) == ["reasoning", "token", "done"]
 
 
 async def test_run_turn_maps_custom_stream_and_deduplicates() -> None:
     """custom 分片映射为 reasoning/token；与最终消息一致时不得重复下发。"""
     events = [event async for event in run_turn(_request(_CustomStreamGraph()), TurnOutcome())]
 
-    assert [event.type for event in events] == ["reasoning", "token", "token", "done"]
+    assert _event_types(events) == ["reasoning", "token", "token", "done"]
     assert events[0].data == {"text": "先分析"}
     assert "".join(event.data["text"] for event in events[1:3]) == "你好"
 
@@ -378,7 +451,7 @@ async def test_custom_stream_is_buffered_until_node_update() -> None:
     finally:
         reset_hooks()
 
-    assert [event.type for event in events] == ["reasoning", "token", "token", "done"]
+    assert _event_types(events) == ["reasoning", "token", "token", "done"]
 
 
 async def test_run_turn_ignores_blocked_stream_end_hook() -> None:
@@ -394,5 +467,5 @@ async def test_run_turn_ignores_blocked_stream_end_hook() -> None:
     finally:
         reset_hooks()
 
-    assert [event.type for event in events] == ["token", "done"]
+    assert _event_types(events) == ["token", "done"]
     assert get_current_tool_turn() is None

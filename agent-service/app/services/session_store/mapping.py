@@ -56,6 +56,14 @@ def to_payload(record: dict[str, Any]) -> dict[str, Any]:
         payload["name"] = record["name"]
     if record.get("build_result"):
         payload["build_result"] = record["build_result"]
+    metadata = record.get("metadata")
+    if isinstance(metadata, dict):
+        # 引用随历史返回，刷新后仍可展示来源；思考正文不落库，只回传可见性标记
+        citations = metadata.get("citations")
+        if isinstance(citations, list) and citations:
+            payload["citations"] = citations
+        if metadata.get("had_reasoning") is True:
+            payload["had_reasoning"] = True
     created_at = record.get("created_at")
     if created_at is not None:
         # Postgres 返回 datetime，内存适配器也存 datetime；统一输出 ISO 8601

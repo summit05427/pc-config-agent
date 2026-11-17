@@ -279,16 +279,16 @@ class AgentSettings(BaseModel):
     # 系统提示词目录中的文件名（不含 .md），用于切换人格与规则
     system_prompt: str = Field(default="pc-config-system", min_length=1, max_length=64)
     # 每回合允许的增量兼容性校验次数（0 表示关闭）；工具自身还有单轮配额兜底。
-    # 必须 ≥ 修正次数 + 1（ARCHITECT_MAX_REPAIRS=2），否则最后一次修正拿不到校验反馈，
+    # 必须 ≥ 修正次数 + 1（ARCHITECT_MAX_REPAIRS=3），否则最后一次修正拿不到校验反馈，
     # 只能等 compose 用通用原因失败，修正必然空转。
-    architect_max_partial_checks: int = Field(default=3, ge=0, le=4)
+    architect_max_partial_checks: int = Field(default=4, ge=0, le=4)
     # Architect 每回合允许调用知识检索的次数（0 表示关闭）；工具自身还有单轮配额兜底
     architect_max_knowledge_calls: int = Field(default=2, ge=0, le=4)
     # Architect 结构化选型的单独输出预算：推理模型的思考 token 计入输出，
     # 沿用 LLM__MAX_TOKENS=2048 会把 BuildProposal 的 JSON 截断
     architect_max_tokens: int = Field(default=4096, gt=0)
-    # 多 Agent 默认关闭：关闭时图路由绕过 Specialist/Critic，行为与单 Agent 完全一致
-    multi_agent_enabled: bool = False
+    # 多 Agent 默认开启：演示需要 Specialist 参与复杂场景；置 false 可退回单 Agent 行为
+    multi_agent_enabled: bool = True
     # 仅当多 Agent 开启时生效；Critic 只评审、不直接修改方案
     critic_enabled: bool = True
     # 工具默认超时（秒）；单个工具可在注册时覆盖
@@ -412,6 +412,9 @@ class RagSettings(BaseModel):
     rrf_k: int = Field(default=60, ge=1, le=1000)
     # 每个通道的召回数量 = limit * 倍数；上限在检索器内再收口
     recall_multiplier: int = Field(default=4, ge=1, le=20)
+    # 最小相关性阈值：向量余弦相似度低于该值的片段不展示（0 表示不过滤）。
+    # 精确型号命中（关键词通道）不受该阈值约束，避免把型号查询挡在门外。
+    min_relevance_score: float = Field(default=0.2, ge=0.0, le=1.0)
 
     @model_validator(mode="before")
     @classmethod
@@ -472,6 +475,24 @@ class RateLimitSettings(BaseModel):
     fail_open: bool = True
 
 
+class E2ESettings(BaseModel):
+    """HTTP/SSE 端到端评测的目标与身份，对应环境变量前缀 EVALS__E2E__。
+
+    口令只从环境变量读取；仓库内的 `.env.example` 保持为空，禁止提交真实账号。
+    """
+
+    agent_base_url: str = Field(
+        default="http://127.0.0.1:8000", min_length=1, max_length=200
+    )
+    java_base_url: str = Field(
+        default="http://127.0.0.1:8080", min_length=1, max_length=200
+    )
+    username: str = Field(default="admin", min_length=1, max_length=64)
+    password: SecretStr | None = None
+    # SSE 单轮读取超时：真实模型单例通常在 30 秒内结束，留出多 Agent 的余量
+    timeout_seconds: float = Field(default=120.0, gt=0, le=600)
+
+
 class EvalSettings(BaseModel):
     """真实评测身份，对应环境变量前缀 EVALS__。
 
@@ -486,6 +507,9 @@ class EvalSettings(BaseModel):
     price_input_per_million: float | None = Field(default=None, ge=0)
     price_output_per_million: float | None = Field(default=None, ge=0)
     price_currency: str = Field(default="CNY", min_length=1, max_length=8)
+
+    # E2E 真实服务模式的地址与登录身份；local 模式不使用
+    e2e: E2ESettings = Field(default_factory=E2ESettings)
 
 
 class Settings(BaseSettings):

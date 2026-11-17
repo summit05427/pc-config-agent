@@ -177,10 +177,22 @@ class PgvectorRetriever:
                 max_per_document=MAX_CHUNKS_PER_DOCUMENT,
             )
             citations: list[Citation] = []
+            min_relevance = rag.min_relevance_score
             for item in fused:
-                citation = _to_citation(item)
+                if not _is_relevant(
+                    item, min_relevance=min_relevance, has_exact_terms=bool(exact_terms)
+                ):
+                    continue
+                citation = _to_citation(item, min_relevance=min_relevance)
                 if citation is not None:
                     citations.append(citation)
+            if len(citations) < len(fused):
+                logger.info(
+                    "rag.relevance_filtered",
+                    kept=len(citations),
+                    dropped=len(fused) - len(citations),
+                    min_relevance=min_relevance,
+                )
             return citations
         except Exception as exc:
             logger.warning(
@@ -210,15 +222,37 @@ class PgvectorRetriever:
             return self._repository
 
 
-def _to_citation(item: FusedHit) -> Citation | None:
+def _is_relevant(
+    item: FusedHit, *, min_relevance: float, has_exact_terms: bool
+) -> bool:
+    """向量相似度低于阈值的片段不展示。
+
+    例外有两种：精确型号命中（关键词通道）视为强相关，不能被语义阈值挡住；
+    只有关键词分的命中没有可比较的量纲，保留但不展示相关度百分比。
+    """
+    if has_exact_terms and item.keyword_score is not None:
+        return True
+    if item.vector_score is not None:
+        return item.vector_score >= min_relevance
+    return item.keyword_score is not None
+
+
+def _to_citation(item: FusedHit, *, min_relevance: float) -> Citation | None:
     snippet = item.hit.content.strip()
     if not snippet:
         return None
+    # RRF 名次分只用于排序，不能当相关性展示；只有达到阈值的余弦相似度才进 `score`
+    vector_score = item.vector_score
+    score = (
+        min(1.0, max(0.0, vector_score))
+        if vector_score is not None and vector_score >= min_relevance
+        else None
+    )
     return Citation(
         source_id=item.hit.chunk_id,
         title=(item.hit.title or "无标题")[:MAX_TITLE_CHARS],
         snippet=snippet[:MAX_SNIPPET_CHARS],
-        score=min(1.0, max(0.0, item.score)),
+        score=score,
         source_name=item.hit.source_name[:MAX_SOURCE_NAME_CHARS],
         confidence_level=item.hit.confidence_level[:MAX_CONFIDENCE_CHARS],
     )

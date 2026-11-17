@@ -19,9 +19,14 @@ from app.agent.pc import tools as pc_tools
 from app.agent.pc.graph import (
     _route_after_quality_review,
     _route_after_retrieval,
+    _route_after_review,
     build_pc_graph,
 )
-from app.agent.pc.nodes import ARCHITECT_MAX_REPAIRS, build_result_payload
+from app.agent.pc.nodes import (
+    ARCHITECT_MAX_REPAIRS,
+    _critic_revision_failure,
+    build_result_payload,
+)
 from app.agent.pc.renderer import render_failure_markdown
 from app.agent.pc.schemas import (
     REQUIRED_CATEGORIES,
@@ -620,6 +625,73 @@ def test_routes_read_status_enum_only() -> None:
     assert _route_after_retrieval(retrieved) == "build_architect"
     retry = {"workflow_status": STATUS_RETRY}
     assert _route_after_quality_review(retry) == "build_architect"
+
+
+def test_route_after_critic_requests_revision_at_most_once() -> None:
+    """Critic 的修正请求只回 Architect 一次；标记清空后直接收尾。"""
+    success: dict[str, Any] = {
+        "workflow_status": STATUS_SUCCESS,
+        "compatibility_report": {"overallStatus": "PASS"},
+    }
+    options = {"multi_agent_enabled": True, "critic_enabled": True}
+
+    # 首提案未修正时先评审
+    assert _route_after_review(success, allow_critic=True, **options) == "critic_review"
+    # 评审请求修正后回 Architect（此时 Critic 分支已关闭）
+    requested = {**success, "critic_revision_requested": True}
+    assert (
+        _route_after_review(requested, allow_critic=False, **options)
+        == "build_architect"
+    )
+    # Architect 清空标记后不再回 Architect
+    settled = {**success, "critic_revision_requested": False}
+    assert (
+        _route_after_review(settled, allow_critic=False, **options)
+        == "response_generator"
+    )
+    # 已发生修正时跳过 Critic，守住单轮调用上限
+    repaired = {**success, "architect_repair_count": 1}
+    assert (
+        _route_after_review(repaired, allow_critic=True, **options)
+        == "response_generator"
+    )
+
+
+def test_critic_revision_failure_carries_only_actionable_issues() -> None:
+    """Critic 修正上下文只注入 HIGH/MEDIUM 问题，并保留类别与硬件边界。"""
+    state = {
+        "critic_report": {
+            "summary": "显卡长度与机箱不匹配",
+            "issues": [
+                {
+                    "severity": "HIGH",
+                    "categories": ["CASE"],
+                    "hardware_ids": ["GPU-1"],
+                    "description": "显卡长度超过机箱上限",
+                },
+                {
+                    "severity": "LOW",
+                    "categories": ["PSU"],
+                    "hardware_ids": [],
+                    "description": "可以换更静音的电源",
+                },
+            ],
+        }
+    }
+
+    failure = _critic_revision_failure(state)  # type: ignore[arg-type]
+
+    assert failure["failure_type"] == "CRITIC_REVISION"
+    assert failure["affected_categories"] == ["CASE"]
+    assert failure["affected_hardware_ids"] == ["GPU-1"]
+    assert failure["critic_issues"] == [
+        {"severity": "HIGH", "description": "显卡长度超过机箱上限"}
+    ]
+    # 修正提示词必须带上 Critic 问题，避免 Architect 只按原策略重提案
+    repair_text = nodes_module._architect_repair_text(failure)
+    assert "Critic 待修正问题" in repair_text
+    assert "显卡长度超过机箱上限" in repair_text
+    assert "可以换更静音的电源" not in repair_text
 
 
 def test_pc_build_error_codes_keep_business_semantics() -> None:

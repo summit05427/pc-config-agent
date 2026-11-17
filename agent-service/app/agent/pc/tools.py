@@ -150,6 +150,7 @@ async def compose_pc_build(
     cooler: str,
     storage: str,
     budget_max_fen: int | None = None,
+    workload_profile: str | None = None,
 ) -> dict[str, object]:
     """组装指定配置；业务失败不抛错，返回 `composed=false` 与失败原因。
 
@@ -177,6 +178,7 @@ async def compose_pc_build(
             "storage": storage,
         },
         "budgetMaxFen": budget_max_fen,
+        "workloadProfile": workload_profile,
     }
     try:
         build = await get_pc_client().compose(request, user_token=user_token)

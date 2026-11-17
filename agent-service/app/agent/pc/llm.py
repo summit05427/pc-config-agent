@@ -38,10 +38,36 @@ from app.services.model_usage import STATUS_FAILURE, STATUS_SUCCESS, UsageRecord
 
 logger = structlog.get_logger(__name__)
 
-# 已知不支持 `json_schema` 的模型：首次 400 后记入，后续直接走文本兜底。
-# DeepSeek 经 LiteLLM 会以 400 拒绝 response_format=json_schema，若不记忆，
-# 每个结构化节点每轮都要白付一次失败请求，直接顶到单轮调用次数上限。
+# 已知不支持 `json_schema` 的 Provider：DeepSeek 经 LiteLLM 会稳定以 400 拒绝
+# response_format=json_schema。预置后进程内首个结构化调用就不再白付一次失败请求，
+# 否则每个结构化节点每轮各吃一次 400，直接顶到单轮调用次数上限。
+_JSON_SCHEMA_UNSUPPORTED_PROVIDERS: frozenset[str] = frozenset({"deepseek"})
+
+# 运行期才发现不支持的模型：首次收到明确指向 response_format 的 400 后记入。
 _JSON_SCHEMA_UNSUPPORTED_MODELS: set[str] = set()
+
+
+def _capability_provider(
+    capability_key: str | None, runtime: ResolvedRuntime | None
+) -> str | None:
+    """解析 Provider：BYOK 的模型名是网关占位符 `byok-model`，只能依赖运行时 provider。"""
+    if runtime is not None and runtime.provider.strip():
+        return runtime.provider.strip().lower()
+    if not capability_key:
+        return None
+    prefix, separator, _ = capability_key.partition(":")
+    return prefix.strip().lower() if separator else None
+
+
+def _supports_json_schema(
+    capability_key: str | None, runtime: ResolvedRuntime | None
+) -> bool:
+    """合并预置 Provider 与运行期学习结果；无标识的测试替身保持原调用路径。"""
+    if capability_key is None and runtime is None:
+        return True
+    if _capability_provider(capability_key, runtime) in _JSON_SCHEMA_UNSUPPORTED_PROVIDERS:
+        return False
+    return capability_key is None or capability_key not in _JSON_SCHEMA_UNSUPPORTED_MODELS
 
 
 def _model_capability_key(model: BaseChatModel) -> str | None:
@@ -66,12 +92,26 @@ def _utc_now_iso() -> str:
 
 
 def _extract_token_usage(message: BaseMessage) -> tuple[int | None, int | None]:
-    """Provider 未返回 usage 时保持 None，不能用 0 冒充。"""
+    """Provider 未返回 usage 时保持 None，不能用 0 冒充。
+
+    兼容两种上游形态：LangChain 统一解析出的 `usage_metadata`，以及 LiteLLM/OpenAI
+    在 `response_metadata.token_usage` 里返回的原始用量（非流式结构化调用常见）。
+    """
     usage = getattr(message, "usage_metadata", None)
-    if not isinstance(usage, dict):
+    if isinstance(usage, dict):
+        prompt_tokens = usage.get("input_tokens")
+        completion_tokens = usage.get("output_tokens")
+        if isinstance(prompt_tokens, int) or isinstance(completion_tokens, int):
+            return (
+                int(prompt_tokens) if isinstance(prompt_tokens, int) else None,
+                int(completion_tokens) if isinstance(completion_tokens, int) else None,
+            )
+    metadata = getattr(message, "response_metadata", None)
+    token_usage = metadata.get("token_usage") if isinstance(metadata, dict) else None
+    if not isinstance(token_usage, dict):
         return None, None
-    prompt_tokens = usage.get("input_tokens")
-    completion_tokens = usage.get("output_tokens")
+    prompt_tokens = token_usage.get("prompt_tokens")
+    completion_tokens = token_usage.get("completion_tokens")
     return (
         int(prompt_tokens) if isinstance(prompt_tokens, int) else None,
         int(completion_tokens) if isinstance(completion_tokens, int) else None,
@@ -524,8 +564,9 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
     `reasoning_effort="none"` 与 `max_retries=0` 来约束上限。
     输出被截断时返回 `output_truncated`，不能误报成「Provider 不支持」。
 
-    不支持 `json_schema` 的模型（DeepSeek 经 LiteLLM 即如此）首次 400 后记入进程级
-    能力表，后续直接走文本兜底，不再每个节点白付一次失败请求。
+    不支持 `json_schema` 的 Provider（DeepSeek 经 LiteLLM 即如此）已在预置表内，
+    首次调用就直接走文本兜底；其他 Provider 首次收到指向 `response_format` 的 400
+    后才记入进程级能力表，避免每个节点白付一次失败请求。
 
     结构化结果与兜底 JSON 都不能进入 `stream_mode=messages`，否则前端会把中间
     JSON 当成回答。
@@ -538,10 +579,9 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
         reasoning_effort=reasoning_effort,
         max_retries=max_retries,
     )
+    runtime = runtime_from_config(config)
     capability_key = _model_capability_key(bounded_model)
-    structured_supported = (
-        capability_key is None or capability_key not in _JSON_SCHEMA_UNSUPPORTED_MODELS
-    )
+    structured_supported = _supports_json_schema(capability_key, runtime)
     thread_id = _thread_id(config)
     await run_hooks(
         HookContext(
@@ -551,7 +591,6 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
         )
     )
 
-    runtime = runtime_from_config(config)
     invocation_id = str(uuid4())
     started_at = perf_counter()
     raw_message: BaseMessage | None = None
@@ -604,7 +643,12 @@ async def invoke_model_structured_outcome[SchemaT: BaseModel](
             _JSON_SCHEMA_UNSUPPORTED_MODELS.add(capability_key)
     finally:
         latency_ms = int((perf_counter() - started_at) * 1000)
-        await _report_usage(runtime, invocation_id, raw_message, latency_ms, error_type)
+        # 预置跳过时并没有真正发起结构化请求：不能凭空记一条失败用量，
+        # 否则用量与失败率都会被虚增；兜底文本调用会自行上报。
+        if structured_supported:
+            await _report_usage(
+                runtime, invocation_id, raw_message, latency_ms, error_type
+            )
 
     if is_truncated:
         failure_stage = FAILURE_STAGE_OUTPUT_TRUNCATED

@@ -236,6 +236,75 @@ async def test_session_model_is_used_when_request_has_none(
     assert client.calls[0]["requested_model"] == "openai:gpt-4o"
 
 
+async def test_unavailable_session_model_falls_back_to_auto(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """目录停用旧会话模型时回退 Auto，旧会话不再因 403 卡死。"""
+    async def fake_session_key(user_id: str, thread_id: str) -> str | None:
+        return "deepseek:deepseek-v4-pro"
+
+    monkeypatch.setattr(
+        model_resolver,
+        "get_session_store",
+        lambda: SimpleNamespace(get_model_key=fake_session_key),
+    )
+
+    class SequencedClient:
+        def __init__(self) -> None:
+            self.requested: list[str | None] = []
+
+        async def create_task(
+            self,
+            *,
+            user_token: str,
+            thread_id: str,
+            requested_model: str | None,
+            idempotency_key: str | None = None,
+        ) -> ModelTask:
+            self.requested.append(requested_model)
+            if requested_model == "deepseek:deepseek-v4-pro":
+                raise ControlPlaneError(
+                    control_plane.MODEL_NOT_AVAILABLE, 403, "模型不存在"
+                )
+            return _task()
+
+    client = SequencedClient()
+
+    runtime = await resolve_runtime(
+        user_id="u-1",
+        thread_id="t-1",
+        user_token="user-token",
+        requested_model=None,
+        settings=_settings(),
+        client=client,  # type: ignore[arg-type]
+    )
+
+    # 第二次不带模型走 Auto；换模型不复用原幂等键
+    assert client.requested == ["deepseek:deepseek-v4-pro", None]
+    assert runtime is not None
+    assert runtime.model_key == "openai:gpt-4o-mini"
+
+
+async def test_unavailable_request_model_is_not_fallen_back() -> None:
+    """请求级显式模型不可用时原样报错，不能偷偷换成 Auto。"""
+    client = FakeClient(
+        error=ControlPlaneError(control_plane.MODEL_NOT_AVAILABLE, 403, "模型不存在")
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await resolve_runtime(
+            user_id="u-1",
+            thread_id="t-1",
+            user_token="user-token",
+            requested_model="deepseek:deepseek-v4-pro",
+            settings=_settings(),
+            client=client,
+        )
+
+    assert exc_info.value.code == control_plane.MODEL_NOT_AVAILABLE
+    assert len(client.calls) == 1
+
+
 async def test_managed_task_returns_runtime_with_model_key() -> None:
     client = FakeClient(task=_task())
 

@@ -496,13 +496,18 @@ def test_knowledge_citations_deduped_into_existing_event() -> None:
 
     events = turn_module._update_events(chunk, [], "", sent)
 
-    assert [event.type for event in events] == ["citations"]
-    payload = events[0].data["citations"]
+    assert [event.type for event in events if event.type != "stage"] == ["citations"]
+    citation_event = next(event for event in events if event.type == "citations")
+    payload = citation_event.data["citations"]
     assert [item["source_id"] for item in payload] == ["kb-2"]
     # 事件字段与既有 RAG 引用完全一致，额外元数据不透传
     assert set(payload[0]) == {"source_id", "title", "snippet", "score"}
     # 同一来源再次出现时不重复下发
-    assert turn_module._update_events(chunk, [], "", sent) == []
+    assert [
+        event
+        for event in turn_module._update_events(chunk, [], "", sent)
+        if event.type != "stage"
+    ] == []
 
 
 def test_turn_level_citations_share_dedupe_scope() -> None:

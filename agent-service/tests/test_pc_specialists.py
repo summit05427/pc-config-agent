@@ -1,4 +1,4 @@
-"""多 Agent 骨架测试：确定性开关、并行降级与 Critic 只读评审。
+"""多 Agent 骨架测试：确定性开关、并行降级与 Critic 评审/受限修正请求。
 
 全部使用模型替身，不访问真实 LLM、Java 服务或数据库。
 """
@@ -14,6 +14,7 @@ from langchain_core.messages import HumanMessage
 from app.agent.pc import specialists
 from app.agent.pc.schemas import (
     CriticDecision,
+    CriticIssue,
     CriticReport,
     HardwareCategory,
     SpecialistReport,
@@ -349,10 +350,54 @@ async def test_critic_review_returns_report_without_touching_plan(
         state, {}, model=None, agent_id="pc-config", critic_prompt="评审提示词"
     )
 
-    assert set(update) == {"critic_report"}
+    assert set(update) == {"critic_report", "critic_revision_requested"}
     assert update["critic_report"]["decision"] == CriticDecision.PASS_WITH_DISCLOSURE.value
+    assert update["critic_revision_requested"] is False
     assert captured and "CPU-id" in captured[0]
     assert len(captured[0]) <= specialists.CRITIC_MAX_CONTEXT_CHARS
+
+
+@pytest.mark.parametrize(
+    ("decision", "severity", "expected"),
+    [
+        (CriticDecision.REVISE, "HIGH", True),
+        (CriticDecision.REVISE, "MEDIUM", True),
+        # LOW 只披露，不再追加一次选型调用
+        (CriticDecision.REVISE, "LOW", False),
+        (CriticDecision.PASS, "HIGH", False),
+        (CriticDecision.PASS_WITH_DISCLOSURE, "HIGH", False),
+    ],
+)
+async def test_critic_requests_revision_only_for_actionable_issues(
+    monkeypatch: pytest.MonkeyPatch,
+    decision: CriticDecision,
+    severity: str,
+    expected: bool,
+) -> None:
+    _patch_settings(monkeypatch, multi_agent_enabled=True, critic_enabled=True)
+    report = CriticReport(
+        decision=decision,
+        summary="评审结论",
+        issues=[
+            CriticIssue(
+                severity=severity,  # type: ignore[arg-type]
+                categories=[HardwareCategory.GPU],
+                description="显卡与机箱存在冲突风险",
+            )
+        ],
+    )
+
+    async def fake_invoke(*args: Any, **kwargs: Any) -> CriticReport:
+        del args, kwargs
+        return report
+
+    monkeypatch.setattr(specialists, "invoke_model_structured", fake_invoke)
+
+    update = await specialists.critic_review(
+        _state(), {}, model=None, agent_id="pc-config", critic_prompt="评审提示词"
+    )
+
+    assert update["critic_revision_requested"] is expected
 
 
 async def test_critic_review_returns_empty_when_model_returns_none(

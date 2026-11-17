@@ -56,6 +56,12 @@ ADD_BUILD_RESULT_COLUMN_SQL = """
 ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS build_result JSONB
 """
 
+# 回合级元数据（引用、思考可见性）挂在助手消息上：刷新后引用不再丢失，
+# 又不必为每个新字段单独建列
+ADD_METADATA_COLUMN_SQL = """
+ALTER TABLE session_messages ADD COLUMN IF NOT EXISTS metadata JSONB
+"""
+
 CREATE_MESSAGES_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS session_messages (
     user_id    TEXT        NOT NULL,
@@ -120,24 +126,25 @@ RETURNING updated_at
 
 INSERT_MESSAGES_SQL = """
 INSERT INTO session_messages (
-    user_id, thread_id, seq, role, content, tool_calls, name, build_result
+    user_id, thread_id, seq, role, content, tool_calls, name, build_result, metadata
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (user_id, thread_id, seq) DO NOTHING
 """
 
 # 重新生成：覆盖同序号消息内容；只有内容变化时才刷新 created_at
 UPSERT_MESSAGES_SQL = """
 INSERT INTO session_messages (
-    user_id, thread_id, seq, role, content, tool_calls, name, build_result
+    user_id, thread_id, seq, role, content, tool_calls, name, build_result, metadata
 )
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 ON CONFLICT (user_id, thread_id, seq) DO UPDATE
 SET role = EXCLUDED.role,
     content = EXCLUDED.content,
     tool_calls = EXCLUDED.tool_calls,
     name = EXCLUDED.name,
     build_result = EXCLUDED.build_result,
+    metadata = EXCLUDED.metadata,
     created_at = CASE
         WHEN session_messages.content IS DISTINCT FROM EXCLUDED.content THEN now()
         ELSE session_messages.created_at
@@ -149,7 +156,7 @@ SELECT COUNT(*) FROM session_messages WHERE user_id = %s AND thread_id = %s
 """
 
 SELECT_WINDOW_ASC_SQL = """
-SELECT seq, role, content, tool_calls, name, created_at, build_result
+SELECT seq, role, content, tool_calls, name, created_at, build_result, metadata
 FROM session_messages
 WHERE user_id = %s AND thread_id = %s
 ORDER BY seq
@@ -157,7 +164,7 @@ LIMIT %s OFFSET %s
 """
 
 SELECT_WINDOW_DESC_SQL = """
-SELECT seq, role, content, tool_calls, name, created_at, build_result
+SELECT seq, role, content, tool_calls, name, created_at, build_result, metadata
 FROM session_messages
 WHERE user_id = %s AND thread_id = %s
 ORDER BY seq DESC
@@ -206,6 +213,7 @@ class PostgresSessionStore:
                 ADD_PINNED_COLUMN_SQL,
                 ADD_ARCHIVED_COLUMN_SQL,
                 ADD_BUILD_RESULT_COLUMN_SQL,
+                ADD_METADATA_COLUMN_SQL,
                 CREATE_META_ORDER_INDEX_SQL,
                 CREATE_MESSAGES_TABLE_SQL,
                 CREATE_MESSAGES_INDEX_SQL,
@@ -221,6 +229,8 @@ class PostgresSessionStore:
         title: str | None,
         replace_existing: bool = False,
         build_result: dict[str, Any] | None = None,
+        citations: list[dict[str, Any]] | None = None,
+        had_reasoning: bool = False,
     ) -> None:
         records = [(seq, to_record(message)) for seq, message in enumerate(messages)]
         # 结果只属于本轮最后一条助手消息，避免历史里每条助手消息都带同一份配置
@@ -228,6 +238,12 @@ class PostgresSessionStore:
             (seq for seq, record in reversed(records) if record["role"] == "assistant"),
             None,
         )
+        # 引用与思考可见性同属回合元数据：只挂最后一条助手消息
+        metadata: dict[str, Any] = {}
+        if citations:
+            metadata["citations"] = citations
+        if had_reasoning:
+            metadata["had_reasoning"] = True
         params = [
             (
                 user_id,
@@ -240,6 +256,7 @@ class PostgresSessionStore:
                 Jsonb(build_result)
                 if build_result is not None and seq == last_assistant_seq
                 else None,
+                Jsonb(metadata) if metadata and seq == last_assistant_seq else None,
             )
             for seq, record in records
         ]
@@ -359,8 +376,9 @@ class PostgresSessionStore:
                 "name": name,
                 "created_at": created_at,
                 "build_result": build_result,
+                "metadata": metadata,
             }
-            for seq, role, content, tool_calls, name, created_at, build_result in rows
+            for seq, role, content, tool_calls, name, created_at, build_result, metadata in rows
         ]
         return [to_payload(record) for record in records], total
 

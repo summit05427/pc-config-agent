@@ -1,0 +1,25 @@
+# 演示现场冻结题集（2026-11-17）。
+#
+# 只允许从这 4 题里挑问，避免现场随机提问导致引用不稳定。
+# 每题都对应一张知识卡；回答若没有引用到 expected_source_ids，视为不合格。
+# 回归命令（需 embedding 配置，会产生极少量费用，演示前跑一次即可）：
+#   uv --directory agent-service run python -m evals.rag_eval --cases evals/rag_cases/rag-demo.yaml
+- id: demo_gpu_benchmark
+  query: RTX 5070 和 RX 9070 的跑分能直接拿来比吗
+  expected_source_ids: [kb-note-benchmark-comparability]
+  note: 演示「跨平台跑分不可直接比较」的结论与引用
+
+- id: demo_vram_4k
+  query: 4K 玩 3A 大作，12G 显存够不够
+  expected_source_ids: [kb-note-vram-resolution]
+  note: 演示显存与分辨率的取舍
+
+- id: demo_psu_wattage
+  query: 整机 750W 电源够不够，是把各部件 TDP 加起来算吗
+  expected_source_ids: [kb-note-tdp-vs-power]
+  note: 演示电源功率口径，避免「TDP 相加」误区
+
+- id: demo_bios_support
+  query: B650 主板装 9000 系 CPU 需要先刷 BIOS 吗
+  expected_source_ids: [kb-note-bios-cpu-support]
+  note: 演示兼容性提醒与来源可追溯

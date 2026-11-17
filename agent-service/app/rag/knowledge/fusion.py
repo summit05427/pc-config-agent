@@ -19,10 +19,17 @@ DEFAULT_KEYWORD_WEIGHT = 1.0
 
 @dataclass(frozen=True)
 class FusedHit:
-    """融合后的命中；`score` 是 RRF 分数，不是概率。"""
+    """融合后的命中。
+
+    `score` 是 RRF 名次分，只用于排序；它随 k 与通道数变化，不能当作
+    相关性百分比展示。`vector_score` / `keyword_score` 保留各通道原始分：
+    向量分即余弦相似度，可用于相关性阈值与前端展示。
+    """
 
     hit: SearchHit
     score: float
+    vector_score: float | None = None
+    keyword_score: float | None = None
 
 
 def fuse_ranked_results(
@@ -54,13 +61,17 @@ def fuse_ranked_results(
 
     scores: dict[str, float] = {}
     hits: dict[str, SearchHit] = {}
-    for weight, channel in (
-        (vector_weight, vector_hits),
-        (keyword_weight, keyword_hits),
+    vector_scores: dict[str, float] = {}
+    keyword_scores: dict[str, float] = {}
+    for weight, channel, channel_scores in (
+        (vector_weight, vector_hits, vector_scores),
+        (keyword_weight, keyword_hits, keyword_scores),
     ):
         for rank, hit in enumerate(channel, start=1):
             scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + weight / (k + rank)
             hits.setdefault(hit.chunk_id, hit)
+            # 同名切片只保留首个通道分；同一通道内 chunk_id 不应重复
+            channel_scores.setdefault(hit.chunk_id, hit.score)
 
     ordered = sorted(scores.items(), key=lambda item: (-item[1], item[0]))
     fused: list[FusedHit] = []
@@ -73,5 +84,12 @@ def fuse_ranked_results(
         if max_per_document is not None and used >= max_per_document:
             continue
         per_document[hit.document_id] = used + 1
-        fused.append(FusedHit(hit=hit, score=score))
+        fused.append(
+            FusedHit(
+                hit=hit,
+                score=score,
+                vector_score=vector_scores.get(chunk_id),
+                keyword_score=keyword_scores.get(chunk_id),
+            )
+        )
     return fused

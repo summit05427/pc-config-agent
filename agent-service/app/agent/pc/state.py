@@ -51,8 +51,10 @@ class PCConfigState(TypedDict):
     # 多 Agent：各角色分析报告（按角色标识索引）与本次实际完成角色
     specialist_reports: NotRequired[dict[str, dict[str, Any]]]
     specialist_roles_used: NotRequired[list[str]]
-    # Critic 独立评审结果；只用于展示与观测，不参与路由或修正
+    # Critic 独立评审结果；可用于展示与观测
     critic_report: NotRequired[dict[str, Any] | None]
+    # Critic 请求一次受限修正：仅 REVISE + HIGH/MEDIUM 时为 true，Architect 消费后清空
+    critic_revision_requested: NotRequired[bool]
     workflow_status: NotRequired[str]
     # 节点不直接发 SSE：统一累积事件，由 turn.py 翻译成 tool_call / tool_result
     tool_events: NotRequired[Annotated[list[dict[str, Any]], lambda left, right: left + right]]

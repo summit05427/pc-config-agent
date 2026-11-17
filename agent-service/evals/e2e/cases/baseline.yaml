@@ -1,0 +1,67 @@
+# E2E 基线用例。
+#
+# local 模式用 `local` 块产出确定性事件；service 模式忽略该块，改由真实模型输出。
+# 契约层断言（事件类型/id/schema_version/终态/必填字段）始终执行，无需在 expect 里声明。
+
+- id: e2e_contract_smoke
+  message: 你好，请用一句话介绍你自己。
+  expect:
+    terminal: done
+    # 只验证传输契约与落库闭环；正文内容由真实模型决定，不做片段断言
+    max_latency_ms: 120000
+  local:
+    answer: 这是本地契约模式的确定性回答。
+
+- id: e2e_pc_build_contract
+  agent_id: pc-config
+  message: 帮我配一台 8000 元以内的游戏主机，只要主机，不需要显示器和外设。
+  expect:
+    terminal: done
+    # 成功路径必然先检索候选、再调用合成；顺序不校验，只校验是否发生
+    tool_names:
+      - search_hardware_candidates
+      - compose_pc_build
+    expect_build_result: true
+    max_latency_ms: 180000
+  local:
+    answer: 已按 8000 元预算生成配置，详见下方明细。
+    build_result: true
+    tool_names:
+      - search_hardware_candidates
+      - compose_pc_build
+
+- id: e2e_hitl_clarify
+  agent_id: pc-config
+  message: 帮我配一台电脑。
+  expect:
+    terminal: interrupt
+    max_latency_ms: 60000
+  # 首轮暂停后自动用同一 thread_id 恢复；service 模式需服务端启用 HITL + postgres
+  resume:
+    message: 预算 8000 元，主要用来打游戏。
+    answer:
+      budget_yuan: 8000
+      scenario: GAMING
+  resume_expect:
+    terminal: done
+    max_latency_ms: 60000
+  local:
+    interrupt:
+      interaction_type: clarify_requirements
+      question: 还缺预算与主要用途，请补充后继续。
+      input_schema:
+        fields:
+          - name: budget_yuan
+            label: 预算（元）
+            type: number
+            required: true
+            min: 1000
+          - name: scenario
+            label: 主要用途
+            type: select
+            required: false
+            options:
+              - value: GAMING
+                label: 游戏
+        submit_label: 提交并继续
+    answer: 已按补充的预算与用途生成配置建议。

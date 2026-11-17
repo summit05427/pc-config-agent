@@ -21,10 +21,14 @@ STATUS_LABELS = {
 
 MODE_FAKE = "fake"
 MODE_REAL = "real"
+MODE_E2E_LOCAL = "e2e-local"
+MODE_E2E_SERVICE = "e2e-service"
 
 MODE_DESCRIPTIONS = {
     MODE_FAKE: "假模型（只校验 Profile、工具绑定与图结构，零 API 费用）",
     MODE_REAL: "真实模型（会真正调用模型，产生 token 费用）",
+    MODE_E2E_LOCAL: "E2E 本地契约（进程内 ASGI + 确定性假图，零 API 费用）",
+    MODE_E2E_SERVICE: "E2E 真实服务（登录 + HTTP/SSE + 会话落库，产生 token 费用）",
 }
 
 MISSING_TOKENS_NOTICE = "-"

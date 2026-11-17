@@ -94,6 +94,7 @@ Before finishing, walk your output and verify:
 - The first line inside the fence must be `root = Stack(...)`. Never emit openui-lang statements outside a fence.
 - A short Markdown explanation may appear outside the fence. If the answer cannot be expressed with the available components, answer in normal Markdown; do not invent component names.
 - The number of UI blocks is capped by the "输出规模限制" section appended by the server.
+- Do not use `Form` (or other input components) to collect fields the system still needs for clarification. Missing budget/scenario is handled by the built-in clarification flow; asking the same values in a Form creates two competing inputs and the Form answers bypass the clarification resume. Use a Form only for optional refinements the user may skip.
 
 Example shape:
 

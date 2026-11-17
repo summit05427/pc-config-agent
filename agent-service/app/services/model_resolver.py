@@ -6,6 +6,8 @@
 失败策略（§10.3）：
 - 控制面不可达时，仅 Auto（未指定模型）降级到进程默认模型并记 warning；
 - 用户显式指定了模型（请求级或会话级）时，控制面不可达直接报 503，禁止偷换模型；
+- 会话保存的模型被目录停用（`model_not_available`）时回退 Auto：旧会话不因目录收敛
+  而 403；请求级显式模型仍原样报错，用户刚选的模型不能偷偷换掉；
 - 额度超限、模型不可用、能力不支持等确定性错误直接抛出，流开始前返回对应状态码；
 - BYOK 任务必须先兑换一次性凭证（`resolve_credential`），兑换失败同样在流开始前返回 401/409，
   绝不退回平台托管模型。
@@ -124,28 +126,56 @@ async def resolve_runtime(
         # 关闭时保持原有单模型逻辑，不发起任何出站请求
         return None
 
-    model_key = (
-        requested_model
-        or await get_session_store().get_model_key(user_id, thread_id)
+    # 请求级显式模型优先，且不再读会话配置（无谓 IO，也避免把会话模型误当请求模型）
+    session_model_key = (
+        await get_session_store().get_model_key(user_id, thread_id)
+        if requested_model is None
+        else None
     )
-    model_key = model_key or default_model
+    model_key = requested_model or session_model_key or default_model
 
     active_client = client or control_plane.get_control_plane_client()
-    try:
-        task = await active_client.create_task(
+
+    async def create_task(
+        requested: str | None, idempotency_key: str | None
+    ) -> control_plane.ModelTask:
+        return await active_client.create_task(
             user_token=user_token,
             thread_id=thread_id,
-            requested_model=model_key,
-            idempotency_key=derive_task_idempotency_key(
-                user_id, thread_id, client_idempotency_key
-            ),
+            requested_model=requested,
+            idempotency_key=idempotency_key,
+        )
+
+    try:
+        task = await create_task(
+            model_key,
+            derive_task_idempotency_key(user_id, thread_id, client_idempotency_key),
         )
     except ControlPlaneError as error:
-        if error.code in _PROPAGATED_CODES:
+        if (
+            error.code == control_plane.MODEL_NOT_AVAILABLE
+            and requested_model is None
+            and session_model_key is not None
+            and session_model_key != default_model
+        ):
+            # 目录收敛（如 V27 停用 deepseek-v4-pro）后，旧会话仍存着失效模型：
+            # 回退 Auto 只影响「用户本次没选模型」的旧会话；请求级显式选择仍报错。
+            logger.warning(
+                "model_runtime.session_model_unavailable",
+                model_key=session_model_key,
+            )
+            try:
+                # 换模型不能复用原幂等键，否则 Java 会按同键不同模型判冲突；
+                # 第一次任务未创建成功（模型不可用），一次性键不会造成重复扣费。
+                task = await create_task(None, None)
+            except ControlPlaneError as fallback_error:
+                raise _to_app_error(fallback_error) from None
+        elif error.code in _PROPAGATED_CODES:
             raise _to_app_error(error) from None
-        # 不允许静默降级：Auto 退回进程默认模型会用平台凭证，而用户可能已选择 BYOK；
-        # 平台密钥失效时还会产生「看似成功、实际 401」的回合。明确报错让客户端重试。
-        raise _to_app_error(error) from None
+        else:
+            # 不允许静默降级：Auto 退回进程默认模型会用平台凭证，而用户可能已选择 BYOK；
+            # 平台密钥失效时还会产生「看似成功、实际 401」的回合。明确报错让客户端重试。
+            raise _to_app_error(error) from None
 
     if task.credential_source == CREDENTIAL_SOURCE_BYOK and not task.credential_id:
         # Java 应保证 BYOK 任务必带 credential_id；缺失说明契约被破坏。

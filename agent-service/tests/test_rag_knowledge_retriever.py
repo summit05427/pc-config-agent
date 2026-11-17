@@ -37,9 +37,18 @@ def _hit(
     )
 
 
-def _settings(*, rrf_k: int = 60, recall_multiplier: int = 4) -> SimpleNamespace:
+def _settings(
+    *,
+    rrf_k: int = 60,
+    recall_multiplier: int = 4,
+    min_relevance_score: float = 0.2,
+) -> SimpleNamespace:
     return SimpleNamespace(
-        rag=SimpleNamespace(rrf_k=rrf_k, recall_multiplier=recall_multiplier)
+        rag=SimpleNamespace(
+            rrf_k=rrf_k,
+            recall_multiplier=recall_multiplier,
+            min_relevance_score=min_relevance_score,
+        )
     )
 
 
@@ -152,8 +161,53 @@ async def test_retrieve_fuses_two_channels_by_rank() -> None:
 
     # b 同时命中两个通道，必须排在最前；a 与 c 同分时按 chunk_id 稳定排序
     assert [item.source_id for item in citations] == ["b", "a", "c"]
-    assert citations[0].score is not None
-    assert citations[0].score > citations[1].score
+    # 引用分展示向量相似度，不能把 RRF 名次分当成相关度百分比
+    assert citations[0].score == pytest.approx(0.5)
+    assert citations[1].score == pytest.approx(0.5)
+    # 仅关键词命中没有可比量纲，不展示相关度
+    assert citations[2].score is None
+
+
+async def test_low_relevance_vector_hits_are_filtered_out() -> None:
+    low = SearchHit(
+        chunk_id="low",
+        document_id="doc-low",
+        title="弱相关",
+        content="弱相关片段",
+        score=0.05,
+    )
+    repository = FakeRepository(vector_hits=[_hit("strong"), low])
+    retriever = PgvectorRetriever(
+        embedder=FakeEmbedder(),
+        settings=_settings(min_relevance_score=0.2),
+        repository=repository,
+    )
+
+    citations = await retriever.retrieve(_request(limit=5))
+
+    assert [item.source_id for item in citations] == ["strong"]
+
+
+async def test_exact_keyword_hit_bypasses_relevance_threshold() -> None:
+    weak_vector = SearchHit(
+        chunk_id="b650",
+        document_id="doc-b650",
+        title="B650 说明",
+        content="B650 需要更新 BIOS",
+        score=0.05,
+    )
+    repository = FakeRepository(vector_hits=[weak_vector], keyword_hits=[weak_vector])
+    retriever = PgvectorRetriever(
+        embedder=FakeEmbedder(),
+        settings=_settings(min_relevance_score=0.2),
+        repository=repository,
+    )
+
+    citations = await retriever.retrieve(_request("B650 装 9000 系 CPU 要刷 BIOS 吗"))
+
+    # 精确型号命中属于强相关，不能被语义阈值挡掉；低向量分也不展示为百分比
+    assert [item.source_id for item in citations] == ["b650"]
+    assert citations[0].score is None
 
 
 async def test_exact_terms_boost_keyword_and_use_or_query() -> None:
@@ -295,6 +349,7 @@ def _app_settings(
             embedding_timeout_seconds=30.0,
             rrf_k=60,
             recall_multiplier=4,
+            min_relevance_score=0.2,
         ),
         llm=SimpleNamespace(
             gateway_api_key=SecretStr("sk-real-gateway-key"),
