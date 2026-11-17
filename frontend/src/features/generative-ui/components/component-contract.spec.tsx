@@ -63,4 +63,19 @@ describe('组件库渲染契约', () => {
     // 非法协议不能进入 img src，只能显示占位
     expect(screen.getByText('—')).toBeInTheDocument()
   })
+
+  it('image 列全部为空时整列隐藏，避免出现整列占位破折号', async () => {
+    const dsl = [
+      'root = Table([',
+      'Col("图片", ["", ""], "image"),',
+      'Col("型号", ["CPU A", "CPU B"])',
+      '])',
+    ].join('\n')
+
+    render(<OpenUiRenderer response={dsl} />)
+
+    expect(await screen.findByText('CPU A')).toBeInTheDocument()
+    expect(screen.queryByText('图片')).toBeNull()
+    expect(screen.queryByText('—')).toBeNull()
+  })
 })

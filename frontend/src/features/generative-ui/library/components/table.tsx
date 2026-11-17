@@ -80,18 +80,28 @@ function TableRenderer({ props }: TableRenderProps) {
   if (columns.length === 0) return null
 
   const columnDefs = columns.map((column) => column.props)
-  const rowCount = Math.max(0, ...columnDefs.map((column) => column.data.length))
+  // 所有行都没有可用图片时不渲染该列：整列「—」既占空间又像是缺数据
+  const visibleColumns = columnDefs.filter(
+    (column) =>
+      column.type !== 'image' ||
+      column.data.some(
+        (value) => typeof value === 'string' && value.trim() !== '' && isSafeOpenUrl(value.trim())
+      )
+  )
+  const rowCount = Math.max(0, ...visibleColumns.map((column) => column.data.length))
   const pageCount = Math.max(1, Math.ceil(rowCount / DEFAULT_PAGE_SIZE))
   const currentPage = Math.min(page, pageCount - 1)
   const startRow = currentPage * DEFAULT_PAGE_SIZE
   const visibleRowCount = Math.max(0, Math.min(DEFAULT_PAGE_SIZE, rowCount - startRow))
+
+  if (visibleColumns.length === 0) return null
 
   return (
     <div className="flex flex-col gap-2">
       <OpenUiTable>
         <OpenUiTableHeader>
           <OpenUiTableRow>
-            {columnDefs.map((column) => (
+            {visibleColumns.map((column) => (
               <OpenUiTableHead key={column.label}>{column.label}</OpenUiTableHead>
             ))}
           </OpenUiTableRow>
@@ -101,7 +111,7 @@ function TableRenderer({ props }: TableRenderProps) {
             const rowIndex = startRow + rowOffset
             return (
               <OpenUiTableRow key={rowIndex}>
-                {columnDefs.map((column) => (
+                {visibleColumns.map((column) => (
                   <OpenUiTableCell key={column.label}>
                     <TableCellValue column={column} value={column.data[rowIndex] ?? ''} />
                   </OpenUiTableCell>
