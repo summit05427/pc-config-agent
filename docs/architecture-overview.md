@@ -43,7 +43,7 @@ Compose 内网
 ```
 
 - Nginx 在入口剥掉 `/agent` 前缀，Agent 实际收到 `/api/*`；Java 保留 `/api/*`。
-- Agent 调用 Java 走 `AGENT__JAVA_BASE_URL` 内网地址，不经 Nginx。
+- Agent 调用 Java 走 `CONTROL_PLANE__BASE_URL` 内网地址，不经 Nginx。
 - 容器内互访使用 Compose 服务名，禁止硬编码公网地址。
 
 ## 4. 调用关系

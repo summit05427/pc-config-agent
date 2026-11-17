@@ -30,11 +30,11 @@
 | 换端口 | `WEB_PORT` / `BACKEND_PORT` / `AGENT_PORT` | `8088` / `8080` / `8000` |
 | 开 HITL | `HITL_ENABLED` | `false` |
 | 开 OpenUI | `OPENUI_ENABLED` + `VITE_OPENUI_ENABLED` | `false` |
-| 开 RAG | `RAG_ENABLED` + `RAG_RETRIEVER_MODULE` | `false` / 空 |
+| 开 RAG | `RAG_ENABLED` + `RAG_RETRIEVER_MODULE` + `RAG_EMBEDDING_MODEL` + `RAG_EMBEDDING_DIMENSIONS` | `false` / 空 / 空 / `0`（示例 `qwen:text-embedding-v4` / `1024`） |
 | 关限流 | `RATE_LIMIT_ENABLED` | `true` |
 | 调输入上限 | `GUARD_MAX_INPUT_CHARS` | `4000` |
 | 调每日额度 | `MODEL_QUOTA_DAILY_REQUESTS` | `100` |
-| 调选型修正/检索配额 | `AGENT__ARCHITECT_MAX_*` | `2` / `2` / `4096` |
+| 调选型修正/检索配额 | `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `3` / `2` / `4096` |
 
 ## 3. 开关联动
 
@@ -43,7 +43,7 @@
 | `BYOK_ENABLED=true` | 必须 `MODEL_RUNTIME_ENABLED=true`，且 `MODEL_CRED_MASTER_KEY` 合法 |
 | `HITL_ENABLED=true` | 必须 `STORAGE__BACKEND=postgres` |
 | `OPENUI_ENABLED` | 必须与 `VITE_OPENUI_ENABLED` 同值 |
-| `RAG_ENABLED=true` | 必须配置 `RAG_RETRIEVER_MODULE` |
+| `RAG_ENABLED=true` | 必须配置 `RAG_RETRIEVER_MODULE` 与成对的 embedding 模型/维度 |
 | `MCP_ENABLED=true` | 仅网关拓扑；Solo 不支持 |
 | `AUTH_COOKIE_SECURE=false` | 仅非 `prod` 本地调试允许 |
 
@@ -52,7 +52,7 @@
 | 现象 | 检查 |
 | --- | --- |
 | Java 启动即退 | `SPRING_PROFILES_ACTIVE`、JWT 私钥、管理员口令、DB 口令是否仍为占位 |
-| Agent 启动即退 | `JWT__` 与 Java `JWT_*` 是否一致；`REDIS__REQUIRED`；HITL/RAG 约束 |
+| Agent 启动即退 | Agent 与 Java 的 JWT 配置是否一致；`REDIS__REQUIRED`；HITL/RAG 约束 |
 | 401 / 验签失败 | `JWT_ISSUER`、`JWT_AUDIENCE`、`JWT_KID`、公钥是否两端一致 |
 | SSE 无输出 | `LLM__GATEWAY_BASE_URL`、`LLM__GATEWAY_API_KEY` 是否正确 |
 | 模型 404 | `MODEL_RUNTIME_ENABLED` 与 `MODEL_DEFAULT_KEY` 是否一致 |

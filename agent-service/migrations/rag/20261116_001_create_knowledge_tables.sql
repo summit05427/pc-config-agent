@@ -3,8 +3,8 @@
 -- 执行：
 --   psql "$STORAGE__POSTGRES_URL" -v ON_ERROR_STOP=1 \
 --     -f migrations/rag/20261116_001_create_knowledge_tables.sql
--- 维度必须与 RAG__EMBEDDING_DIMENSIONS 一致；默认 1536。
--- 若配置为其他维度，请同步替换下方 vector(1536)。
+-- 维度必须与 RAG__EMBEDDING_DIMENSIONS 一致；默认 1024（百炼 text-embedding-v4）。
+-- 若配置为其他维度，请同步替换下方 vector(1024)；已建表需先清空或重建再切换维度。
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS kb_chunks (
     content         TEXT        NOT NULL,
     content_hash    TEXT        NOT NULL,
     metadata        JSONB       NOT NULL DEFAULT '{}'::jsonb,
-    embedding       vector(1536) NOT NULL,
+    embedding       vector(1024) NOT NULL,
     embedding_model TEXT        NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),

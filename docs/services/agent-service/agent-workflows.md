@@ -176,7 +176,7 @@ START
 ## 13. 未实现与默认关闭的能力
 
 - 多 Agent 编排、工具并行执行、人工审批流【规划中】。
-- RAG 检索链路（切块 → embedding → pgvector → 词法+向量 RRF → Architect 注入 → citations）已实现，但默认关闭：LiteLLM 网关未注册 embedding 部署、`OPENAI_API_KEY` 为空，向量化不可用；语料仅 9 张内部知识卡片。未完成：检索命中率/引用正确性离线评测集、外部语料与许可、rerank。
+- RAG 检索链路（切块 → embedding → pgvector → 词法+向量 RRF → Architect 注入 → citations）已实现，默认关闭：LiteLLM 已注册 `qwen:text-embedding-v4`（百炼，需根 `.env` 的 `QWEN_API_KEY`），配置齐备即可开启；语料为 `knowledge/cards/` 的 19 张卡片（9 张内部方法论 + 10 张数据集快照）。未完成：rerank、引用正确性的持续回归。
 - MCP 仅保留经网关的客户端接缝，默认关闭【未实现业务用途】。
 
 ### 13.1 RAG 数据流（已实现，默认关闭）
@@ -190,7 +190,7 @@ scripts/import_knowledge_cards.py
   → turn.py 按 source_id 去重后下发 citations 事件
 ```
 
-默认关闭（根 `.env` `RAG_ENABLED=false`，Compose 注入为 `RAG__ENABLED`）；缺 embedding 部署时检索返回空引用，不阻断主流程。语料仅 `knowledge/cards/` 的 9 张内部知识卡片。
+默认关闭（根 `.env` `RAG_ENABLED=false`，Compose 注入为 `RAG__ENABLED`）；开启需同时给出 `RAG_RETRIEVER_MODULE` 与 `RAG_EMBEDDING_MODEL` / `RAG_EMBEDDING_DIMENSIONS`，否则启动期拒绝。嵌入维度必须与 `kb_chunks.embedding` 的类型一致（默认 1024）。语料为 `knowledge/cards/` 的 19 张卡片，导入用 `scripts/import_knowledge_cards.py`。
 
 ## 14. 相关文档
 

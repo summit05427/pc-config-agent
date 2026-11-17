@@ -109,13 +109,15 @@
 | `AGENT__SYSTEM_PROMPT` / `AGENT__PROFILES_DIR` / `AGENT__DEFAULT_PROFILE` | `agent-system` / `app/agents` / `pc-config` | Profile 加载 |
 | `AGENT__TOOL_TIMEOUT_SECONDS` / `TOOL_MAX_RETRIES` / `TOOL_MAX_OUTPUT_TOKENS` / `TOOL_MAX_CALLS_PER_TURN` | `10` / `1` / `4000` / `40` | 工具治理 |
 | `AGENT__TOOL_REDACT_OUTPUT` | `true` | 工具输出脱敏 |
-| `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `2` / `2` / `4096` | `build_architect` 配额 |
+| `AGENT__ARCHITECT_MAX_PARTIAL_CHECKS` / `MAX_KNOWLEDGE_CALLS` / `MAX_TOKENS` | `3` / `2` / `4096` | `build_architect` 配额 |
 | `AGENT__SUMMARY_ENABLED` / `TRIGGER_TOKENS` | `true` / `4000` | 历史摘要 |
 | `AGENT__SESSION_INDEX_TTL_SECONDS` / `MAX` | `300` / `200` | 会话索引缓存 |
 | `HITL__ENABLED` / `HITL__INTERRUPT_TTL_SECONDS` | `false` / `1800` | 人在回路 |
 | `OPENUI__ENABLED` / `PROMPT_NAME` / `MAX_BLOCKS` | `false` / 空 / `6` | 生成式 UI |
 | `MCP__ENABLED` / `GATEWAY_URL` / `ALLOWED_TOOLS` | `false` / 空 / `[]` | 仅网关拓扑 |
-| `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 检索器已实现；当前无 embedding 部署与外部语料，保持默认关闭；`RAG_ENABLED` 在根 `.env` |
+| `RAG__RETRIEVER_MODULE` / `RAG__TOP_K` | 空 / `5` | 检索器已实现，默认关闭；`RAG_ENABLED` 在根 `.env`，宿主直跑时写在 `agent-service/.env` |
+| `RAG__EMBEDDING_MODEL` / `DIMENSIONS` / `BATCH_SIZE` | 空 / `0` / `10` | 启用内置检索器时模型与维度必填；默认示例 `qwen:text-embedding-v4` / `1024`（百炼单次最多 10 条） |
+| `QWEN_API_KEY` | 空 | 根 `.env` 写入；Compose 映射为 LiteLLM 容器内 `DASHSCOPE_API_KEY`，供 embedding 条目使用 |
 | `GUARD__ENABLED` / `MAX_INPUT_CHARS` / `BLOCK_ON_INJECTION` | `true` / `4000` / `true` | 输入护栏 |
 | `RATE_LIMIT__ENABLED` / `CHAT_PER_MINUTE` / `WINDOW_SECONDS` / `FAIL_OPEN` | `true` / `20` / `60` / `true` | 对话限流 |
 | `EVALS__USER_TOKEN` / `EVALS__USER_ID` | 空 | `--real` 评测 |
@@ -149,6 +151,7 @@
 | `BYOK_ENABLED=true` 但未启用模型运行时或主密钥非法 | Java 拒绝启动 |
 | `HITL__ENABLED=true` 且 `STORAGE__BACKEND=memory` | Agent 拒绝启动 |
 | `RAG_ENABLED=true` 且检索器模块为空 | Agent 拒绝启动 |
+| `RAG_ENABLED=true` 且内置检索器缺 embedding 模型或维度非正 | Agent 拒绝启动 |
 | `prod` 下 `AUTH__DEV_KID` 非空 | Agent 拒绝启动 |
 
 ## 4. 密钥生成与轮换

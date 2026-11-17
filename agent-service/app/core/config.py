@@ -400,7 +400,9 @@ class RagSettings(BaseModel):
     # Embedding 与向量维度必须成对配置；维度用于建表与结果校验
     embedding_model: str = Field(default="", max_length=200)
     embedding_dimensions: int = Field(default=0, ge=0, le=8192)
-    embedding_batch_size: int = Field(default=32, ge=1, le=256)
+    # 百炼 text-embedding-v4 单次最多 10 条，默认值取所有已知 provider 的下限；
+    # 换成支持更大批次的 provider 时可上调，但不能超过其上限
+    embedding_batch_size: int = Field(default=10, ge=1, le=256)
     embedding_timeout_seconds: float = Field(default=30.0, gt=0, le=120)
     # RRF（Reciprocal Rank Fusion）平滑常数：越大越弱化头部名次差异
     rrf_k: int = Field(default=60, ge=1, le=1000)

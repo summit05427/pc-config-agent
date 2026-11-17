@@ -342,6 +342,10 @@ services:
       RAG__ENABLED: ${RAG_ENABLED:-false}
       RAG__RETRIEVER_MODULE: ${RAG_RETRIEVER_MODULE:-}
       RAG__TOP_K: ${RAG_TOP_K:-5}
+      # 缺省为空/0 时不启用内置检索器；开启后由检索器工厂校验成对配置
+      RAG__EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-}
+      RAG__EMBEDDING_DIMENSIONS: ${RAG_EMBEDDING_DIMENSIONS:-0}
+      RAG__EMBEDDING_BATCH_SIZE: ${RAG_EMBEDDING_BATCH_SIZE:-10}
       # 输入侧护栏：命中即 422 input_rejected，不进入模型
       GUARD__ENABLED: ${GUARD_ENABLED:-true}
       GUARD__MAX_INPUT_CHARS: ${GUARD_MAX_INPUT_CHARS:-4000}

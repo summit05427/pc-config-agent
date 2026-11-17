@@ -4,7 +4,7 @@
 - `migrations/rag/*.sql` 供 DBA 手工执行与回滚；
 - 本模块的语句供 `STORAGE__AUTO_SETUP=true` 时启动期幂等建表。
 维度只能作为 `vector(n)` 的类型字面量，无法参数化，因此这里只接受
-范围校验后的整数；迁移文件固定为 1536，配置不同时必须同步修改。
+范围校验后的整数；迁移文件按默认 1024 维（百炼 text-embedding-v4）固定，配置不同时必须同步修改。
 """
 
 from __future__ import annotations
