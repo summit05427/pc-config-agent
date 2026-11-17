@@ -54,6 +54,7 @@ def test_report_gate_metrics_for_hard_constraint_and_repair() -> None:
             repair_count=1,
             expects_success=True,
             max_turn_llm_calls=3,
+            quality_passed=True,
             hard_constraint="PASS",
         ),
         CaseResult(
@@ -66,6 +67,7 @@ def test_report_gate_metrics_for_hard_constraint_and_repair() -> None:
             repair_count=2,
             expects_success=True,
             max_turn_llm_calls=5,
+            quality_passed=False,
             hard_constraint="UNKNOWN",
         ),
         CaseResult(
@@ -103,6 +105,12 @@ def test_report_gate_metrics_for_hard_constraint_and_repair() -> None:
     assert repair["succeeded"] == 1
     assert repair["success_rate"] == 0.5
 
+    # 质量评审只统计真正进入评审的用例：未产出方案的用例不算通过
+    quality = report.quality_stats
+    assert quality["evaluated"] == 2
+    assert quality["passed"] == 1
+    assert quality["pass_rate"] == 0.5
+
     metrics = report.metrics
     assert metrics["p95_latency_ms"] == 3000
     assert metrics["max_llm_calls"] == 5
@@ -110,6 +118,7 @@ def test_report_gate_metrics_for_hard_constraint_and_repair() -> None:
     assert metrics["cost"]["total"] == pytest.approx(0.04)
 
     assert "硬约束通过率 50.0%" in report.render_text()
+    assert "质量评审通过率 50.0%" in report.render_text()
     assert "修正成功率 50.0%" in report.render_text()
 
 EVALS_CASES_DIRECTORY = Path(__file__).resolve().parents[1] / "evals" / "cases"

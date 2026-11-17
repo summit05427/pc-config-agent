@@ -59,6 +59,8 @@ class CaseResult:
     expects_success: bool = True
     # 单轮最大调用次数：多轮用例按轮统计，门禁口径是「单轮 ≤5 次」
     max_turn_llm_calls: int | None = None
+    # 质量评审结论：None 表示该用例没有进入评审（如纯澄清），不参与分母
+    quality_passed: bool | None = None
     # PASS / FAIL / UNKNOWN / None（未产出配置，不参与硬约束统计）
     hard_constraint: str | None = None
     error: str | None = None
@@ -97,6 +99,7 @@ class CaseResult:
             "workflow_status": self.workflow_status,
             "repair_count": self.repair_count,
             "max_turn_llm_calls": self.max_turn_llm_calls,
+            "quality_passed": self.quality_passed,
             "hard_constraint": self.hard_constraint,
             "tokens": {
                 "prompt": self.prompt_tokens,
@@ -195,6 +198,21 @@ class EvalReport:
         return sum(values) if values else None
 
     @property
+    def quality_stats(self) -> dict[str, Any]:
+        """质量评审通过率：只统计进入过评审的用例，缺失不算通过。"""
+        evaluated = [
+            result for result in self.results if result.quality_passed is not None
+        ]
+        passed = [result for result in evaluated if result.quality_passed]
+        return {
+            "evaluated": len(evaluated),
+            "passed": len(passed),
+            "pass_rate": (
+                round(len(passed) / len(evaluated), 4) if evaluated else None
+            ),
+        }
+
+    @property
     def hard_constraint_stats(self) -> dict[str, Any]:
         """硬约束通过率：UNKNOWN 一律不算通过，未产出配置的用例不参与分母。"""
         counts = {STATUS_PASSED: 0, STATUS_FAILED: 0, "unknown": 0, "not_applicable": 0}
@@ -250,6 +268,7 @@ class EvalReport:
                 "currency": self.currency,
             },
             "hard_constraint": self.hard_constraint_stats,
+            "quality": self.quality_stats,
             "repair": self.repair_stats,
         }
 
@@ -329,8 +348,10 @@ class EvalReport:
         max_calls = self.max_turn_llm_calls
         total_cost = self.total_cost
         hard = self.hard_constraint_stats
+        quality = self.quality_stats
         repair = self.repair_stats
         hard_rate = hard["pass_rate"]
+        quality_rate = quality["pass_rate"]
         repair_rate = repair["success_rate"]
         return (
             "门禁指标："
@@ -342,6 +363,9 @@ class EvalReport:
             f" ｜ 硬约束通过率 "
             f"{f'{hard_rate * 100:.1f}%' if hard_rate is not None else '无样本'}"
             f"（通过 {hard['passed']} / 失败 {hard['failed']} / UNKNOWN {hard['unknown']}）"
+            f" ｜ 质量评审通过率 "
+            f"{f'{quality_rate * 100:.1f}%' if quality_rate is not None else '无样本'}"
+            f"（{quality['passed']}/{quality['evaluated']}）"
             f" ｜ 修正成功率 "
             f"{f'{repair_rate * 100:.1f}%' if repair_rate is not None else '无样本'}"
             f"（{repair['succeeded']}/{repair['attempted']}）"

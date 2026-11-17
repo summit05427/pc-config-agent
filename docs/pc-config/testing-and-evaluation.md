@@ -88,12 +88,13 @@ corepack pnpm --dir frontend e2e:critical
 
 ### 门禁指标
 
-`--real` 报告额外输出六个口径：`p95 时延`、`单轮最大 LLM 调用`、`tokens`、`成本`、`硬约束通过率`、`修正成功率`。文本报告单独一行展示，`--json` 落在 `metrics` 字段，单条用例还带 `llm_calls`、`cost`、`workflow_status`、`repair_count`、`hard_constraint`。
+`--real` 报告额外输出七个口径：`p95 时延`、`单轮最大 LLM 调用`、`tokens`、`成本`、`硬约束通过率`、`质量评审通过率`、`修正成功率`。文本报告单独一行展示，`--json` 落在 `metrics` 字段，单条用例还带 `llm_calls`、`cost`、`workflow_status`、`repair_count`、`quality_passed`、`hard_constraint`。
 
 - 调用次数与 token 来自 LangChain 回调，覆盖结构化、文本兜底与流式三条路径；状态消息不带 `usage_metadata` 时以回调为准。
 - 成本按 `EVALS__PRICE_INPUT_PER_MILLION` / `EVALS__PRICE_OUTPUT_PER_MILLION`（每百万 token 单价，取自模型目录）折算；未配置时显示「未定价」，不以 0 冒充已核算。
 - 硬约束通过率取 `compatibility_report` 的逐条结论：全 PASS 才算通过，出现 `UNKNOWN` 一律计入 UNKNOWN 桶、不算通过；未产出配置的用例不参与分母。
-- 修正成功率只统计 `architect_repair_count > 0` 的用例，成功以图终态 `success` 为准；未进入修正的用例不参与分母。
+- 质量评审通过率为 [ADR 0029](../adr/0029-stage1-quality-gate-baseline-alternative.md) 的替代口径：`quality_review.issues` 为空且 `retry=false` 才算通过，`quality_passed` 为空的用例（未进入评审）不参与分母。
+- 修正成功率只统计 `architect_repair_count > 0` 且 `expects_success=true` 的用例，成功以图终态 `success` 为准；负向用例与未进入修正的用例不参与分母。
 
 ### RAG 检索评测
 

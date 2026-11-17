@@ -167,6 +167,18 @@ def _repair_count(state: dict[str, Any]) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _quality_passed(state: dict[str, Any]) -> bool | None:
+    """质量评审通过 = 未触发重选且没有 issues；未进入评审返回 None。"""
+    review = state.get("quality_review")
+    if not isinstance(review, dict) or not review:
+        return None
+    retry = review.get("retry")
+    if not isinstance(retry, bool):
+        return None
+    issues = review.get("issues")
+    return not retry and not (isinstance(issues, list) and issues)
+
+
 def _hard_constraint_status(state: dict[str, Any]) -> str | None:
     """从 compose 的兼容性报告归纳硬约束结论；UNKNOWN 一律不算通过。"""
     report = state.get("compatibility_report")
@@ -620,6 +632,7 @@ async def run_case(case: EvalCase) -> CaseResult:
         repair_count=_repair_count(result),
         expects_success=case.expect.workflow_status == "success",
         max_turn_llm_calls=max(turn_calls) if turn_calls else None,
+        quality_passed=_quality_passed(result),
         hard_constraint=_hard_constraint_status(result),
     )
 
