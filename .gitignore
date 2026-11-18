@@ -43,6 +43,10 @@ agent-service/venv/
 Thumbs.db
 *.swp
 
+# ---------- 已停用的 AI 技能 ----------
+# 仅本地保留：含 20MB 级二进制启动器，不属于交付物
+.trae/skills-disabled/
+
 # ---------- 日志与临时文件 ----------
 *.log
 logs/
