@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   BadgeCheck,
@@ -21,10 +21,11 @@ import {
   X,
 } from 'lucide-react'
 
-import type { BuildComponent, BuildResult } from '@/features/sessions/api'
+import type { BuildResult } from '@/features/sessions/api'
 import { cn } from '@/shared/lib/utils'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
+import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from '@/shared/ui/popover'
 import {
   Sheet,
   SheetClose,
@@ -43,9 +44,9 @@ import {
 } from './build-compatibility-list'
 import {
   BudgetAllocationChart,
-  BudgetRadarChart,
   BudgetWaterWave,
   BuildGauge,
+  PerformanceRadarChart,
   ScoreSemicircle,
 } from './build-detail-charts'
 import { BuildDetailModule } from './build-detail-module'
@@ -65,8 +66,23 @@ import {
   WORKLOAD_LABEL_KEYS,
 } from './build-result-meta'
 
-/** 雷达图的固定轴：其余品类合并为「其他」，避免 8 轴过密 */
-const RADAR_CATEGORIES = ['CPU', 'GPU', 'MOTHERBOARD', 'MEMORY', 'STORAGE'] as const
+/** 雷达图的固定轴：性能维度评分，不使用预算占比 */
+const DEMO_PERFORMANCE_AXES = [
+  { key: 'CPU', labelKey: 'chat.build.detailRadarCpu', value: 88 },
+  { key: 'GPU', labelKey: 'chat.build.detailRadarGpu', value: 92 },
+  { key: 'MEMORY', labelKey: 'chat.build.detailRadarMemory', value: 76 },
+  { key: 'STORAGE', labelKey: 'chat.build.detailRadarStorage', value: 81 },
+  { key: 'COOLING', labelKey: 'chat.build.detailRadarCooling', value: 73 },
+  { key: 'EXPANSION', labelKey: 'chat.build.detailRadarExpansion', value: 68 },
+] as const
+
+/**
+ * 以下三项为 UI 占位演示值：当前没有功耗与综合评分的实测数据源，
+ * 仅用于撑起图表版式，接入真实数据后必须整体替换。
+ */
+const DEMO_POWER_WATTS = 486
+const DEMO_PSU_WATTS = 850
+const DEMO_OVERALL_SCORE = 92
 
 const CATEGORY_ICONS: Record<string, typeof Cpu> = {
   CPU: Cpu,
@@ -90,11 +106,11 @@ export interface BuildDetailDrawerProps {
 /**
  * 配置详情抽屉。
  *
- * 右侧仪表盘式抽屉：预算分配与结构雷达、硬件清单、兼容性校验与预算用量、
+ * 右侧仪表盘式抽屉：预算分配与性能画像、硬件清单、兼容性校验与预算用量、
  * 推荐理由与基准数据四列并排，底部用仪表盘与半圆表汇总关键读数。
  *
- * 图表只消费结构化结果里的真实字段：预算占比、跑分、校验结论与金额。
- * 缺失数据统一展示占位符，不用 0 或推算值冒充。
+ * 预算、跑分与校验结论来自结构化结果；性能画像、整机功耗与综合评分
+ * 当前没有数据源，使用明确标注的演示值占位，仅保证 UI 版式完整。
  */
 export function BuildDetailDrawer({
   result,
@@ -103,7 +119,6 @@ export function BuildDetailDrawer({
   demoPriceHint = false,
 }: BuildDetailDrawerProps) {
   const { t } = useTranslation()
-  const [isReasonsExpanded, setIsReasonsExpanded] = useState(false)
   const priceNotice = resolvePriceNotice(result, demoPriceHint)
   const overall = result.overallCompatibility
   const workloadKey = result.workloadProfile
@@ -122,34 +137,17 @@ export function BuildDetailDrawer({
     [result.compatibility],
   )
   const passedCount = checks.filter((check) => check.status === 'PASS').length
-  const passRate = checks.length > 0 ? (passedCount / checks.length) * 100 : null
 
-  // 雷达轴：五类主体 + 其余品类合计，单位仍为「占总价百分比」
-  const radarAxes = useMemo(() => {
-    const totalFen = result.components.reduce((sum, component) => sum + component.priceFen, 0)
-    if (totalFen <= 0) {
-      return []
-    }
-    const ratioOf = (predicate: (component: BuildComponent) => boolean): number =>
-      (result.components.filter(predicate).reduce((sum, component) => sum + component.priceFen, 0) /
-        totalFen) *
-      100
-
-    return [
-      ...RADAR_CATEGORIES.map((category) => ({
-        key: category,
-        label: t(CATEGORY_LABEL_KEYS[category] ?? category),
-        value: ratioOf((component) => component.category === category),
+  // 雷达轴：固定性能维度，值为 0-100 的演示评分
+  const radarAxes = useMemo(
+    () =>
+      DEMO_PERFORMANCE_AXES.map((axis) => ({
+        key: axis.key,
+        label: t(axis.labelKey),
+        value: axis.value,
       })),
-      {
-        key: 'OTHER',
-        label: t('chat.build.detailRadarOther'),
-        value: ratioOf(
-          (component) => !(RADAR_CATEGORIES as readonly string[]).includes(component.category),
-        ),
-      },
-    ]
-  }, [result.components, t])
+    [t],
+  )
 
   const reasonByHardwareId = useMemo(
     () => new Map((result.componentReasons ?? []).map((item) => [item.hardwareId, item])),
@@ -160,7 +158,6 @@ export function BuildDetailDrawer({
   const cpuBenchmark = findBenchmark(result.components, 'CPU')
   const gpuBenchmark = findBenchmark(result.components, 'GPU')
   const storageBenchmark = findBenchmark(result.components, 'STORAGE')
-  const remainingRatio = budgetUsage ? Math.max(0, 100 - budgetUsage.ratio) : null
 
   const categoryLabel = (category: string): string => {
     const key = CATEGORY_LABEL_KEYS[category]
@@ -233,7 +230,7 @@ export function BuildDetailDrawer({
 
             {/* lg 双列时按内容高度排布；xl 四列必须拉伸到同一行高，否则卡片会溢出被裁 */}
             <div className="flex flex-col gap-2.5 lg:grid lg:grid-cols-2 lg:items-start xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.62fr)_minmax(0,1.1fr)_minmax(0,1.08fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
-              {/* 第一列：预算分配 + 预算结构雷达 */}
+              {/* 第一列：预算分配 + 性能画像雷达 */}
               <div className="flex min-h-0 min-w-0 flex-col gap-3">
                 <BuildDetailModule
                   title={t('chat.build.detailBudget')}
@@ -257,13 +254,8 @@ export function BuildDetailDrawer({
                   className="min-h-0 flex-[5]"
                   bodyClassName="flex min-h-0 flex-col items-center justify-center p-1"
                   delayMs={60}
-                  action={
-                    <span className="text-[9px] text-muted-foreground">
-                      {t('chat.build.detailRadarHint')}
-                    </span>
-                  }
                 >
-                  <BudgetRadarChart axes={radarAxes} />
+                  <PerformanceRadarChart axes={radarAxes} />
                 </BuildDetailModule>
               </div>
 
@@ -344,56 +336,58 @@ export function BuildDetailDrawer({
                   delayMs={300}
                   action={
                     result.componentReasons && result.componentReasons.length > 0 ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-1.5 text-[10px] text-muted-foreground"
-                        aria-expanded={isReasonsExpanded}
-                        onClick={() => setIsReasonsExpanded((expanded) => !expanded)}
-                      >
-                        {isReasonsExpanded
-                          ? t('chat.build.reasonCollapse')
-                          : t('chat.build.reasonExpand')}
-                      </Button>
+                      // 逐件理由改用浮层卡片：不占用模块高度，也不改变四列布局
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 gap-0.5 px-1.5 text-[11px] text-muted-foreground hover:text-foreground"
+                          >
+                            {t('chat.build.detailReasonsOpen')}
+                            <ChevronRight className="size-3" aria-hidden="true" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent
+                          align="end"
+                          side="bottom"
+                          sideOffset={8}
+                          className="max-h-[60vh] w-[440px] max-w-[calc(100vw-2rem)] overflow-y-auto p-4"
+                        >
+                          <PopoverTitle className="text-[13px] font-semibold text-foreground/80">
+                            {t('chat.build.detailPartReasons')}
+                          </PopoverTitle>
+                          <ul className="mt-2 flex flex-col gap-2">
+                            {result.componentReasons.map((item) => (
+                              <li
+                                key={`${item.hardwareCategory}-${item.hardwareId}`}
+                                className="rounded-lg bg-muted/40 px-3 py-2.5"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[13px] font-semibold text-foreground/85">
+                                    {categoryLabel(item.hardwareCategory)}
+                                  </span>
+                                  {item.scoreContribution !== undefined ? (
+                                    <span className="ml-auto text-[12px] tabular-nums text-muted-foreground">
+                                      {t('chat.build.detailContribution')}{' '}
+                                      {formatMark(item.scoreContribution)}
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-1 text-[13px] leading-relaxed break-words text-foreground/75">
+                                  {item.reason}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+                        </PopoverContent>
+                      </Popover>
                     ) : null
                   }
                 >
                   <blockquote className="shrink-0 border-l-2 border-clay/50 pl-2.5 text-[13px] leading-relaxed text-foreground/85">
                     {result.reasonSummary || t('chat.build.noReason')}
                   </blockquote>
-
-                  {isReasonsExpanded &&
-                  result.componentReasons &&
-                  result.componentReasons.length > 0 ? (
-                    <div className="mt-2.5 flex min-h-0 flex-1 flex-col border-t border-border/50 pt-2">
-                      <p className="shrink-0 text-[11px] font-medium text-muted-foreground">
-                        {t('chat.build.detailPartReasons')}
-                      </p>
-                      <ul className="mt-1.5 flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
-                        {result.componentReasons.map((item) => (
-                          <li
-                            key={`${item.hardwareCategory}-${item.hardwareId}`}
-                            className="rounded-md bg-muted/40 px-2 py-1.5"
-                          >
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-[11px] font-medium text-foreground/80">
-                                {categoryLabel(item.hardwareCategory)}
-                              </span>
-                              {item.scoreContribution !== undefined ? (
-                                <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
-                                  {t('chat.build.detailContribution')}{' '}
-                                  {formatMark(item.scoreContribution)}
-                                </span>
-                              ) : null}
-                            </div>
-                            <p className="mt-0.5 text-[11.5px] leading-relaxed break-words text-muted-foreground">
-                              {item.reason}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
                 </BuildDetailModule>
 
                 <BuildDetailModule
@@ -424,7 +418,10 @@ export function BuildDetailDrawer({
                             title={reason?.reason}
                           >
                             <div className="flex items-center gap-1.5">
-                              <CategoryIcon className="size-3.5 shrink-0 text-clay" aria-hidden="true" />
+                              <CategoryIcon
+                                className="size-3.5 shrink-0 text-clay"
+                                aria-hidden="true"
+                              />
                               <span
                                 className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-foreground/90"
                                 title={component.modelName ?? undefined}
@@ -467,9 +464,7 @@ export function BuildDetailDrawer({
             <div className="flex w-[26%] shrink-0 items-stretch gap-2">
               <div className="min-w-0 flex-1">
                 <BuildGauge
-                  value={
-                    cpuBenchmark ? toGaugeValue(cpuBenchmark.score, GAUGE_SCALE_MAX.CPU) : 0
-                  }
+                  value={cpuBenchmark ? toGaugeValue(cpuBenchmark.score, GAUGE_SCALE_MAX.CPU) : 0}
                   displayValue={cpuBenchmark ? formatMark(cpuBenchmark.score) : '—'}
                   label={`${t('chat.build.category.cpu')} ${t('chat.build.benchmark')}`}
                   hint={t('chat.build.detailGaugeScale')}
@@ -477,9 +472,7 @@ export function BuildDetailDrawer({
               </div>
               <div className="min-w-0 flex-1">
                 <BuildGauge
-                  value={
-                    gpuBenchmark ? toGaugeValue(gpuBenchmark.score, GAUGE_SCALE_MAX.GPU) : 0
-                  }
+                  value={gpuBenchmark ? toGaugeValue(gpuBenchmark.score, GAUGE_SCALE_MAX.GPU) : 0}
                   displayValue={gpuBenchmark ? formatMark(gpuBenchmark.score) : '—'}
                   label={`${t('chat.build.category.gpu')} ${t('chat.build.benchmark')}`}
                   hint={t('chat.build.detailGaugeScale')}
@@ -489,14 +482,11 @@ export function BuildDetailDrawer({
 
             <div className="min-w-0 flex-1">
               <ScoreSemicircle
-                value={passRate ?? 0}
-                displayValue={passRate === null ? '—' : `${Math.round(passRate)}%`}
-                title={t('chat.build.detailPassRate')}
-                subtitle={t('chat.build.detailPassSubtitle', {
-                  count: checks.length,
-                  passed: passedCount,
-                })}
-                hint={t('chat.build.detailChecks')}
+                value={DEMO_OVERALL_SCORE}
+                displayValue={String(DEMO_OVERALL_SCORE)}
+                title={t('chat.build.detailOverallScore')}
+                subtitle={t('chat.build.detailOverallScoreSubtitle')}
+                hint={t('chat.build.detailOverallScoreHint')}
               />
             </div>
 
@@ -515,10 +505,10 @@ export function BuildDetailDrawer({
               </div>
               <div className="min-w-0 flex-1">
                 <BuildGauge
-                  value={remainingRatio ?? 0}
-                  displayValue={remainingRatio === null ? '—' : `${Math.round(remainingRatio)}%`}
-                  label={t('chat.build.detailRemaining')}
-                  hint={t('chat.build.detailRemainingHint')}
+                  value={toGaugeValue(DEMO_POWER_WATTS, DEMO_PSU_WATTS)}
+                  displayValue={`${DEMO_POWER_WATTS}W`}
+                  label={t('chat.build.detailPower')}
+                  hint={t('chat.build.detailPowerHint', { psu: DEMO_PSU_WATTS })}
                 />
               </div>
             </div>

@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next'
-import { ExternalLink } from 'lucide-react'
 
 import type { BuildComponent } from '@/features/sessions/api'
 import { cn } from '@/shared/lib/utils'
@@ -14,7 +13,7 @@ export interface BuildHardwareTableProps {
 /**
  * 硬件清单表：类型 / 图片 / 产品 / 型号。
  *
- * 价格与未核验标识已按产品要求移除（价格只在汇总卡与预算模块展示）。
+ * 价格、未核验标识与购买跳转已按产品要求移除（价格只在汇总卡与预算模块展示）。
  * 列宽统一交给 colgroup，表头与单元格共用同一套网格，任何容器宽度下都严格对齐。
  */
 export function BuildHardwareTable({ components }: BuildHardwareTableProps) {
@@ -94,18 +93,6 @@ export function BuildHardwareTable({ components }: BuildHardwareTableProps) {
                   >
                     {hasModel ? component.modelName : t('chat.build.emptyModel')}
                   </span>
-                  {component.purchaseUrl ? (
-                    <a
-                      href={component.purchaseUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={t('chat.build.buy')}
-                      title={component.platform ?? t('chat.build.buy')}
-                      className="shrink-0 text-muted-foreground transition-colors hover:text-clay"
-                    >
-                      <ExternalLink className="size-3" aria-hidden="true" />
-                    </a>
-                  ) : null}
                   {mock ? (
                     <Badge className="shrink-0 border border-warning/40 bg-warning/10 px-1 text-[9px] leading-tight text-warning">
                       {t('chat.build.demoTag')}

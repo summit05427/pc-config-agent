@@ -62,7 +62,7 @@ describe('BuildResultCard', () => {
     expect(link).toHaveAttribute('rel', 'noopener noreferrer')
   })
 
-  it('点击配置详情打开弹窗，逐件展示参数、跑分、价格与购买链接', async () => {
+  it('点击配置详情打开弹窗，逐件展示参数、跑分与价格，不再提供购买跳转', async () => {
     const user = userEvent.setup()
     render(
       <BuildResultCard
@@ -96,10 +96,8 @@ describe('BuildResultCard', () => {
     expect(within(dialog).getAllByText('¥7,999.00').length).toBeGreaterThan(0)
     expect(within(dialog).getByRole('button', { name: /查看详情/ })).toBeVisible()
 
-    const gpuLinks = within(dialog)
-      .getAllByRole('link', { name: /去购买/ })
-      .map((link) => link.getAttribute('href'))
-    expect(gpuLinks).toContain('https://shop.example.com/gpu')
+    // 产品要求：硬件清单只保留型号信息，购买跳转已从抽屉移除
+    expect(within(dialog).queryByRole('link', { name: /去购买/ })).toBeNull()
   })
 
   it('MOCK_DEMO 时顶部显著标注演示价，并给出行内标识', () => {

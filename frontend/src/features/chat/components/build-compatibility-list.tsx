@@ -134,8 +134,9 @@ export function BuildCompatibilityList({ checks, heading = true }: BuildCompatib
       </div>
 
       {/* 规则与说明共用一块可滚动区域：内容少时贴顶排，内容多时整体滚动，
-          避免规则列表 flex-1 把说明顶到卡片最底部、中间留出大块空白 */}
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-1">
+          避免规则列表 flex-1 把说明顶到卡片最底部、中间留出大块空白；
+          滚动条隐藏（仍可滚动），避免窄列里滚动条挤占条目宽度 */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <ul className="grid grid-cols-1 content-start gap-1.5 @min-[380px]:grid-cols-2">
           {visibleChecks.map((check, index) => {
             const statusIcon = STATUS_ICONS[check.status]

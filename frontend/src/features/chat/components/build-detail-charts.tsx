@@ -128,7 +128,7 @@ export function BudgetAllocationChart({ items }: { readonly items: readonly Budg
 }
 
 /* ------------------------------------------------------------------ */
-/* 预算结构雷达图                                                       */
+/* 性能画像雷达图                                                       */
 /* ------------------------------------------------------------------ */
 
 const RADAR_SIZE = 220
@@ -154,17 +154,17 @@ const polygonPoints = (values: readonly number[], max: number): string =>
 export interface RadarAxis {
   readonly key: string
   readonly label: string
-  /** 真实占比（0-100），标签直接展示该值 */
+  /** 0-100 的评分，只决定雷达形状，不在标签上展示数值 */
   readonly value: number
 }
 
 /**
- * 预算结构雷达：轴为硬件品类，值为该品类占总价比例。
+ * 性能画像雷达：轴为性能维度（CPU / GPU / 内存带宽 / 存储等），值为 0-100 评分。
  *
  * 视觉对照参考实现 RadarChart.vue：交替底色环带（splitArea）、
- * 轴线/网格弱化、数据面用径向渐隐 + 描边，轴标签同时给出数值避免误读。
+ * 轴线/网格弱化、数据面用径向渐隐 + 描边；轴标签只保留维度名。
  */
-export function BudgetRadarChart({ axes }: { readonly axes: readonly RadarAxis[] }) {
+export function PerformanceRadarChart({ axes }: { readonly axes: readonly RadarAxis[] }) {
   const gradientId = useSvgId('build-radar')
   const maxValue = Math.max(10, ...axes.map((axis) => axis.value))
   const scaleMax = Math.min(100, Math.ceil(maxValue / 10) * 10)
@@ -172,7 +172,7 @@ export function BudgetRadarChart({ axes }: { readonly axes: readonly RadarAxis[]
     axes.map((axis) => axis.value),
     scaleMax,
   )
-  const description = axes.map((axis) => `${axis.label} ${axis.value.toFixed(1)}%`).join('，')
+  const description = axes.map((axis) => axis.label).join('，')
 
   if (axes.length < 3) {
     return <p className="text-xs text-muted-foreground">—</p>
@@ -254,7 +254,7 @@ export function BudgetRadarChart({ axes }: { readonly axes: readonly RadarAxis[]
           return <circle key={axis.key} cx={cx} cy={cy} r={2.2} fill="var(--cds-clay)" />
         })}
 
-        {/* 轴名 + 真实占比：标签放在多边形外侧，按方位调整对齐 */}
+        {/* 轴名：标签放在多边形外侧，按方位调整对齐 */}
         {axes.map((axis, index) => {
           const angle = (360 / axes.length) * index
           const [x, y] = toPoint(angle, RADAR_LABEL_RADIUS)
@@ -267,13 +267,10 @@ export function BudgetRadarChart({ axes }: { readonly axes: readonly RadarAxis[]
               y={y}
               textAnchor={isRight ? 'start' : isLeft ? 'end' : 'middle'}
               dominantBaseline="middle"
-              fontSize={9.5}
+              fontSize={10}
               fill="var(--muted-foreground)"
             >
-              <tspan>{axis.label}</tspan>
-              <tspan x={x} dy="10.5" fontSize={9} fill="var(--foreground)">
-                {axis.value.toFixed(1)}%
-              </tspan>
+              {axis.label}
             </text>
           )
         })}
@@ -372,12 +369,7 @@ export function BuildGauge({ value, displayValue, label, hint }: BuildGaugeProps
           {Array.from({ length: 41 }, (_, index) => {
             const angle = GAUGE_START_DEG + (GAUGE_SWEEP_DEG / 40) * index
             const isMajor = index % 4 === 0
-            const outerPoint = polarPoint(
-              GAUGE_CENTER,
-              GAUGE_CENTER,
-              angle,
-              GAUGE_TICK_RADIUS,
-            )
+            const outerPoint = polarPoint(GAUGE_CENTER, GAUGE_CENTER, angle, GAUGE_TICK_RADIUS)
             const innerPoint = polarPoint(
               GAUGE_CENTER,
               GAUGE_CENTER,
@@ -418,13 +410,7 @@ export function BuildGauge({ value, displayValue, label, hint }: BuildGaugeProps
         {/* ④ 外侧高亮弧：比进度弧更细、更靠外，形成双层描边 */}
         {clamped > 0 ? (
           <path
-            d={describeArc(
-              GAUGE_CENTER,
-              GAUGE_CENTER,
-              GAUGE_OUTER_RADIUS,
-              GAUGE_START_DEG,
-              sweep,
-            )}
+            d={describeArc(GAUGE_CENTER, GAUGE_CENTER, GAUGE_OUTER_RADIUS, GAUGE_START_DEG, sweep)}
             fill="none"
             stroke={`url(#${outerId})`}
             strokeWidth={GAUGE_OUTER_WIDTH}
@@ -435,13 +421,7 @@ export function BuildGauge({ value, displayValue, label, hint }: BuildGaugeProps
         {/* ③ 进度弧 */}
         {clamped > 0 ? (
           <path
-            d={describeArc(
-              GAUGE_CENTER,
-              GAUGE_CENTER,
-              GAUGE_ARC_RADIUS,
-              GAUGE_START_DEG,
-              sweep,
-            )}
+            d={describeArc(GAUGE_CENTER, GAUGE_CENTER, GAUGE_ARC_RADIUS, GAUGE_START_DEG, sweep)}
             fill="none"
             stroke={`url(#${gradientId})`}
             strokeWidth={GAUGE_ARC_WIDTH}
@@ -449,8 +429,19 @@ export function BuildGauge({ value, displayValue, label, hint }: BuildGaugeProps
         ) : null}
 
         {/* 中心暗盘 + 细环：衬托读数，避免数字直接压在背景上 */}
-        <circle cx={GAUGE_CENTER} cy={GAUGE_CENTER} r={GAUGE_DISC_RADIUS} fill="var(--cds-clay)" fillOpacity="0.06" />
-        <circle cx={GAUGE_CENTER} cy={GAUGE_CENTER} r={GAUGE_DISC_RADIUS} fill={`url(#${discId})`} />
+        <circle
+          cx={GAUGE_CENTER}
+          cy={GAUGE_CENTER}
+          r={GAUGE_DISC_RADIUS}
+          fill="var(--cds-clay)"
+          fillOpacity="0.06"
+        />
+        <circle
+          cx={GAUGE_CENTER}
+          cy={GAUGE_CENTER}
+          r={GAUGE_DISC_RADIUS}
+          fill={`url(#${discId})`}
+        />
         <circle
           cx={GAUGE_CENTER}
           cy={GAUGE_CENTER}
