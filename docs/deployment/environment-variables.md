@@ -23,6 +23,7 @@
 | --- | --- | --- |
 | `COMPOSE_PROJECT_NAME` | `pc-config-advisor` | 决定容器、数据卷与网络前缀；多项目并行必须唯一 |
 | `IMAGE_PREFIX` | `pc-config-advisor` | 本地镜像 tag 前缀 |
+| `WEB_BIND` | `0.0.0.0` | 前端容器在宿主机上的监听地址。服务器前置 Nginx 时必须设为 `127.0.0.1`，因为 Docker 发布端口绕过 ufw |
 | `WEB_PORT` | `8088` | 宿主机端口，映射 Nginx 80 |
 | `BACKEND_PORT` / `AGENT_PORT` | `8080` / `8000` | Java / Agent 宿主机端口 |
 | `POSTGRES_PORT` / `AGENT_POSTGRES_PORT` / `REDIS_PORT` | `15432` / `15433` / `16379` | 宿主机端口 |
