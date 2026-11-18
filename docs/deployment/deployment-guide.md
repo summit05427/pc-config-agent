@@ -614,3 +614,81 @@ curl -s  http://<域名>/api/v1/auth/me          # 未登录应为 401
 - [ ] 保留上一版本的 `.env`、`docker-compose.yml` 与镜像（`docker save` 或独立 tag）。
 - [ ] 明确回滚命令：切回旧镜像/旧提交 → `docker compose --profile full up -d` → `docker compose restart frontend`。
 - [ ] 回滚后重复 9.5 冒烟；数据库变更遵循「先扩展、后收缩」，旧镜像必须能连当前库。
+
+---
+
+## 10. 生产部署实录（单机 + 宿主机 Nginx）
+
+适用场景：单台云服务器，80/443 已被宿主机 Nginx（如宝塔）占用，且服务器无法直连 Docker Hub。本节记录一次真实上线中验证过的做法，与第 3 节的通用 Compose 流程互补。
+
+调用链：
+
+```text
+外部 443 → 宿主机 Nginx（终止 TLS）→ 127.0.0.1:8088
+          → frontend 容器 Nginx → /api/  application-service:8080
+                                 → /agent/ agent-service:8000
+                                 → /admin/ admin:80
+```
+
+### 10.1 与本地不同的开关
+
+| 变量 | 生产值 | 原因 |
+| --- | --- | --- |
+| `WEB_BIND` | `127.0.0.1` | Docker 发布端口会绕过 ufw，必须靠绑定地址收敛到回环，由宿主机 Nginx 反代 |
+| `WEB_PORT` | `8088` | 80/443 已被宿主机 Nginx 占用 |
+| `APP_ENV` / `SPRING_PROFILES_ACTIVE` | `prod` | 触发生产校验并关闭 dev-token |
+| `AUTH_COOKIE_SECURE` | `true` | 刷新 Cookie 只在 HTTPS 下发送，否则 `ProdConfigGuard` 拒绝启动 |
+| `CORS_ALLOWED_ORIGINS` | `https://<你的域名>` | 同源部署可留空；显式填写便于排查 |
+| `MODEL_MANAGED_ENABLED` | `false` | 纯 BYOK：平台不代付模型费用，用户自备密钥 |
+
+纯 BYOK 部署同时清空 `LLM_API_KEY`、`QWEN_API_KEY` 等平台侧 Provider 密钥，网关不再持有任何平台凭证。
+
+### 10.2 镜像传输（服务器拉不到 Docker Hub 时）
+
+```bash
+# 本机：导出并压缩（一次可含多个镜像）
+docker save -o pcimg.tar <image1> <image2> ...
+tar -czf pcimg.tar.gz pcimg.tar
+
+# 上传放在后台执行，避免前台超时
+scp pcimg.tar.gz ubuntu@<host>:/opt/<project>/
+
+# 服务器：解包后载入
+cd /opt/<project> && tar -xzf pcimg.tar.gz && docker load -i pcimg.tar
+```
+
+- 不要把大包放 `/tmp`：不少云主机 `/tmp` 是 tmpfs（常见 1–2GB），会中途写满报 `Wrote only N bytes`。
+- `scp` 中断后可用 `rsync --append` 续传；没有 rsync 时按已传字节数切分剩余部分再 `cat` 追加。
+- `docker save` 的产物再加一层 `tar -czf` 会形成双层包，服务器要先 `tar -xzf` 再 `docker load -i`，直接 `gunzip -c | docker load` 会报 `unrecognized image format`。
+
+### 10.3 宿主机 Nginx 反代要点
+
+- 80 端口保留 `/.well-known/acme-challenge/`（证书续期），其余请求 301 到 HTTPS。
+- 443 的 `location /` 用 `proxy_pass http://127.0.0.1:${WEB_PORT}`，并透传 `Host`、`X-Real-IP`、`X-Forwarded-For`、`X-Forwarded-Proto`。
+- SSE 必须覆盖三项：`proxy_buffering off`、`proxy_cache off`、`proxy_read_timeout 3600s`，再加 `add_header X-Accel-Buffering no`；否则流式输出会被缓冲或在 60 秒被掐断。
+- 改配置前先备份 vhost，`nginx -t` 通过后再 `reload`。
+
+### 10.4 首次上线最容易踩的三个点
+
+1. **管理员口令只在建号时生效**：`AUTH_ADMIN_PASSWORD` 仅用于首次创建账号（PG 已有该用户时 seeder 直接跳过）。之后改口令要走 `PUT /api/v1/users/me/password`，改 `.env` 不会生效。
+2. **纯 BYOK 模式下 `/api/v1/models` 恒为空是预期**：该接口只返回平台托管模型。用户可见模型看 `/api/v2/models`；未接入 BYOK 连接时发起对话返回 `403 model_not_available`。
+3. **重建 `application-service` 后前端会 502**：前端容器 Nginx 启动时缓存了上游容器 IP，Java 重建后 IP 变化即指向旧地址。执行 `docker compose restart frontend` 即可恢复，回滚流程同样需要这一步。
+
+### 10.5 上线最小验收
+
+```bash
+# 站点与容器内健康检查
+curl -s -o /dev/null -w '%{http_code}\n' https://<域名>/healthz
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8000/api/v1/health/ready
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/actuator/health
+
+# 登录与鉴权链路（令牌只放变量，不落日志）
+curl -s -X POST https://<域名>/api/v1/auth/login -H 'Content-Type: application/json' \
+  -d '{"username":"<admin>","password":"<password>"}'
+curl -s -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $TOKEN" https://<域名>/api/v2/models
+
+# SSE：确认事件能持续到达（--max-time 到点退出，看 event 计数）
+curl -sN --max-time 60 -X POST https://<域名>/agent/api/v1/chat/stream \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"message":"你好","thread_id":"smoke-1"}' | grep -c '^event:'
+```

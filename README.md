@@ -79,6 +79,12 @@ agent-project-template/
 - [跨端开发规则](docs/development-rules.md)：变更影响矩阵、验证命令与评审要求
 - [文档管理规范](docs/documentation-governance.md)：文档分类、目录命名、状态标注与变更流程
 
+## 模型密钥（BYOK）
+
+- 整栈默认是**纯 BYOK**：`MODEL_MANAGED_ENABLED=false`，平台不代付模型调用费用。
+- 登录后在用户端「设置 → 模型与密钥」接入 Provider 并填入自己的 API Key，模型才会出现在选择器里；未接入时发起对话返回 `403 model_not_available`。
+- 若要让平台统一托管密钥，需同时设置 `MODEL_MANAGED_ENABLED=true` 并提供 `LLM_API_KEY`（或对应 Provider 密钥），此时 `/api/v1/models` 才会返回托管模型。
+
 ## 安全提示
 
 - `.env`、各服务的真实 env 文件、日志与构建产物均已被忽略，禁止提交。
