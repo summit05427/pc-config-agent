@@ -457,7 +457,8 @@ services:
       ADMIN_UPSTREAM: http://admin:80
       TZ: Asia/Shanghai
     ports:
-      - "${WEB_PORT:-80}:80"
+      # 生产用 WEB_BIND=127.0.0.1 收敛到回环，由宿主机 Nginx 反代；Docker 会绕过 ufw，别指望本机防火墙兜底
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-80}:80"
     depends_on:
       application-service:
         condition: service_healthy
