@@ -206,16 +206,18 @@ class PostgresSessionStore:
             return
 
         async with self._pool.connection() as connection:
+            # 顺序敏感：先建表再 ALTER。ADD_BUILD_RESULT/ADD_METADATA 作用于 session_messages，
+            # 排在 CREATE_MESSAGES_TABLE 之前时，全新库启动即报表不存在（存量库看不出）。
             for statement in (
                 CREATE_META_TABLE_SQL,
                 CREATE_META_INDEX_SQL,
                 ADD_MODEL_KEY_COLUMN_SQL,
                 ADD_PINNED_COLUMN_SQL,
                 ADD_ARCHIVED_COLUMN_SQL,
+                CREATE_MESSAGES_TABLE_SQL,
                 ADD_BUILD_RESULT_COLUMN_SQL,
                 ADD_METADATA_COLUMN_SQL,
                 CREATE_META_ORDER_INDEX_SQL,
-                CREATE_MESSAGES_TABLE_SQL,
                 CREATE_MESSAGES_INDEX_SQL,
             ):
                 await connection.execute(statement)
